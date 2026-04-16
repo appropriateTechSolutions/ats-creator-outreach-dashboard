@@ -343,11 +343,21 @@ export default function CampaignDetail() {
                       <div className="bg-surface-container-lowest p-5 rounded-2xl">
                         <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">Score Breakdown</h4>
                         {lead.scoring_notes?.initial_breakdown ? (
-                          <div className="space-y-2">
-                            {Object.entries(lead.scoring_notes.initial_breakdown).map(([key, val]) => (
-                              <div key={key} className="flex justify-between items-center">
-                                <span className="text-xs text-on-surface-variant capitalize">{key.replace(/_/g, ' ')}</span>
-                                <span className="text-xs font-bold">{val as number}</span>
+                          <div className="space-y-4">
+                            {Object.entries(lead.scoring_notes.initial_breakdown).map(([platform, data]: [string, any]) => (
+                              <div key={platform} className="border-b border-surface-container last:border-b-0 pb-3 last:pb-0">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{platform} Score</span>
+                                  <span className="text-sm font-black text-primary">{data.score || 0}</span>
+                                </div>
+                                <div className="space-y-1 pl-2 border-l-2 border-primary/20">
+                                  {data.breakdown && Object.entries(data.breakdown).map(([key, val]) => (
+                                    <div key={key} className="flex justify-between items-center">
+                                      <span className="text-[10px] text-on-surface-variant capitalize">{key.replace(/_/g, ' ')}</span>
+                                      <span className="text-[10px] font-bold">+{val as number}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             ))}
                           </div>
