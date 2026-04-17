@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { login } from '../lib/api'
+import type { AuthUser } from '../types'
 
 interface LoginPageProps {
-  onLogin: (user: { full_name: string; email: string; role: string }, token: string) => void
+  onLogin: (user: AuthUser, token: string) => void
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {

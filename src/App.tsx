@@ -8,21 +8,20 @@ import { getMe, logout } from './lib/api'
 import type { AuthUser } from './types'
 
 export default function App() {
+  const existingToken = localStorage.getItem('ats_token')
   const [user, setUser] = useState<AuthUser | null>(null)
-  const [checking, setChecking] = useState(true)
+  const [checking, setChecking] = useState(Boolean(existingToken))
 
   useEffect(() => {
-    // Check if already logged in
-    const token = localStorage.getItem('ats_token')
-    if (token) {
-      getMe()
-        .then((u) => setUser(u))
-        .catch(() => localStorage.removeItem('ats_token'))
-        .finally(() => setChecking(false))
-    } else {
-      setChecking(false)
+    if (!existingToken) {
+      return
     }
-  }, [])
+
+    getMe()
+      .then((u) => setUser(u))
+      .catch(() => localStorage.removeItem('ats_token'))
+      .finally(() => setChecking(false))
+  }, [existingToken])
 
   const handleLogin = (u: AuthUser, token: string) => {
     localStorage.setItem('ats_token', token)

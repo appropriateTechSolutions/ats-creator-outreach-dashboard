@@ -1,27 +1,213 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import type { Campaign, Creator } from '../types'
-import { getCampaignById, getCampaignLeads, triggerDiscovery, bookMeeting, approvePartner, reviewLead, sendCampaignOutreach } from '../lib/api'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import CampaignForm from '../components/CampaignForm'
+import {
+  approvePartner,
+  bookMeeting,
+  getCampaignById,
+  getCampaignLeads,
+  reviewLead,
+  sendCampaignOutreach,
+  triggerDiscovery,
+  updateCampaign,
+} from '../lib/api'
+import type { Campaign, CampaignFormData, Creator, CreatorScoreDetails, Meeting, MessagePreview, OutreachLog } from '../types'
 
-function scoreColor(score: number): string {
-  if (score >= 70) return 'text-secondary bg-secondary/10'
-  if (score >= 40) return 'text-primary bg-primary/10'
-  if (score >= 20) return 'text-tertiary bg-tertiary/10'
-  return 'text-error bg-error-container/30'
+interface ActivityItem {
+  id: string
+  leadId: string
+  handle: string
+  kind: 'reply' | 'outreach'
+  title: string
+  subtitle: string
+  occurredAt: number
+  preview: MessagePreview
+  toneClass: string
 }
 
-function statusBadge(lead: Creator) {
-  if (lead.affiliate) return <span className="px-2 py-0.5 rounded-md bg-secondary/10 text-secondary text-[11px] font-bold">✅ Converted</span>
-  if (lead.conversation?.latest_inbound_message) {
-    const intent = lead.conversation.detected_intent
-    if (intent === 'interested') return <span className="px-2 py-0.5 rounded-md bg-secondary text-white text-[11px] font-bold">🌟 Interested</span>
-    if (intent === 'not_interested') return <span className="px-2 py-0.5 rounded-md bg-error text-white text-[11px] font-bold">✗ Not Interested</span>
-    return <span className="px-2 py-0.5 rounded-md bg-primary text-white text-[11px] font-bold">📩 Replied</span>
+function normalizeHandle(handle: string): string {
+  return handle.replace(/^@+/, '').trim()
+}
+
+function getInstagramUrl(handle: string): string {
+  return `https://www.instagram.com/${normalizeHandle(handle)}/`
+}
+
+function getYoutubeUrl(handle: string): string {
+  return `https://www.youtube.com/@${normalizeHandle(handle)}`
+}
+
+function scoreTone(score: number): string {
+  if (score >= 70) return 'border-secondary/20 bg-secondary/5 text-secondary'
+  if (score >= 40) return 'border-primary/20 bg-primary/5 text-primary'
+  if (score >= 20) return 'border-tertiary/20 bg-tertiary/5 text-tertiary'
+  return 'border-error/20 bg-error-container/40 text-error'
+}
+
+function hasSentOutreach(lead: Creator): boolean {
+  return lead.outreach_logs?.some((log) => log.delivery_status === 'sent') ?? false
+}
+
+function getLatestMeeting(lead: Creator): Meeting | null {
+  if (!lead.meetings?.length) return null
+
+  return [...lead.meetings].sort(
+    (a, b) => new Date(b.meeting_date || b.created_at).getTime() - new Date(a.meeting_date || a.created_at).getTime(),
+  )[0]
+}
+
+function getPlatformSummary(lead: Creator): string {
+  const platforms = []
+
+  if (lead.has_instagram) platforms.push('Instagram')
+  if (lead.has_youtube) platforms.push('YouTube')
+  if (lead.has_tiktok) platforms.push('TikTok')
+
+  return platforms.length > 0 ? platforms.join(', ') : 'No platforms available'
+}
+
+function getCampaignKeywords(keywords?: Campaign['keywords']): string[] {
+  if (Array.isArray(keywords)) return keywords
+  if (typeof keywords !== 'string') return []
+
+  return keywords
+    .split(',')
+    .map((keyword) => keyword.trim())
+    .filter(Boolean)
+}
+
+function getLeadStage(lead: Creator): { label: string; tone: string; priority: number; nextAction: string } {
+  const latestMeeting = getLatestMeeting(lead)
+  const hasReply = Boolean(lead.conversation?.latest_inbound_message)
+  const contacted = hasSentOutreach(lead)
+
+  if (lead.affiliate) {
+    return {
+      label: 'Converted',
+      tone: 'status-chip border-secondary/20 bg-secondary/5 text-secondary',
+      priority: 6,
+      nextAction: 'Monitor affiliate performance',
+    }
   }
-  if (lead.outreach_logs?.some(l => l.delivery_status === 'sent')) return <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[11px] font-bold">📧 Contacted</span>
-  if (lead.review_status === 'approved') return <span className="px-2 py-0.5 rounded-md bg-secondary/10 text-secondary text-[11px] font-bold">✓ Approved</span>
-  if (lead.review_status === 'rejected') return <span className="px-2 py-0.5 rounded-md bg-error/10 text-error text-[11px] font-bold">✗ Rejected</span>
-  return <span className="px-2 py-0.5 rounded-md bg-outline/10 text-outline text-[11px] font-bold">Pending Review</span>
+
+  if (latestMeeting?.outcome === 'pending') {
+    return {
+      label: 'Awaiting approval',
+      tone: 'status-chip border-tertiary/20 bg-tertiary/5 text-tertiary',
+      priority: 4,
+      nextAction: 'Review the meeting outcome',
+    }
+  }
+
+  if (hasReply && lead.conversation?.detected_intent === 'interested') {
+    return {
+      label: 'Interested',
+      tone: 'status-chip border-secondary/20 bg-secondary/5 text-secondary',
+      priority: 2,
+      nextAction: latestMeeting ? 'Meeting already booked' : 'Book a meeting',
+    }
+  }
+
+  if (hasReply) {
+    return {
+      label: 'Replied',
+      tone: 'status-chip border-primary/20 bg-primary/5 text-primary',
+      priority: 3,
+      nextAction: 'Review the latest reply',
+    }
+  }
+
+  if (contacted) {
+    return {
+      label: 'Contacted',
+      tone: 'status-chip border-primary/20 bg-primary/5 text-primary',
+      priority: 3,
+      nextAction: 'Wait for a reply',
+    }
+  }
+
+  if (lead.review_status === 'approved') {
+    return {
+      label: 'Approved',
+      tone: 'status-chip border-secondary/20 bg-secondary/5 text-secondary',
+      priority: lead.email ? 1 : 2,
+      nextAction: lead.email ? 'Ready for outreach' : 'Missing email',
+    }
+  }
+
+  if (lead.review_status === 'rejected') {
+    return {
+      label: 'Rejected',
+      tone: 'status-chip border-error/20 bg-error-container/40 text-error',
+      priority: 5,
+      nextAction: 'No further action required',
+    }
+  }
+
+  return {
+    label: 'Pending review',
+    tone: 'status-chip border-outline-variant bg-surface-container-low text-on-surface-variant',
+    priority: 0,
+    nextAction: 'Approve or reject this lead',
+  }
+}
+
+function getLeadPriority(lead: Creator): number {
+  return getLeadStage(lead).priority
+}
+
+function getScoreDetails(lead: Creator): Array<[string, CreatorScoreDetails]> {
+  return Object.entries(lead.scoring_notes?.initial_breakdown || {}) as Array<[string, CreatorScoreDetails]>
+}
+
+function getActivityItems(leads: Creator[]): ActivityItem[] {
+  const items: ActivityItem[] = []
+
+  leads.forEach((lead) => {
+    if (lead.conversation?.latest_inbound_message) {
+      items.push({
+        id: `reply-${lead.id}`,
+        leadId: lead.id,
+        handle: lead.handle,
+        kind: 'reply',
+        title: `Reply from @${lead.handle}`,
+        subtitle: lead.conversation.detected_intent ? `Intent: ${lead.conversation.detected_intent.replace(/_/g, ' ')}` : 'Inbound message received',
+        occurredAt: lead.conversation.latest_inbound_at ? new Date(lead.conversation.latest_inbound_at).getTime() : 0,
+        preview: {
+          channel: 'email',
+          delivery_status: 'received',
+          subject_line: 'Inbound reply',
+          message_content: lead.conversation.latest_inbound_message,
+        },
+        toneClass: 'border-secondary/20 bg-secondary/5 text-secondary',
+      })
+    }
+
+    lead.outreach_logs?.forEach((log: OutreachLog) => {
+      items.push({
+        id: log.id,
+        leadId: lead.id,
+        handle: lead.handle,
+        kind: 'outreach',
+        title: `${log.channel} update for @${lead.handle}`,
+        subtitle: `Delivery status: ${log.delivery_status.replace(/_/g, ' ')}`,
+        occurredAt: new Date(log.sent_at || log.created_at).getTime(),
+        preview: {
+          channel: log.channel,
+          delivery_status: log.delivery_status,
+          subject_line: log.subject_line,
+          message_content: log.message_content || null,
+        },
+        toneClass: log.delivery_status === 'sent' ? 'border-primary/20 bg-primary/5 text-primary' : 'border-error/20 bg-error-container/40 text-error',
+      })
+    })
+  })
+
+  return items.sort((a, b) => b.occurredAt - a.occurredAt)
+}
+
+function scrollToSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 export default function CampaignDetail() {
@@ -38,17 +224,23 @@ export default function CampaignDetail() {
   const [meetingNotes, setMeetingNotes] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [toast, setToast] = useState('')
-  const [selectedLog, setSelectedLog] = useState<any>(null)
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const campaignKeywords = useMemo(() => getCampaignKeywords(campaign?.keywords), [campaign?.keywords])
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 4000) }
+  const showToast = (message: string) => {
+    setToast(message)
+    window.setTimeout(() => setToast(''), 4000)
+  }
 
   const loadData = useCallback(async () => {
     if (!id) return
+
     try {
       setLoading(true)
-      const [camp, lds] = await Promise.all([getCampaignById(id), getCampaignLeads(id)])
-      setCampaign(camp)
-      setLeads(lds)
+      const [campaignData, leadData] = await Promise.all([getCampaignById(id), getCampaignLeads(id)])
+      setCampaign(campaignData)
+      setLeads(leadData)
     } catch (err) {
       console.error('Failed to load campaign data:', err)
     } finally {
@@ -56,17 +248,49 @@ export default function CampaignDetail() {
     }
   }, [id])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  const reviewQueue = [...leads].sort(
+    (a, b) => getLeadPriority(a) - getLeadPriority(b) || (Number(b.outreach_readiness_score) || 0) - (Number(a.outreach_readiness_score) || 0),
+  )
+  const approvedLeads = leads.filter((lead) => lead.review_status === 'approved')
+  const approvedReadyForOutreach = approvedLeads.filter((lead) => lead.email && !hasSentOutreach(lead))
+  const interestedAwaitingMeeting = leads.filter(
+    (lead) => lead.conversation?.detected_intent === 'interested' && !getLatestMeeting(lead) && !lead.affiliate,
+  )
+  const activityItems = getActivityItems(leads)
+  const selectedActivity = activityItems.find((item) => item.id === selectedActivityId) || activityItems[0] || null
+  const needsBooking = interestedAwaitingMeeting
+  const awaitingApproval = leads.filter((lead) => {
+    const meeting = getLatestMeeting(lead)
+    return Boolean(meeting && meeting.outcome === 'pending' && !lead.affiliate)
+  })
+  const converted = leads.filter((lead) => Boolean(lead.affiliate))
+
+  useEffect(() => {
+    if (!selectedActivityId && activityItems.length > 0) {
+      setSelectedActivityId(activityItems[0].id)
+      return
+    }
+
+    if (selectedActivityId && !activityItems.some((item) => item.id === selectedActivityId)) {
+      setSelectedActivityId(activityItems[0]?.id || null)
+    }
+  }, [activityItems, selectedActivityId])
 
   const handleDiscover = async () => {
     if (!campaign || !id) return
+
     setDiscovering(true)
     try {
-      await triggerDiscovery(campaign.category, campaign.city, id)
-      showToast('🔍 AI Discovery triggered! Leads will appear shortly...')
-      setTimeout(() => loadData(), 5000)
+      await triggerDiscovery(campaign.category, campaign.city, id, campaignKeywords)
+      showToast('Discovery started. Refreshing lead data shortly.')
+      window.setTimeout(() => loadData(), 5000)
     } catch (err) {
       console.error('Discovery failed:', err)
+      showToast('Discovery could not be started.')
     } finally {
       setDiscovering(false)
     }
@@ -76,10 +300,11 @@ export default function CampaignDetail() {
     setActionLoading(true)
     try {
       await reviewLead(creatorId, action)
-      showToast(action === 'approve' ? '✅ Lead approved for outreach!' : '❌ Lead rejected')
-      loadData()
+      showToast(action === 'approve' ? 'Lead approved for outreach.' : 'Lead rejected.')
+      await loadData()
     } catch (err) {
       console.error('Review failed:', err)
+      showToast('Lead review failed.')
     } finally {
       setActionLoading(false)
     }
@@ -87,13 +312,14 @@ export default function CampaignDetail() {
 
   const handleOutreach = async () => {
     if (!id) return
+
     setOutreaching(true)
     try {
       const stats = await sendCampaignOutreach(id)
-      showToast(`📧 Outreach complete! Sent: ${stats.sent}, Failed: ${stats.failed}`)
-      loadData()
+      showToast(`Outreach finished. Sent ${stats.sent}. Failed ${stats.failed}.`)
+      await loadData()
     } catch (err: unknown) {
-      showToast(`⚠️ ${err instanceof Error ? err.message : 'Outreach failed'}`)
+      showToast(err instanceof Error ? err.message : 'Outreach failed.')
     } finally {
       setOutreaching(false)
     }
@@ -101,16 +327,18 @@ export default function CampaignDetail() {
 
   const handleBookMeeting = async (creatorId: string) => {
     if (!id || !meetingDate) return
+
     setActionLoading(true)
     try {
       await bookMeeting(creatorId, id, meetingDate, meetingNotes)
       setMeetingModal(null)
       setMeetingDate('')
       setMeetingNotes('')
-      showToast('📅 Meeting booked successfully!')
-      loadData()
+      showToast('Meeting booked.')
+      await loadData()
     } catch (err) {
       console.error('Meeting booking failed:', err)
+      showToast('Meeting booking failed.')
     } finally {
       setActionLoading(false)
     }
@@ -120,10 +348,29 @@ export default function CampaignDetail() {
     setActionLoading(true)
     try {
       await approvePartner(meetingId)
-      showToast('🎉 Partner approved! Affiliate code generated!')
-      loadData()
+      showToast('Partner approved.')
+      await loadData()
     } catch (err) {
       console.error('Approval failed:', err)
+      showToast('Partner approval failed.')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleUpdateCampaign = async (data: CampaignFormData) => {
+    if (!id) return
+
+    try {
+      setActionLoading(true)
+      const updated = await updateCampaign(id, data)
+      setCampaign(updated)
+      setEditOpen(false)
+      showToast('Campaign updated.')
+      await loadData()
+    } catch (err) {
+      console.error('Campaign update failed:', err)
+      showToast('Campaign update failed.')
     } finally {
       setActionLoading(false)
     }
@@ -131,438 +378,529 @@ export default function CampaignDetail() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <span className="material-symbols-outlined text-4xl text-primary animate-spin">progress_activity</span>
+      <div className="page-shell">
+        <div className="panel flex items-center justify-center px-4 py-16 text-on-surface-variant">
+          <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+        </div>
       </div>
     )
   }
 
   if (!campaign) {
     return (
-      <div className="flex flex-col items-center justify-center py-24">
-        <p className="text-lg font-bold mb-4">Campaign not found</p>
-        <button onClick={() => navigate('/')} className="text-primary font-semibold underline">Go Back</button>
+      <div className="page-shell">
+        <div className="panel flex flex-col items-center justify-center px-4 py-16 text-center">
+          <h1 className="section-title">Campaign not found</h1>
+          <button onClick={() => navigate('/')} className="btn-secondary mt-4">
+            Back to campaigns
+          </button>
+        </div>
       </div>
     )
   }
 
-  const approvedCount = leads.filter(l => l.review_status === 'approved').length
-  const contactedCount = leads.filter(l => l.outreach_logs?.some(log => log.delivery_status === 'sent')).length
-
   return (
-    <div className="max-w-[1200px] mx-auto p-6">
-      {/* Toast */}
+    <div className="page-shell pb-24 md:pb-8">
       {toast && (
-        <div className="fixed top-6 right-6 z-[100] bg-surface-container-lowest px-5 py-3 rounded-2xl shadow-xl border border-outline-variant/20 text-sm font-medium animate-[slideIn_0.3s_ease]">
+        <div className="fixed right-4 top-4 z-[100] rounded-lg border border-outline-variant/60 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface shadow-sm">
           {toast}
         </div>
       )}
-
-      {/* Back Button + Header */}
-      <button onClick={() => navigate('/')} className="flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary mb-6 transition-colors">
-        <span className="material-symbols-outlined text-lg">arrow_back</span>
-        All Campaigns
-      </button>
-
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div>
-          <h2 className="font-headline text-3xl font-bold tracking-tight mb-2">{campaign.name}</h2>
-          <div className="flex flex-wrap gap-2">
-            <span className="px-3 py-1 rounded-lg bg-primary/10 text-primary text-xs font-bold">{campaign.category}</span>
-            <span className="px-3 py-1 rounded-lg bg-tertiary/10 text-tertiary text-xs font-bold flex items-center gap-1">
-              <span className="material-symbols-outlined text-xs">location_on</span>
-              {campaign.city}
-            </span>
-            <span className="px-3 py-1 rounded-lg bg-secondary/10 text-secondary text-xs font-bold">{campaign.status}</span>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={handleDiscover}
-            disabled={discovering}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl editorial-gradient text-white text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all shadow-lg disabled:opacity-50"
-          >
-            <span className={`material-symbols-outlined text-lg ${discovering ? 'animate-spin' : ''}`}>
-              {discovering ? 'progress_activity' : 'auto_awesome'}
-            </span>
-            {discovering ? 'Discovering...' : 'Discover'}
-          </button>
-          {approvedCount > 0 && (
-            <button
-              onClick={handleOutreach}
-              disabled={outreaching}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary text-white text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all shadow-lg disabled:opacity-50"
-            >
-              <span className={`material-symbols-outlined text-lg ${outreaching ? 'animate-spin' : ''}`}>
-                {outreaching ? 'progress_activity' : 'send'}
-              </span>
-              {outreaching ? 'Sending...' : 'Send Outreach'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Pipeline Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-8">
-        {[
-          { icon: 'group', label: 'Discovered', value: leads.length, color: 'text-primary' },
-          { icon: 'verified', label: 'Approved', value: approvedCount, color: 'text-secondary' },
-          { icon: 'mail', label: 'Contacted', value: contactedCount, color: 'text-tertiary' },
-          { icon: 'calendar_today', label: 'Meetings', value: leads.reduce((a, l) => a + (l.meetings?.length || 0), 0), color: 'text-primary' },
-          { icon: 'handshake', label: 'Converted', value: leads.filter(l => l.affiliate).length, color: 'text-secondary' },
-        ].map((s) => (
-          <div key={s.label} className="bg-surface-container-lowest p-5 rounded-2xl shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <span className={`material-symbols-outlined text-lg ${s.color}`} style={{ fontVariationSettings: "'FILL' 1" }}>{s.icon}</span>
-              <span className="text-[10px] font-bold text-outline uppercase tracking-widest">{s.label}</span>
+      <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="hidden lg:block">
+          <div className="sticky top-20 space-y-4">
+            <div className="panel p-3">
+              <div className="mb-2 text-sm font-medium text-on-surface">Campaign sections</div>
+              <div className="space-y-1.5">
+                <button onClick={() => scrollToSection('campaign-overview')} className="btn-ghost w-full justify-start !items-start text-left leading-snug">
+                  Overview
+                </button>
+                <button onClick={() => scrollToSection('review-queue')} className="btn-ghost w-full justify-start !items-start text-left leading-snug">
+                  Review queue
+                </button>
+                <button onClick={() => scrollToSection('outreach-activity')} className="btn-ghost w-full justify-start !items-start text-left leading-snug">
+                  Outreach activity
+                </button>
+                <button onClick={() => scrollToSection('meetings-conversions')} className="btn-ghost w-full justify-start !items-start text-left leading-snug">
+                  Meetings and conversions
+                </button>
+              </div>
             </div>
-            <div className="font-headline text-2xl font-bold">{s.value}</div>
           </div>
-        ))}
-      </div>
+        </aside>
 
-      {/* Leads Table */}
-      {leads.length === 0 ? (
-        <div className="bg-surface-container-lowest p-12 rounded-3xl shadow-sm text-center">
-          <span className="material-symbols-outlined text-4xl text-outline mb-4 block">person_search</span>
-          <h3 className="font-headline text-lg font-bold mb-2">No leads discovered yet</h3>
-          <p className="text-sm text-on-surface-variant mb-4">Click "Discover" to run the AI agent and find matched creators.</p>
-        </div>
-      ) : (
-        <div className="bg-surface-container-lowest rounded-3xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-surface-container flex justify-between items-center">
-            <h3 className="font-headline text-lg font-bold">Discovered Leads</h3>
-            <span className="text-xs text-on-surface-variant font-medium">{leads.length} total</span>
-          </div>
+        <div className="min-w-0">
+          <section id="campaign-overview" className="mb-6">
+            <div className="mb-6 flex flex-col gap-4 border-b border-outline-variant/60 pb-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <button onClick={() => navigate('/')} className="btn-ghost mb-3 px-0 py-0 text-on-surface-variant">
+                  <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                  Back to campaigns
+                </button>
 
-          {/* Table Header */}
-          <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 text-[10px] font-bold text-outline uppercase tracking-widest border-b border-surface-container">
-            <div className="col-span-3">Creator</div>
-            <div className="col-span-2">Category</div>
-            <div className="col-span-2 text-center">Platform</div>
-            <div className="col-span-1 text-center">Score</div>
-            <div className="col-span-2">Pipeline</div>
-            <div className="col-span-2 text-right">Actions</div>
-          </div>
-
-          {/* Table Rows */}
-          {leads.map((lead) => {
-            const score = Number(lead.outreach_readiness_score) || 0
-            const isExpanded = expandedLead === lead.id
-            const latestMeeting = lead.meetings?.[0]
-            const isPendingReview = !lead.review_status || lead.review_status === 'pending_review'
-            const isApproved = lead.review_status === 'approved'
-            const isContacted = lead.outreach_logs?.some(l => l.delivery_status === 'sent')
-
-            return (
-              <div key={lead.id} className="border-b border-surface-container last:border-b-0">
-                <div
-                  className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 px-6 py-4 hover:bg-surface-container/30 cursor-pointer transition-colors items-center"
-                  onClick={() => setExpandedLead(isExpanded ? null : lead.id)}
-                >
-                  <div className="col-span-3 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full editorial-gradient flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                      {lead.handle?.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-sm">@{lead.handle}</div>
-                      {lead.full_name && <div className="text-[11px] text-on-surface-variant">{lead.full_name}</div>}
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    {lead.category && <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[11px] font-bold">{lead.category}</span>}
-                  </div>
-                  <div className="col-span-2 flex items-center justify-center gap-3">
-                    {lead.has_instagram && (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="url(#ig-grad)" title="Instagram" className="drop-shadow-sm hover:scale-110 transition-transform">
-                        <defs>
-                          <linearGradient id="ig-grad" x1="0%" y1="100%" x2="100%" y2="0%">
-                            <stop offset="0%" stopColor="#f09433" />
-                            <stop offset="25%" stopColor="#e6683c" />
-                            <stop offset="50%" stopColor="#dc2743" />
-                            <stop offset="75%" stopColor="#cc2366" />
-                            <stop offset="100%" stopColor="#bc1888" />
-                          </linearGradient>
-                        </defs>
-                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
-                      </svg>
-                    )}
-                    {lead.has_youtube && (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#FF0000" title="YouTube" className="drop-shadow-sm hover:scale-110 transition-transform">
-                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                      </svg>
-                    )}
-                    {lead.has_tiktok && (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="#000000" title="TikTok" className="drop-shadow-sm hover:scale-110 transition-transform">
-                        <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 2.22-1.15 4.31-2.91 5.67-1.74 1.35-4.04 1.74-6.13 1.11-2.26-.67-4.04-2.58-4.52-4.88-.47-2.19.06-4.58 1.5-6.27 1.43-1.68 3.59-2.5 5.75-2.43 0 1.34.01 2.68 0 4.02-1.04-.04-2.1.28-2.9.96-.8.67-1.2 1.72-1.15 2.78.05 1.05.62 2.03 1.47 2.58.85.55 1.94.7 2.91.43 1.25-.33 2.18-1.44 2.36-2.74.05-.33.05-.67.05-1.01V.02z"/>
-                      </svg>
-                    )}
-                    {!lead.has_instagram && !lead.has_youtube && !lead.has_tiktok && (
-                      <span className="text-[10px] text-outline italic">N/A</span>
-                    )}
-                  </div>
-                  <div className="col-span-1 text-center">
-                    <span className={`inline-block px-2.5 py-1 rounded-lg text-sm font-bold ${scoreColor(score)}`}>
-                      {Math.round(score)}
+                <h1 className="page-title">{campaign.name}</h1>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="status-chip border-primary/20 bg-primary/5 text-primary">{campaign.status}</span>
+                  <span className="status-chip border-outline-variant bg-surface-container-low text-on-surface">{campaign.category}</span>
+                  <span className="status-chip border-outline-variant bg-surface-container-low text-on-surface">{campaign.city}</span>
+                  {campaignKeywords.map((keyword) => (
+                    <span key={keyword} className="status-chip border-primary/10 bg-primary/5 text-primary">
+                      {keyword}
                     </span>
+                  ))}
+                </div>
+                <p className="section-copy mt-3 max-w-3xl">
+                  {approvedReadyForOutreach.length > 0
+                    ? `${approvedReadyForOutreach.length} approved leads are ready for outreach.`
+                    : reviewQueue.length > 0
+                      ? `${reviewQueue.filter((lead) => getLeadStage(lead).label === 'Pending review').length} leads still need review.`
+                      : 'No leads have been added to this campaign yet.'}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setEditOpen(true)} className="btn-secondary">
+                  <span className="material-symbols-outlined text-[18px]">edit</span>
+                  Edit campaign
+                </button>
+                <button onClick={handleDiscover} disabled={discovering} className="btn-secondary border-primary/20 bg-primary/5 text-primary hover:bg-primary/10">
+                  <span className="material-symbols-outlined text-[18px]">{discovering ? 'progress_activity' : 'search'}</span>
+                  {discovering ? 'Starting discovery' : 'Run discovery again'}
+                </button>
+                {approvedReadyForOutreach.length > 0 && (
+                  <button onClick={handleOutreach} disabled={outreaching} className="btn-primary">
+                    <span className="material-symbols-outlined text-[18px]">{outreaching ? 'progress_activity' : 'send'}</span>
+                    {outreaching ? 'Sending outreach' : 'Send outreach'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="panel p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="section-title">Next actions</h2>
+                  <p className="section-copy mt-1">These counts reflect the queues that currently need operator attention.</p>
+                </div>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-3">
+                <div className="panel-muted px-4 py-4">
+                  <div className="text-sm font-medium text-on-surface">Review queue</div>
+                  <div className="mt-1 text-2xl font-semibold text-on-surface">
+                    {reviewQueue.filter((lead) => getLeadStage(lead).label === 'Pending review').length}
                   </div>
-                  <div className="col-span-2">
-                    {statusBadge(lead)}
-                  </div>
-                  <div className="col-span-2 flex items-center justify-end gap-2">
-                    {isPendingReview && (
-                      <>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleReview(lead.id, 'approve') }}
-                          disabled={actionLoading}
-                          className="px-2 py-1.5 rounded-lg bg-secondary/10 text-secondary text-[10px] font-bold hover:bg-secondary/20 transition-all"
-                        >
-                          ✓ Approve
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleReview(lead.id, 'reject') }}
-                          disabled={actionLoading}
-                          className="px-2 py-1.5 rounded-lg bg-error/10 text-error text-[10px] font-bold hover:bg-error/20 transition-all"
-                        >
-                          ✗ Reject
-                        </button>
-                      </>
-                    )}
-                    {isApproved && !isContacted && !lead.email && (
-                      <span className="text-[10px] text-outline italic">No email</span>
-                    )}
-                    <span className={`material-symbols-outlined text-outline transition-transform ${isExpanded ? 'rotate-180' : ''}`}>expand_more</span>
-                  </div>
+                  <p className="mt-2 text-sm text-on-surface-variant">Leads still waiting for an approve or reject decision.</p>
+                  <button onClick={() => scrollToSection('review-queue')} className="btn-ghost mt-3 px-0">
+                    Open review queue
+                  </button>
                 </div>
 
-                {/* Expanded Detail */}
-                {isExpanded && (
-                  <div className="px-6 pb-6 bg-surface-container/20">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-5 pt-4">
-                      {/* Score Breakdown */}
-                      <div className="bg-surface-container-lowest p-5 rounded-2xl">
-                        <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">Score Breakdown</h4>
-                        {lead.scoring_notes?.initial_breakdown ? (
-                          <div className="space-y-4">
-                            {Object.entries(lead.scoring_notes.initial_breakdown).map(([platform, data]: [string, any]) => (
-                              <div key={platform} className="border-b border-surface-container last:border-b-0 pb-3 last:pb-0">
-                                <div className="flex justify-between items-center mb-2">
-                                  <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{platform} Score</span>
-                                  <span className="text-sm font-black text-primary">{data.score || 0}</span>
-                                </div>
-                                <div className="space-y-1 pl-2 border-l-2 border-primary/20">
-                                  {data.breakdown && Object.entries(data.breakdown).map(([key, val]) => (
-                                    <div key={key} className="flex justify-between items-center">
-                                      <span className="text-[10px] text-on-surface-variant capitalize">{key.replace(/_/g, ' ')}</span>
-                                      <span className="text-[10px] font-bold">+{val as number}</span>
+                <div className="panel-muted px-4 py-4">
+                  <div className="text-sm font-medium text-on-surface">Ready for outreach</div>
+                  <div className="mt-1 text-2xl font-semibold text-on-surface">{approvedReadyForOutreach.length}</div>
+                  <p className="mt-2 text-sm text-on-surface-variant">Approved leads with an email address and no sent outreach yet.</p>
+                  <button onClick={() => scrollToSection('outreach-activity')} className="btn-ghost mt-3 px-0">
+                    Review outreach activity
+                  </button>
+                </div>
+
+                <div className="panel-muted px-4 py-4">
+                  <div className="text-sm font-medium text-on-surface">Need meeting follow-up</div>
+                  <div className="mt-1 text-2xl font-semibold text-on-surface">{needsBooking.length + awaitingApproval.length}</div>
+                  <p className="mt-2 text-sm text-on-surface-variant">Interested leads without a meeting plus meetings waiting for approval.</p>
+                  <button onClick={() => scrollToSection('meetings-conversions')} className="btn-ghost mt-3 px-0">
+                    Open meetings queue
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="review-queue" className="mb-6">
+            <div className="mb-3">
+              <h2 className="section-title">Review queue</h2>
+              <p className="section-copy mt-1">Prioritized for action first: pending review, ready for outreach, reply follow-up, then completed outcomes.</p>
+            </div>
+
+            {reviewQueue.length === 0 ? (
+              <div className="panel p-6">
+                <p className="section-copy">No leads have been loaded for this campaign yet.</p>
+              </div>
+            ) : (
+              <div className="panel overflow-hidden">
+                <div className="hidden grid-cols-[minmax(0,2fr)_110px_170px_220px_170px_40px] gap-3 border-b border-outline-variant/60 px-4 py-3 md:grid">
+                  <div className="table-header">Creator</div>
+                  <div className="table-header">Score</div>
+                  <div className="table-header">Pipeline</div>
+                  <div className="table-header">Contact</div>
+                  <div className="table-header">Next action</div>
+                  <div className="table-header text-right">More</div>
+                </div>
+
+                {reviewQueue.map((lead) => {
+                  const score = Number(lead.outreach_readiness_score) || 0
+                  const stage = getLeadStage(lead)
+                  const latestReply = lead.conversation?.latest_inbound_message
+                  const details = getScoreDetails(lead)
+                  const isExpanded = expandedLead === lead.id
+
+                  return (
+                    <div key={lead.id} className="border-b border-outline-variant/60 last:border-b-0">
+                      <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,2fr)_110px_170px_220px_170px_40px] md:items-center">
+                        <div className="min-w-0">
+                          <div className="flex items-start justify-between gap-3 md:block">
+                            <div>
+                              <div className="truncate text-sm font-medium text-on-surface">@{lead.handle}</div>
+                              <div className="mt-1 text-sm text-on-surface-variant">
+                                {lead.full_name || 'No full name'}
+                                {lead.city && <span className="text-outline"> · {lead.city}</span>}
+                              </div>
+                            </div>
+
+                            <div className="md:hidden">
+                              <span className={stage.tone}>{stage.label}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className={`inline-flex rounded-md border px-2.5 py-1 text-sm font-medium ${scoreTone(score)}`}>{Math.round(score)}</div>
+                        </div>
+
+                        <div className="hidden md:block">
+                          <span className={stage.tone}>{stage.label}</span>
+                        </div>
+
+                        <div className="text-sm text-on-surface-variant">
+                          {lead.email ? <div className="truncate text-on-surface">{lead.email}</div> : <div>No email</div>}
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            {lead.has_instagram && (
+                              <a
+                                href={getInstagramUrl(lead.handle)}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#b42372] transition hover:bg-[#fff1f7]"
+                                aria-label={`Open Instagram for ${lead.handle}`}
+                                title="Open Instagram"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">photo_camera</span>
+                              </a>
+                            )}
+                            {lead.has_youtube && (
+                              <a
+                                href={getYoutubeUrl(lead.handle)}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#c62828] transition hover:bg-[#fff1f1]"
+                                aria-label={`Open YouTube for ${lead.handle}`}
+                                title="Open YouTube"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">play_circle</span>
+                              </a>
+                            )}
+                            {!lead.has_instagram && !lead.has_youtube && <span className="text-xs">No linked channels</span>}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 md:block">
+                          <div className="text-sm text-on-surface">{stage.nextAction}</div>
+                          {lead.review_status !== 'approved' && lead.review_status !== 'rejected' && (
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                onClick={() => handleReview(lead.id, 'approve')}
+                                disabled={actionLoading}
+                                className="inline-flex items-center justify-center rounded-lg border border-secondary/20 bg-secondary/5 px-2.5 py-2 text-xs font-medium text-secondary transition hover:bg-secondary/10 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleReview(lead.id, 'reject')}
+                                disabled={actionLoading}
+                                className="inline-flex items-center justify-center rounded-lg border border-error/20 bg-error-container/40 px-2.5 py-2 text-xs font-medium text-error transition hover:bg-error-container/70 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => setExpandedLead(isExpanded ? null : lead.id)}
+                            className="btn-ghost px-2"
+                            aria-label={isExpanded ? 'Collapse lead details' : 'Expand lead details'}
+                          >
+                            <span className={`material-symbols-outlined text-[18px] transition-transform ${isExpanded ? 'rotate-180' : ''}`}>expand_more</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="bg-surface-container-low px-4 py-4">
+                          <div className="grid gap-4 lg:grid-cols-3">
+                            <div className="panel px-4 py-4">
+                              <div className="mb-3 text-sm font-medium text-on-surface">Assessment</div>
+                              {details.length > 0 ? (
+                                <div className="space-y-3">
+                                  {details.map(([label, breakdown]) => (
+                                    <div key={label} className="rounded-lg border border-outline-variant/50 bg-surface-container-low px-3 py-3">
+                                      <div className="flex items-center justify-between gap-3 text-sm">
+                                        <span className="font-medium capitalize text-on-surface">{label}</span>
+                                        <span className="text-on-surface-variant">{breakdown.score || 0}</span>
+                                      </div>
+                                      {breakdown.breakdown && (
+                                        <div className="mt-2 space-y-1 text-xs text-on-surface-variant">
+                                          {Object.entries(breakdown.breakdown).map(([key, value]) => (
+                                            <div key={key} className="flex items-center justify-between gap-3">
+                                              <span>{key.replace(/_/g, ' ')}</span>
+                                              <span>{value}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-on-surface-variant">No breakdown available</p>
-                        )}
-                      </div>
+                              ) : (
+                                <p className="text-sm text-on-surface-variant">No detailed score breakdown is available for this lead.</p>
+                              )}
+                            </div>
 
-                      {/* Outreach Status */}
-                      <div className="bg-surface-container-lowest p-5 rounded-2xl">
-                        <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">Outreach</h4>
-                        {lead.outreach_logs && lead.outreach_logs.length > 0 ? (
-                          <div className="space-y-2">
-                            {lead.conversation?.latest_inbound_message && (
-                              <div 
-                                onClick={() => setSelectedLog({ 
-                                  channel: 'email', 
-                                  delivery_status: 'received', 
-                                  subject_line: 'Influencer Reply', 
-                                  message_content: lead.conversation.latest_inbound_message 
-                                })}
-                                className="bg-primary/5 p-3 rounded-xl border border-primary/10 mb-2 cursor-pointer hover:bg-primary/10 transition-colors"
-                              >
-                                <div className="text-[9px] font-bold text-primary uppercase tracking-widest mb-1 flex justify-between items-center">
-                                  Latest Reply
-                                  <span className="material-symbols-outlined text-[10px]">open_in_new</span>
+                            <div className="panel px-4 py-4">
+                              <div className="mb-3 text-sm font-medium text-on-surface">Contact</div>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <div className="text-on-surface-variant">Email</div>
+                                  <div className="mt-1 text-on-surface">{lead.email || 'No email available'}</div>
                                 </div>
-                                <div className="text-xs italic text-on-surface line-clamp-3">"{lead.conversation.latest_inbound_message}"</div>
+                                <div>
+                                  <div className="text-on-surface-variant">Category</div>
+                                  <div className="mt-1 text-on-surface">{lead.category || 'Unknown'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-on-surface-variant">Platforms</div>
+                                  <div className="mt-1 text-on-surface">{getPlatformSummary(lead)}</div>
+                                </div>
                               </div>
-                            )}
-                            {lead.outreach_logs.map((log) => (
-                              <div key={log.id} className="flex justify-between text-xs">
-                                <span className="text-on-surface-variant capitalize">{log.channel}</span>
-                                <button 
-                                  onClick={() => setSelectedLog(log)}
-                                  className={`font-bold hover:underline ${log.delivery_status === 'sent' ? 'text-secondary' : 'text-error'}`}
-                                >
-                                  {log.delivery_status}
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-on-surface-variant">
-                            {isApproved ? 'Ready for outreach. Click "Send Outreach" above.' : 'Approve this lead first, then send outreach.'}
-                          </p>
-                        )}
-                        {lead.email && (
-                          <div className="mt-3 pt-3 border-t border-surface-container">
-                            <div className="flex items-center gap-1 text-xs text-on-surface-variant">
-                              <span className="material-symbols-outlined text-sm text-secondary">mail</span>
-                              <span className="truncate">{lead.email}</span>
+                            </div>
+
+                            <div className="panel px-4 py-4">
+                              <div className="mb-3 text-sm font-medium text-on-surface">Recent context</div>
+                              {latestReply ? (
+                                <div className="rounded-lg border border-outline-variant/50 bg-surface-container-low px-3 py-3 text-sm text-on-surface">
+                                  <div className="mb-2 text-xs text-on-surface-variant">Latest reply</div>
+                                  <div className="whitespace-pre-wrap">{latestReply}</div>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-on-surface-variant">No inbound reply has been recorded for this lead.</p>
+                              )}
                             </div>
                           </div>
-                        )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          <section id="outreach-activity" className="mb-6">
+            <div className="mb-3">
+              <h2 className="section-title">Outreach activity</h2>
+              <p className="section-copy mt-1">Recent outbound updates and replies, with inline preview for fast inspection.</p>
+            </div>
+
+            {activityItems.length === 0 ? (
+              <div className="panel p-6">
+                <p className="section-copy">No outreach activity has been recorded yet.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                <div className="panel overflow-hidden">
+                  {activityItems.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setSelectedActivityId(item.id)}
+                      className={`flex w-full items-start justify-between gap-3 border-b border-outline-variant/60 px-4 py-4 text-left last:border-b-0 ${
+                        selectedActivity?.id === item.id ? 'bg-surface-container-low' : 'hover:bg-surface-container-low'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-on-surface">{item.title}</div>
+                        <div className="mt-1 text-sm text-on-surface-variant">{item.subtitle}</div>
+                        <div className="mt-1 text-xs text-on-surface-variant">{new Date(item.occurredAt).toLocaleString()}</div>
+                      </div>
+                      <span className={`status-chip shrink-0 ${item.toneClass}`}>{item.kind === 'reply' ? 'Reply' : 'Outreach'}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="panel p-4">
+                  <div className="mb-3">
+                    <h3 className="text-sm font-medium text-on-surface">{selectedActivity ? `Preview for @${selectedActivity.handle}` : 'Preview'}</h3>
+                    <p className="section-copy mt-1">
+                      {selectedActivity ? `${selectedActivity.preview.channel} · ${selectedActivity.preview.delivery_status}` : 'Select an activity item to inspect.'}
+                    </p>
+                  </div>
+
+                  {selectedActivity ? (
+                    <div className="space-y-4">
+                      <div>
+                        <div className="mb-1 text-xs text-on-surface-variant">Subject</div>
+                        <div className="rounded-lg border border-outline-variant/50 bg-surface-container-low px-3 py-3 text-sm text-on-surface">
+                          {selectedActivity.preview.subject_line || 'No subject'}
+                        </div>
                       </div>
 
-                      {/* Meeting */}
-                      <div className="bg-surface-container-lowest p-5 rounded-2xl">
-                        <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">Meeting</h4>
-                        {latestMeeting ? (
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-on-surface-variant">Date</span>
-                              <span className="font-semibold">{new Date(latestMeeting.meeting_date).toLocaleDateString()}</span>
-                            </div>
-                            <div className="flex justify-between text-xs">
-                              <span className="text-on-surface-variant">Status</span>
-                              <span className="font-semibold capitalize">{latestMeeting.status}</span>
-                            </div>
-                            <div className="flex justify-between text-xs">
-                              <span className="text-on-surface-variant">Outcome</span>
-                              <span className="font-semibold capitalize">{latestMeeting.outcome}</span>
-                            </div>
-                            {latestMeeting.outcome === 'pending' && (
-                              <button
-                                onClick={() => handleApprove(latestMeeting.id)}
-                                disabled={actionLoading}
-                                className="w-full mt-3 py-2 rounded-xl bg-secondary text-white text-xs font-bold hover:opacity-90 transition-all disabled:opacity-50"
-                              >
-                                ✅ Approve & Generate Code
-                              </button>
-                            )}
+                      <div>
+                        <div className="mb-1 text-xs text-on-surface-variant">Message</div>
+                        <div className="min-h-[220px] rounded-lg border border-outline-variant/50 bg-surface-container-low px-3 py-3 text-sm text-on-surface">
+                          <div className="whitespace-pre-wrap">
+                            {selectedActivity.preview.message_content || 'No message preview available for this activity.'}
                           </div>
-                        ) : (
-                          <div>
-                            <p className="text-xs text-on-surface-variant mb-3">No meeting scheduled</p>
-                            <button
-                              onClick={() => setMeetingModal(lead.id)}
-                              className="w-full py-2 rounded-xl bg-primary text-white text-xs font-bold hover:opacity-90 transition-all"
-                            >
-                              📅 Book Meeting
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Affiliate */}
-                      <div className="bg-surface-container-lowest p-5 rounded-2xl">
-                        <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">Affiliate</h4>
-                        {lead.affiliate ? (
-                          <div className="space-y-3">
-                            <div className="bg-secondary/10 p-3 rounded-xl text-center">
-                              <div className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-1">Promo Code</div>
-                              <div className="font-headline text-xl font-bold text-secondary">{lead.affiliate.promo_code}</div>
-                            </div>
-                            <div className="flex justify-between text-xs">
-                              <span className="text-on-surface-variant">Commission</span>
-                              <span className="font-bold text-secondary">{lead.affiliate.commission_rate_percent}%</span>
-                            </div>
-                            <div className="flex justify-between text-xs">
-                              <span className="text-on-surface-variant">Conversions</span>
-                              <span className="font-semibold">{lead.affiliate.total_conversions}</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-on-surface-variant">Not yet converted. Book and approve a meeting first.</p>
-                        )}
+                        </div>
                       </div>
                     </div>
+                  ) : (
+                    <div className="rounded-lg border border-outline-variant/50 bg-surface-container-low px-4 py-10 text-sm text-on-surface-variant">
+                      There is no message content to preview yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section id="meetings-conversions" className="mb-6 w-full">
+            <div className="mb-3">
+              <h2 className="section-title">Meetings and conversions</h2>
+              <p className="section-copy mt-1">Queues for booking, approvals, and affiliate outcomes.</p>
+            </div>
+
+            <div className="grid w-full gap-4 xl:grid-cols-3">
+              <div className="panel p-4">
+                <div className="mb-3">
+                  <h3 className="text-sm font-medium text-on-surface">Needs booking</h3>
+                  <p className="section-copy mt-1">Interested leads without a meeting.</p>
+                </div>
+
+                {needsBooking.length === 0 ? (
+                  <p className="text-sm text-on-surface-variant">No leads are currently waiting for a meeting to be booked.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {needsBooking.map((lead) => (
+                      <div key={lead.id} className="panel-muted px-3 py-3">
+                        <div className="text-sm font-medium text-on-surface">@{lead.handle}</div>
+                        <div className="mt-1 text-sm text-on-surface-variant">{lead.email || 'No email available'}</div>
+                        <button onClick={() => setMeetingModal(lead.id)} className="btn-secondary mt-3 w-full border-secondary/20 bg-secondary/5 text-secondary hover:bg-secondary/10">
+                          Book meeting
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
-            )
-          })}
-        </div>
-      )}
 
-      {/* Meeting Booking Modal */}
-      {meetingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setMeetingModal(null)}>
-          <div className="bg-surface-container-lowest w-full max-w-md rounded-3xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-headline text-xl font-bold mb-5">Book Meeting</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Date & Time *</label>
-                <input
-                  type="datetime-local"
-                  value={meetingDate}
-                  onChange={(e) => setMeetingDate(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-surface-container border border-outline-variant/30 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
-                  required
-                />
+              <div className="panel p-4">
+                <div className="mb-3">
+                  <h3 className="text-sm font-medium text-on-surface">Awaiting approval</h3>
+                  <p className="section-copy mt-1">Meetings that need a final partner decision.</p>
+                </div>
+
+                {awaitingApproval.length === 0 ? (
+                  <p className="text-sm text-on-surface-variant">No meeting approvals are pending.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {awaitingApproval.map((lead) => {
+                      const meeting = getLatestMeeting(lead)
+
+                      if (!meeting) return null
+
+                      return (
+                        <div key={lead.id} className="panel-muted px-3 py-3">
+                          <div className="text-sm font-medium text-on-surface">@{lead.handle}</div>
+                          <div className="mt-1 text-sm text-on-surface-variant">Meeting date {new Date(meeting.meeting_date).toLocaleDateString()}</div>
+                          <button onClick={() => handleApprove(meeting.id)} disabled={actionLoading} className="btn-primary mt-3 w-full bg-secondary hover:bg-[#005c20]">
+                            Approve partner
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
+
+              <div className="panel p-4">
+                <div className="mb-3">
+                  <h3 className="text-sm font-medium text-on-surface">Converted</h3>
+                  <p className="section-copy mt-1">Affiliate partners already approved and active.</p>
+                </div>
+
+                {converted.length === 0 ? (
+                  <p className="text-sm text-on-surface-variant">No affiliate partners have been created yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {converted.map((lead) => (
+                      <div key={lead.id} className="panel-muted px-3 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-medium text-on-surface">@{lead.handle}</div>
+                            <div className="mt-1 text-sm text-on-surface-variant">{lead.affiliate?.promo_code}</div>
+                          </div>
+                          <span className="status-chip border-secondary/20 bg-secondary/5 text-secondary">{lead.affiliate?.total_conversions || 0} conversions</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      {meetingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4" onClick={() => setMeetingModal(null)}>
+          <div className="panel w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b border-outline-variant/60 px-5 py-4">
+              <h3 className="section-title">Book meeting</h3>
+              <p className="section-copy mt-1">Add the first scheduled meeting for this lead.</p>
+            </div>
+
+            <div className="space-y-4 p-5">
               <div>
-                <label className="block text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Notes</label>
+                <label className="field-label">Date and time</label>
+                <input type="datetime-local" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} className="input-control" required />
+              </div>
+
+              <div>
+                <label className="field-label">Notes</label>
                 <textarea
                   value={meetingNotes}
                   onChange={(e) => setMeetingNotes(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-surface-container border border-outline-variant/30 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm resize-none"
-                  rows={3}
-                  placeholder="Meeting agenda or notes..."
+                  className="textarea-control"
+                  rows={4}
+                  placeholder="Agenda, availability, or prep notes"
                 />
               </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setMeetingModal(null)} className="flex-1 py-3 rounded-xl bg-surface-container text-on-surface text-sm font-bold hover:bg-surface-container-high transition-all">
-                Cancel
-              </button>
-              <button
-                onClick={() => handleBookMeeting(meetingModal)}
-                disabled={actionLoading || !meetingDate}
-                className="flex-1 py-3 rounded-xl editorial-gradient text-white text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50"
-              >
-                {actionLoading ? 'Booking...' : 'Book Meeting'}
-              </button>
+
+              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+                <button onClick={() => setMeetingModal(null)} className="btn-secondary">
+                  Cancel
+                </button>
+                <button onClick={() => handleBookMeeting(meetingModal)} disabled={actionLoading || !meetingDate} className="btn-primary bg-secondary hover:bg-[#005c20]">
+                  {actionLoading ? 'Booking meeting' : 'Book meeting'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Message Preview Modal */}
-      {selectedLog && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setSelectedLog(null)}>
-          <div className="bg-surface-container-lowest w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease]" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-secondary px-6 py-4 flex justify-between items-center text-white">
-              <div>
-                <h3 className="font-headline text-lg font-bold">Message Preview</h3>
-                <p className="text-white/70 text-[10px] uppercase tracking-widest font-bold">Sent via {selectedLog.channel}</p>
-              </div>
-              <button onClick={() => setSelectedLog(null)} className="text-white/70 hover:text-white transition-colors">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="mb-4">
-                <label className="block text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Subject</label>
-                <div className="text-sm font-bold text-on-surface">{selectedLog.subject_line || 'No Subject'}</div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-outline uppercase tracking-widest mb-1">Message Content</label>
-                <div className="bg-surface-container/50 p-4 rounded-2xl border border-outline-variant/20 text-sm whitespace-pre-wrap font-medium text-justify">
-                  {selectedLog.message_content}
-                </div>
-              </div>
-              <button 
-                onClick={() => setSelectedLog(null)}
-                className="w-full mt-6 py-3 rounded-xl bg-surface-container text-on-surface text-sm font-bold hover:bg-surface-container-high transition-all"
-              >
-                Close Preview
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {editOpen && <CampaignForm mode="edit" initialData={campaign} onSubmit={handleUpdateCampaign} onClose={() => setEditOpen(false)} loading={actionLoading} />}
     </div>
   )
 }

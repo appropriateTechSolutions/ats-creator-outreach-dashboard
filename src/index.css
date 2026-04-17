@@ -5,6 +5,77 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    min-height: 100dvh;
+    background: #f8f9fa;
+    color: #191c1d;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply mx-auto w-full max-w-[1240px] px-4 py-5 md:px-6 md:py-6;
+  }
+
+  .panel {
+    @apply rounded-xl border border-outline-variant/60 bg-surface-container-lowest;
+  }
+
+  .panel-muted {
+    @apply rounded-xl border border-outline-variant/50 bg-surface-container-low;
+  }
+
+  .page-title {
+    @apply text-2xl font-semibold tracking-tight text-on-surface md:text-[28px];
+  }
+
+  .section-title {
+    @apply text-base font-semibold tracking-tight text-on-surface;
+  }
+
+  .section-copy {
+    @apply text-sm text-on-surface-variant;
+  }
+
+  .field-label {
+    @apply mb-2 block text-sm font-medium text-on-surface;
+  }
+
+  .input-control {
+    @apply w-full rounded-lg border border-outline-variant/70 bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10;
+  }
+
+  .textarea-control {
+    @apply input-control resize-none;
+  }
+
+  .select-control {
+    @apply input-control appearance-none pr-9;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3.5 py-2.5 text-sm font-medium text-white transition hover:bg-[#004a9a] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-outline-variant/70 bg-surface-container-lowest px-3.5 py-2.5 text-sm font-medium text-on-surface transition hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-on-surface-variant transition hover:bg-surface-container-low hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .status-chip {
+    @apply inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium;
+  }
+
+  .table-header {
+    @apply text-xs font-medium text-on-surface-variant;
+  }
+}
+
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   vertical-align: middle;
@@ -36,8 +107,3 @@
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #e1e3e4; border-radius: 10px; }
-
-body {
-  min-height: 100dvh;
-  font-family: 'Inter', sans-serif;
-}

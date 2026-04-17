@@ -4,10 +4,11 @@ export interface Campaign {
   client_name: string | null
   category: string
   city: string
+  keywords?: string[] | string | null
   status: 'draft' | 'active' | 'paused' | 'completed' | 'archived'
   offer_type: 'free_product' | 'affiliate_commission' | 'hybrid'
   product_offer_notes: string | null
-  discovery_channels?: string[]
+  discovery_channels?: string[] | string
   email_subject?: string
   email_body?: string
   template?: OutreachTemplate | null
@@ -39,16 +40,7 @@ export interface Creator {
   has_tiktok?: boolean
   outreach_readiness_score: number | null
   scoring_notes: {
-    initial_breakdown?: {
-      category: number
-      location: number
-      follower_bracket: number
-      contactability: number
-      content_fit: number
-      brand_fit: number
-      source_confidence: number
-      data_completeness: number
-    }
+    initial_breakdown?: Record<string, CreatorScoreDetails>
   } | null
   review_status: string | null
   assigned_status: string
@@ -87,9 +79,15 @@ export interface OutreachLog {
   channel: string
   message_type: string
   subject_line: string | null
+  message_content?: string | null
   delivery_status: 'pending' | 'sent' | 'failed' | 'blocked' | 'skipped'
   sent_at: string | null
   created_at: string
+}
+
+export interface CreatorScoreDetails {
+  score?: number
+  breakdown?: Record<string, number>
 }
 
 export interface CreatorConversation {
@@ -106,4 +104,24 @@ export interface AuthUser {
   full_name: string
   email: string
   role: string
+}
+
+export interface CampaignFormData {
+  name: string
+  client_name: string
+  category: string
+  city: string
+  keywords: string[]
+  product_offer_notes: string
+  offer_type: Campaign['offer_type']
+  discovery_channels: string[]
+  email_subject: string
+  email_body: string
+}
+
+export interface MessagePreview {
+  channel: string
+  delivery_status: string
+  subject_line: string | null
+  message_content?: string | null
 }
