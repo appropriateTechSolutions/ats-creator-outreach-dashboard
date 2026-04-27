@@ -35,11 +35,14 @@ export interface Creator {
   email: string | null
   bio: string | null
   city: string | null
+  state: string | null
+  country: string | null
   category: string | null
   has_email: boolean
   has_instagram: boolean
   has_youtube?: boolean
   has_tiktok?: boolean
+  profile_url?: string | null
   outreach_readiness_score: number | null
   relevance_score: number | null
   scoring_notes: {
@@ -60,6 +63,19 @@ export interface Creator {
   affiliate: Affiliate | null
   outreach_logs: OutreachLog[]
   conversation: CreatorConversation | null
+  profiles: CreatorPlatformProfile[]
+}
+
+export interface CreatorPlatformProfile {
+  id: string
+  creator_id: string
+  platform: string
+  handle: string | null
+  profile_url: string | null
+  followers: number | null
+  avg_likes: number | null
+  avg_comments: number | null
+  engagement_rate: number | null
 }
 
 export interface Meeting {

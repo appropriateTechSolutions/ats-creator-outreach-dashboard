@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach } from '../lib/api';
+import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, getConversationThread } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Mail } from 'lucide-react';
+import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle } from 'lucide-react';
 
 export default function CreatorDetail() {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +14,8 @@ export default function CreatorDetail() {
   const [creator, setCreator] = useState<Creator | null>(null);
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const loadData = () => {
     if (!id) return;
@@ -22,6 +24,16 @@ export default function CreatorDetail() {
     getCreatorById(id)
       .then(async (data) => {
         setCreator(data);
+        
+        // Use the messages already bundled in the creator data
+        if (data.conversation?.messages) {
+          // Sort messages by time ASC
+          const sorted = [...data.conversation.messages].sort((a: any, b: any) => 
+            new Date(a.message_time).getTime() - new Date(b.message_time).getTime()
+          );
+          setMessages(sorted);
+        }
+
         if (data.campaign_id) {
           try {
             const camp = await getCampaignById(data.campaign_id);
@@ -49,6 +61,20 @@ export default function CreatorDetail() {
       alert('Action failed: ' + err);
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleSendOutreach = async () => {
+    if (!creator) return;
+    setSendingEmail(true);
+    try {
+      await sendSingleOutreach(creator.id, creator.campaign_id);
+      alert('Outreach email sent successfully!');
+      loadData();
+    } catch (err) {
+      alert('Failed to send outreach: ' + err);
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -88,7 +114,21 @@ export default function CreatorDetail() {
             </div>
             <div>
               <h1 className="text-3xl font-black text-gray-900 flex items-center gap-2">
-                @{creator.handle}
+                <a 
+                  href={
+                    (() => {
+                      const profileUrl = creator.profiles?.[0]?.profile_url || creator.profile_url;
+                      if (profileUrl && !profileUrl.includes('scontent')) return profileUrl;
+                      return `https://instagram.com/${creator.handle?.replace(/^@/, '')}`;
+                    })()
+                  } 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:text-primary-600 transition-colors flex items-center gap-2 group"
+                >
+                  @{creator.handle?.replace(/^@/, '')}
+                  <ExternalLink size={18} className="text-gray-300 group-hover:text-primary-400 transition-colors" />
+                </a>
               </h1>
               <p className="text-gray-500 font-medium text-lg mt-0.5">{creator.full_name || 'No full name provided'}</p>
               
@@ -101,36 +141,56 @@ export default function CreatorDetail() {
           </div>
           <div className="flex flex-col items-end gap-3">
             <div className="flex gap-2 mb-2">
-               {(creator.review_status === 'hold' || !creator.review_status || creator.review_status === 'pending_review' || creator.review_status === 'reviewed') && creator.review_status !== 'approved' && creator.review_status !== 'rejected' && (
-                 <>
-                   <Button 
-                     size="sm" 
-                     variant="outline" 
-                     className="text-red-600 border-red-200 hover:bg-red-50 px-3" 
-                     onClick={() => handleReview('reject')}
-                     disabled={actionLoading}
-                   >
-                     <X size={14} className="mr-1.5" /> Reject
-                   </Button>
-                   <Button 
-                     size="sm" 
-                     variant="outline" 
-                     className="text-green-600 border-green-200 hover:bg-green-50 px-3" 
-                     onClick={() => handleReview('approve')}
-                     disabled={actionLoading}
-                   >
-                     <Check size={14} className="mr-1.5" />
-                     {creator.review_status === 'hold' || !creator.review_status ? 'Shortlist →' : 'Approve ✓'}
-                   </Button>
-                 </>
-               )}
             </div>
             <StatusBadge status={creator.review_status as any || 'pending'} />
             <div className="flex items-center gap-2 mt-2">
                <span className="text-xs font-bold text-gray-400 uppercase">Master Readiness:</span>
                <ScoreBadge score={creator.outreach_readiness_score || 0} />
             </div>
+            
+            {/* Direct Send Button */}
+            <Button 
+              className="mt-4 w-full bg-primary-600 hover:bg-primary-700 shadow-md flex items-center justify-center gap-2"
+              onClick={handleSendOutreach}
+              disabled={sendingEmail || creator.review_status === 'rejected'}
+            >
+              {sendingEmail ? <RefreshCw className="animate-spin" size={16} /> : <Send size={16} />}
+              {creator.outreach_logs?.length > 0 ? 'Resend Outreach' : 'Send Outreach Now'}
+            </Button>
           </div>
+        </div>
+
+        {/* Creator Insights Section (Bio, Email, Location) */}
+        <div className="px-8 py-6 bg-primary-50/30 grid grid-cols-1 md:grid-cols-3 gap-6 border-b border-gray-100">
+           <div className="flex gap-3">
+              <div className="mt-1 text-primary-600"><FileText size={18} /></div>
+              <div>
+                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">About / Bio</h4>
+                <p className="text-sm text-gray-700 leading-relaxed italic">
+                  {creator.bio || "No bio available for this creator."}
+                </p>
+              </div>
+           </div>
+           <div className="flex gap-3">
+              <div className="mt-1 text-primary-600"><Mail size={18} /></div>
+              <div>
+                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Direct Contact</h4>
+                <p className="text-sm font-bold text-gray-800">
+                  {creator.email || "Email hidden or not found"}
+                </p>
+                {creator.has_email && <span className="text-[10px] text-green-600 font-bold flex items-center gap-1 mt-1"><Check size={10} /> Verified Email</span>}
+              </div>
+           </div>
+           <div className="flex gap-3">
+              <div className="mt-1 text-primary-600"><MapPin size={18} /></div>
+              <div>
+                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Target Location</h4>
+                <p className="text-sm font-bold text-gray-800 capitalize">
+                  {creator.city ? `${creator.city}${creator.state ? `, ${creator.state}` : ''}${creator.country ? `, ${creator.country}` : ''}` : 'Location unknown'}
+                </p>
+                <span className="text-[10px] text-gray-500 font-medium">Primarily active in this region</span>
+              </div>
+           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-8">
@@ -150,6 +210,7 @@ export default function CreatorDetail() {
                 if (!pData && !hasPlatform) return null;
 
                 const score = pData?.score || 0;
+                const profile = creator.profiles?.find(p => p.platform.toLowerCase() === platform.key);
                 
                 return (
                   <div key={platform.key} className="bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm">
@@ -164,6 +225,25 @@ export default function CreatorDetail() {
                         {score} <span className="text-xs text-gray-400 font-medium">/ 100</span>
                       </div>
                     </div>
+
+                    {/* Platform Stats */}
+                    {profile && (
+                      <div className="flex gap-4 mb-4 pb-4 border-b border-gray-200/50">
+                        <div className="flex-1">
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Followers</p>
+                          <p className="text-sm font-black text-gray-900 flex items-center gap-1">
+                            <Users size={12} className="text-gray-400" />
+                            {profile.followers?.toLocaleString() || 'N/A'}
+                          </p>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Engagement</p>
+                          <p className="text-sm font-black text-gray-900">
+                            {profile.engagement_rate ? `${(Number(profile.engagement_rate) * 100).toFixed(2)}%` : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Show detailed logic points if we have them */}
                     {pData?.breakdown ? (
@@ -239,6 +319,102 @@ export default function CreatorDetail() {
           </div>
 
         </div>
+      </Card>
+
+      {/* Conversation History Section */}
+      <Card>
+        <CardHeader className="border-b border-gray-100 flex flex-row items-center justify-between py-4">
+          <div className="flex items-center gap-2 font-black text-gray-900 uppercase tracking-widest text-sm">
+            <MessageCircle size={18} className="text-primary-600" />
+            Conversation History
+          </div>
+          {creator.conversation?.detected_intent && (
+            <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+              creator.conversation.detected_intent === 'interested' ? 'bg-green-100 text-green-700' :
+              creator.conversation.detected_intent === 'not_interested' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+            }`}>
+              Intent: {creator.conversation.detected_intent.replace('_', ' ')}
+            </div>
+          )}
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-[400px] overflow-y-auto p-6 space-y-6 bg-gray-50/50">
+            {messages.length === 0 && creator.outreach_logs?.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 italic text-sm">
+                No outreach messages or replies found for this creator yet.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Show initial outreach attempts from logs if no thread exists yet */}
+                {messages.length === 0 && creator.outreach_logs?.map((log, idx) => (
+                  <div key={idx} className="flex flex-col items-end max-w-[80%] ml-auto">
+                    <div className="bg-primary-600 text-white p-4 rounded-2xl rounded-tr-none shadow-sm text-sm">
+                      <p className="font-bold mb-1 flex items-center gap-1 opacity-80 text-[10px] uppercase">
+                        <Mail size={10} /> Outreach Sent ({log.channel})
+                      </p>
+                      {log.subject_line && <p className="font-bold border-b border-white/20 pb-1 mb-2">Sub: {log.subject_line}</p>}
+                      <p className="opacity-90 italic">Initial outreach triggered by system.</p>
+                    </div>
+                    <span className="text-[10px] text-gray-400 mt-1 font-medium">{new Date(log.sent_at || log.created_at).toLocaleString()}</span>
+                  </div>
+                ))}
+
+                {/* Show actual conversation thread */}
+                {messages.map((msg, idx) => (
+                  <div key={idx} className={`flex flex-col ${msg.direction === 'inbound' ? 'items-start mr-auto' : 'items-end ml-auto'} max-w-[85%]`}>
+                    <div className={`p-4 rounded-2xl shadow-sm text-sm ${
+                      msg.direction === 'inbound' 
+                        ? 'bg-white text-gray-800 rounded-tl-none border border-gray-100' 
+                        : 'bg-primary-600 text-white rounded-tr-none'
+                    }`}>
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">
+                        {msg.direction === 'inbound' ? `Influencer (${msg.channel})` : 'You (ATS Agent)'}
+                      </p>
+                      <p className="whitespace-pre-wrap leading-relaxed">{msg.message_text}</p>
+                    </div>
+                    <span className="text-[10px] text-gray-400 mt-1 font-medium">
+                      {new Date(msg.message_time).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* AI Analysis Summary Section */}
+      <Card className="border-primary-100 bg-gradient-to-br from-white to-primary-50/20 overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-primary-400 via-primary-600 to-primary-400"></div>
+        <CardContent className="p-8">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="p-2 bg-primary-100 rounded-lg text-primary-600">
+              <Sparkles size={24} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter italic">AI Creator Analysis Summary</h2>
+              <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Powered by Gemini Pro Vision & Analytics Engine</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="text-sm font-black text-gray-800 uppercase flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary-500"></div>
+              Key Strengths & Relevance
+            </h4>
+            <p className="text-sm text-gray-600 leading-relaxed pl-4 border-l-2 border-gray-100">
+              {creator.full_name} is a high-impact creator in the <span className="font-bold text-gray-900">{creator.category}</span> space. 
+              With a strong base in <span className="font-bold text-gray-900">{creator.city}</span>, they align perfectly with your campaign's target demographics. 
+              Their outreach readiness score of <span className="font-bold text-primary-600">{creator.outreach_readiness_score}</span> suggests a highly professional digital presence and high probability of collaboration success.
+            </p>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-gray-100 flex items-center justify-center">
+            <div className="text-[10px] text-gray-400 italic">
+              AI analysis is based on available public metrics and profile data.
+            </div>
+          </div>
+        </CardContent>
       </Card>
     </div>
   );

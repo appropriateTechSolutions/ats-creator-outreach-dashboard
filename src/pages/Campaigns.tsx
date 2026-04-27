@@ -82,7 +82,38 @@ export default function Campaigns() {
   };
 
   const standardCategories = ['Fashion', 'Beauty', 'Fitness', 'Food', 'Travel', 'Tech', 'Lifestyle', 'Health'];
-  const platforms = [{ id: 'instagram', icon: '📸' }, { id: 'youtube', icon: '▶️' }, { id: 'tiktok', icon: '🎵' }];
+  const platforms = [
+    { 
+      id: 'instagram', 
+      label: 'Instagram',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-pink-600">
+          <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
+          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+          <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line>
+        </svg>
+      )
+    },
+    { 
+      id: 'youtube', 
+      label: 'YouTube',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-600">
+          <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.42a2.78 2.78 0 0 0-1.94 2C1 8.14 1 12 1 12s0 3.86.46 5.58a2.78 2.78 0 0 0 1.94 2c1.72.42 8.6.42 8.6.42s6.88 0 8.6-.42a2.78 2.78 0 0 0 1.94-2C23 15.86 23 12 23 12s0-3.86-.46-5.58z"></path>
+          <polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"></polygon>
+        </svg>
+      )
+    },
+    { 
+      id: 'tiktok', 
+      label: 'TikTok',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-900">
+          <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path>
+        </svg>
+      )
+    }
+  ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -238,14 +269,18 @@ export default function Campaigns() {
                   type="button"
                   key={p.id}
                   onClick={() => toggleChannel(p.id)}
-                  className={`flex-1 py-3 rounded-lg border flex flex-col items-center justify-center transition-all ${
+                  className={`flex-1 py-4 rounded-xl border-2 flex flex-col items-center justify-center transition-all duration-300 ${
                     formData.discovery_channels.includes(p.id)
-                      ? 'bg-primary-50 border-primary-500 text-primary-700'
-                      : 'bg-white border-gray-200 text-gray-400 opacity-60'
+                      ? 'bg-white border-primary-500 ring-4 ring-primary-50 shadow-md transform scale-[1.02]'
+                      : 'bg-gray-50 border-gray-100 text-gray-400 opacity-70 hover:bg-white hover:border-gray-200'
                   }`}
                 >
-                  <span className="text-xl mb-1">{p.icon}</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider">{p.id}</span>
+                  <div className={`mb-2 p-2 rounded-lg ${formData.discovery_channels.includes(p.id) ? 'bg-white shadow-sm' : ''}`}>
+                    {p.icon}
+                  </div>
+                  <span className={`text-[11px] font-black uppercase tracking-widest ${formData.discovery_channels.includes(p.id) ? 'text-gray-900' : 'text-gray-400'}`}>
+                    {p.label}
+                  </span>
                 </button>
               ))}
             </div>

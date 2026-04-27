@@ -58,7 +58,7 @@ export const getCampaignLeads = (campaignId: string): Promise<Creator[]> => api.
 // Note: For testing the Dashboard pipeline UI, we fetch all campaigns and creators across the system
 // to sum up the totals on the frontend until a dedicated /stats endpoint is built.
 export const getAllCreators = (): Promise<Creator[]> => api.get('/creators');
-export const getCreatorById = (creatorId: string): Promise<Creator> => api.get(`/creators`).then(res => (res as unknown as Creator[]).find(c => c.id === creatorId) as Creator);
+export const getCreatorById = (creatorId: string): Promise<Creator> => api.get(`/creators/${creatorId}`);
 // ─── Statistics ───────────────────────────────────────
 export const getDashboardStats = (): Promise<any> => api.get('/stats/dashboard');
 

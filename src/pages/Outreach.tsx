@@ -40,16 +40,18 @@ export default function Outreach() {
     return <div className="p-12 text-center text-gray-500 font-medium">Loading Dashboard statistics...</div>;
   }
 
-  // Calculate campaign specific metrics for the progress dashboard
   const campaignMetrics = campaigns.map(camp => {
-    const totalApproved = camp.approved_count || 0;
+    // Ensure target is at least as high as delivered count to avoid negative pending stats
+    const totalTarget = Math.max(camp.approved_count || 0, camp.delivered_count || 0);
     const sentCount = camp.delivered_count || 0;
-    const progress = totalApproved > 0 ? (sentCount / totalApproved) * 100 : 0;
+    const pending = Math.max(0, totalTarget - sentCount);
+    const progress = totalTarget > 0 ? (sentCount / totalTarget) * 100 : 0;
     
     return { 
       ...camp, 
       sentCount, 
-      totalApproved,
+      totalApproved: totalTarget,
+      pending,
       progress
     };
   });
@@ -114,7 +116,7 @@ export default function Outreach() {
                     </div>
                     <div className="bg-primary-50/30 rounded-xl p-3 border border-primary-100/50">
                       <p className="text-[10px] font-bold text-primary-600/60 uppercase mb-1">Pending</p>
-                      <p className="text-lg font-black text-primary-600">{camp.totalApproved - camp.sentCount}</p>
+                      <p className="text-lg font-black text-primary-600">{camp.pending}</p>
                     </div>
                   </div>
                 </CardContent>
