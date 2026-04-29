@@ -10,12 +10,14 @@ import { getAllCreators, reviewLead, sendSingleOutreach } from '../lib/api';
 import type { Creator } from '../types';
 import { format } from 'date-fns';
 import { Check, X, Mail } from 'lucide-react';
+import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 
 export default function Creators() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
 
   const fetchCreators = () => {
     setLoading(true);
@@ -30,12 +32,31 @@ export default function Creators() {
   }, []);
 
   const handleReview = async (id: string, action: 'approve' | 'reject') => {
+    const creator = creators.find(c => c.id === id);
+    if (action === 'approve' && (creator?.review_status === 'pending_review' || creator?.review_status === 'reviewed')) {
+      setOutreachModalCreatorId(id);
+      return;
+    }
     setActionLoading(id);
     try {
       await reviewLead(id, action);
       fetchCreators();
     } catch (err) {
       alert('Failed to update creator: ' + err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleConfirmApprove = async (customSubject?: string, customBody?: string) => {
+    if (!outreachModalCreatorId) return;
+    setActionLoading(outreachModalCreatorId);
+    try {
+      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody);
+      fetchCreators();
+    } catch (err) {
+      alert('Failed to update creator: ' + err);
+      throw err; // throw so modal doesn't close on error
     } finally {
       setActionLoading(null);
     }
@@ -54,7 +75,6 @@ export default function Creators() {
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Global Creator Directory</h1>
           <p className="text-sm text-gray-500">View and filter all discovered leads across all campaigns.</p>
         </div>
-        <Button variant="outline" icon={<Download size={16} />}>Export CSV</Button>
       </div>
 
       <Card>
@@ -175,6 +195,13 @@ export default function Creators() {
           </div>
         )}
       </Card>
+      
+      <OutreachPreviewModal
+        creatorId={outreachModalCreatorId || ''}
+        isOpen={!!outreachModalCreatorId}
+        onClose={() => setOutreachModalCreatorId(null)}
+        onSend={handleConfirmApprove}
+      />
     </div>
   );
 }

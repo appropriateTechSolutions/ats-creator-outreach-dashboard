@@ -1,7 +1,9 @@
 export interface Campaign {
   id: string
   name: string
-  client_name: string | null
+  client_id: string | null
+  brand_id: string | null
+  owner_user_id: string | null
   category: string        // Comma-separated for multi-niche: "Fashion,Beauty,Fitness"
   city: string
   keywords: string[]
@@ -137,4 +139,6 @@ export interface AuthUser {
   full_name: string
   email: string
   role: string
+  user_type: 'internal' | 'client'
+  client_id: string | null
 }

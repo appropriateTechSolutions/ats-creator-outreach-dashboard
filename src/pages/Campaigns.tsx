@@ -6,20 +6,21 @@ import { Button } from '../components/ui/Button';
 import { Drawer } from '../components/ui/Drawer';
 import { Search, Plus, Filter } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getCampaigns, createCampaign } from '../lib/api';
+import { getCampaigns, createCampaign, getBrands } from '../lib/api';
 import type { Campaign } from '../types';
 import { format } from 'date-fns';
 
 export default function Campaigns() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Form State matching V1
+  // Form State matching PRD Hierarchy
   const [formData, setFormData] = useState({
     name: '',
-    client_name: '',
+    brand_id: '',
     category: [] as string[],
     city: '',
     keywords: '',
@@ -28,21 +29,41 @@ export default function Campaigns() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchCampaigns = () => {
-    getCampaigns().then(data => setCampaigns(data)).finally(() => setLoading(false));
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [campaignsData, brandsData] = await Promise.all([
+        getCampaigns(),
+        getBrands()
+      ]);
+      setCampaigns(campaignsData);
+      setBrands(brandsData);
+    } catch (err) {
+      console.error('Fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchCampaigns();
+    fetchData();
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.brand_id) {
+      alert('Please select a Brand');
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const newCampaign = await createCampaign({
+      // Find client_id from selected brand
+      const selectedBrand = brands.find(b => b.id === formData.brand_id);
+      
+      await createCampaign({
         name: formData.name,
-        client_name: formData.client_name,
+        brand_id: formData.brand_id,
+        client_id: selectedBrand?.client_id, // Hierarchy Link
         category: formData.category.join(','),
         city: formData.city,
         keywords: formData.keywords.split(',').map(k => k.trim()).filter(Boolean),
@@ -53,8 +74,8 @@ export default function Campaigns() {
         email_body: 'Hey {{full_name}}, love your content! We would love to collaborate for our {{campaign_name}} campaign in {{city}}.\n\nOffer: {{product_offer_notes}}'
       });
       setDrawerOpen(false);
-      setFormData({ name: '', client_name: '', category: [], city: '', keywords: '', product_offer_notes: '', discovery_channels: ['instagram'] });
-      fetchCampaigns();
+      setFormData({ name: '', brand_id: '', category: [], city: '', keywords: '', product_offer_notes: '', discovery_channels: ['instagram'] });
+      fetchData();
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Failed to create campaign';
       alert(`Error: ${msg}`);
@@ -206,14 +227,18 @@ export default function Campaigns() {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Client Name</label>
-              <input
-                type="text"
-                value={formData.client_name}
-                onChange={e => setFormData({ ...formData, client_name: e.target.value })}
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Brand *</label>
+              <select
+                required
+                value={formData.brand_id}
+                onChange={e => setFormData({ ...formData, brand_id: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm"
-                placeholder="Brand Name"
-              />
+              >
+                <option value="">Select Brand</option>
+                {brands.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 

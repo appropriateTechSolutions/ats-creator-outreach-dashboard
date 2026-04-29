@@ -43,6 +43,28 @@ export const logout = async (): Promise<void> => {
   localStorage.removeItem('ats_token');
 };
 
+export const inviteUser = (data: { full_name: string, email: string, role: string, client_id?: string, user_type?: string }) => 
+  api.post('/users/invite', data);
+
+export const getUsers = (): Promise<any[]> => api.get('/users');
+
+export const verifyInvite = (token: string): Promise<any> => 
+  api.get(`/auth/invite/verify?token=${token}`);
+
+export const acceptInvite = (data: { token: string, password: string }): Promise<void> => api.post('/auth/invite/accept', data);
+
+export const resendInvite = (id: string): Promise<any> => api.post(`/users/${id}/resend-invite`);
+
+export const disableUser = (id: string): Promise<any> => api.post(`/users/${id}/disable`);
+
+// Clients
+export const getClients = (): Promise<any[]> => api.get('/clients');
+export const createClient = (data: { name: string }): Promise<any> => api.post('/clients', data);
+
+// Brands
+export const getBrands = (clientId?: string): Promise<any[]> => api.get('/brands', { params: { client_id: clientId } });
+export const createBrand = (data: { name: string, client_id: string }): Promise<any> => api.post('/brands', data);
+
 // ─── Campaigns ────────────────────────────────────────
 export const getCampaigns = (): Promise<Campaign[]> => api.get('/campaigns');
 export const getCampaignById = (id: string): Promise<Campaign> => api.get(`/campaigns/${id}`);
@@ -75,15 +97,18 @@ export const approvePartner = (meetingId: string): Promise<unknown> =>
   api.post('/conversions/approve-partner', { meeting_id: meetingId, outcome: 'approved' });
 
 // ─── Review ───────────────────────────────────────────
-export const reviewLead = (creatorId: string, action: 'approve' | 'reject'): Promise<unknown> => 
-  api.patch(`/creators/${creatorId}/review`, { action });
+export const reviewLead = (creatorId: string, action: 'approve' | 'reject', custom_subject?: string, custom_body?: string): Promise<unknown> => 
+  api.patch(`/creators/${creatorId}/review`, { action, custom_subject, custom_body });
 
 // ─── Outreach ─────────────────────────────────────────
 export const sendCampaignOutreach = (campaignId: string): Promise<{ sent: number; failed: number }> => 
   api.post('/outreach/send', { campaign_id: campaignId }).then((res: any) => res.stats || res);
 
-export const sendSingleOutreach = (creatorId: string, campaignId?: string): Promise<any> =>
-  api.post('/outreach/send-single', { creator_id: creatorId, campaign_id: campaignId });
+export const sendSingleOutreach = (creatorId: string, campaignId?: string, customSubject?: string, customBody?: string): Promise<any> =>
+  api.post('/outreach/send-single', { creator_id: creatorId, campaign_id: campaignId, customSubject, customBody });
+
+export const previewOutreach = (creatorId: string, campaignId?: string): Promise<{ subject: string; body: string }> =>
+  api.get('/outreach/preview', { params: { creator_id: creatorId, campaign_id: campaignId } }) as any;
 
 export const getOutreachLogs = (): Promise<any[]> => api.get('/outreach/logs');
 

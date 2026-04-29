@@ -7,6 +7,7 @@ import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
 import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle } from 'lucide-react';
+import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 
 export default function CreatorDetail() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +17,36 @@ export default function CreatorDetail() {
   const [actionLoading, setActionLoading] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [outreachModalOpen, setOutreachModalOpen] = useState(false);
+
+  // Helper to clean up email signatures and quoted replies
+  const cleanMessageText = (text: string) => {
+    if (!text) return '';
+    const lines = text.split('\n');
+    const cleanedLines = [];
+    
+    for (let line of lines) {
+      // Stop completely if we hit the standard "On [date], [person] wrote:" email reply header
+      if (/^On .* wrote:/i.test(line.trim())) {
+        break;
+      }
+      // Skip quoted lines
+      if (line.trim().startsWith('>')) {
+        continue;
+      }
+      // Skip common antivirus signatures
+      if (line.includes('Virus-free') || line.includes('avg.com')) {
+        continue;
+      }
+      // Stop at common signature boundaries
+      if (line.trim() === '--' || line.trim() === 'Sent from my iPhone') {
+        break;
+      }
+      cleanedLines.push(line);
+    }
+    
+    return cleanedLines.join('\n').trim();
+  };
 
   const loadData = () => {
     if (!id) return;
@@ -64,15 +95,21 @@ export default function CreatorDetail() {
     }
   };
 
-  const handleSendOutreach = async () => {
+  const handleSendOutreach = () => {
+    if (!creator) return;
+    setOutreachModalOpen(true);
+  };
+
+  const handleConfirmSendOutreach = async (customSubject?: string, customBody?: string) => {
     if (!creator) return;
     setSendingEmail(true);
     try {
-      await sendSingleOutreach(creator.id, creator.campaign_id);
+      await sendSingleOutreach(creator.id, creator.campaign_id, customSubject, customBody);
       alert('Outreach email sent successfully!');
       loadData();
     } catch (err) {
       alert('Failed to send outreach: ' + err);
+      throw err;
     } finally {
       setSendingEmail(false);
     }
@@ -86,8 +123,8 @@ export default function CreatorDetail() {
     return <div className="p-12 text-center text-error-500">Creator not found.</div>;
   }
 
-  // Parse scoring_notes safely
-  let scoringNotes = creator.scoring_notes;
+  // Parse scoring_notes safely (handle both snake_case and camelCase)
+  let scoringNotes = creator.scoring_notes || (creator as any).scoringNotes;
   if (typeof scoringNotes === 'string') {
     try { scoringNotes = JSON.parse(scoringNotes); } catch { scoringNotes = {}; }
   }
@@ -160,36 +197,49 @@ export default function CreatorDetail() {
           </div>
         </div>
 
-        {/* Creator Insights Section (Bio, Email, Location) */}
-        <div className="px-8 py-6 bg-primary-50/30 grid grid-cols-1 md:grid-cols-3 gap-6 border-b border-gray-100">
-           <div className="flex gap-3">
-              <div className="mt-1 text-primary-600"><FileText size={18} /></div>
-              <div>
-                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">About / Bio</h4>
-                <p className="text-sm text-gray-700 leading-relaxed italic">
-                  {creator.bio || "No bio available for this creator."}
-                </p>
-              </div>
+        {/* Creator Insights Section (Summary, Bio, Email, Location) */}
+        <div className="px-8 py-6 bg-primary-50/30 border-b border-gray-100">
+           <div className="mb-6">
+              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                <Sparkles size={12} className="text-primary-600" /> SUMMARY
+              </h4>
+              <p className="text-sm text-gray-700 leading-relaxed italic border-l-2 border-primary-200 pl-4">
+                {creator.full_name} is a high-impact creator in the <span className="font-bold text-gray-900">{creator.category}</span> space. 
+                With a strong base in <span className="font-bold text-gray-900">{creator.city}</span>, they align perfectly with your campaign's target demographics. 
+                Their outreach readiness score of <span className="font-bold text-primary-600">{creator.outreach_readiness_score}</span> suggests a highly professional digital presence and high probability of collaboration success.
+              </p>
            </div>
-           <div className="flex gap-3">
-              <div className="mt-1 text-primary-600"><Mail size={18} /></div>
-              <div>
-                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Direct Contact</h4>
-                <p className="text-sm font-bold text-gray-800">
-                  {creator.email || "Email hidden or not found"}
-                </p>
-                {creator.has_email && <span className="text-[10px] text-green-600 font-bold flex items-center gap-1 mt-1"><Check size={10} /> Verified Email</span>}
-              </div>
-           </div>
-           <div className="flex gap-3">
-              <div className="mt-1 text-primary-600"><MapPin size={18} /></div>
-              <div>
-                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Target Location</h4>
-                <p className="text-sm font-bold text-gray-800 capitalize">
-                  {creator.city ? `${creator.city}${creator.state ? `, ${creator.state}` : ''}${creator.country ? `, ${creator.country}` : ''}` : 'Location unknown'}
-                </p>
-                <span className="text-[10px] text-gray-500 font-medium">Primarily active in this region</span>
-              </div>
+
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="flex gap-3">
+                <div className="mt-1 text-primary-600"><FileText size={18} /></div>
+                <div>
+                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">About / Bio</h4>
+                  <p className="text-sm text-gray-700 leading-relaxed italic">
+                    {creator.bio || "No bio available for this creator."}
+                  </p>
+                </div>
+             </div>
+             <div className="flex gap-3">
+                <div className="mt-1 text-primary-600"><Mail size={18} /></div>
+                <div>
+                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Direct Contact</h4>
+                  <p className="text-sm font-bold text-gray-800">
+                    {creator.email || "Email hidden or not found"}
+                  </p>
+                  {creator.has_email && <span className="text-[10px] text-green-600 font-bold flex items-center gap-1 mt-1"><Check size={10} /> Verified Email</span>}
+                </div>
+             </div>
+             <div className="flex gap-3">
+                <div className="mt-1 text-primary-600"><MapPin size={18} /></div>
+                <div>
+                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Target Location</h4>
+                  <p className="text-sm font-bold text-gray-800 capitalize">
+                    {creator.city ? `${creator.city}${creator.state ? `, ${creator.state}` : ''}${creator.country ? `, ${creator.country}` : ''}` : 'Location unknown'}
+                  </p>
+                  <span className="text-[10px] text-gray-500 font-medium">Primarily active in this region</span>
+                </div>
+             </div>
            </div>
         </div>
 
@@ -339,23 +389,23 @@ export default function CreatorDetail() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[400px] overflow-y-auto p-6 space-y-6 bg-gray-50/50">
-            {messages.length === 0 && creator.outreach_logs?.length === 0 ? (
+            {messages.length === 0 && (creator.OutreachLogs?.length === 0 || !creator.OutreachLogs) ? (
               <div className="text-center py-12 text-gray-400 italic text-sm">
                 No outreach messages or replies found for this creator yet.
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Show initial outreach attempts from logs if no thread exists yet */}
-                {messages.length === 0 && creator.outreach_logs?.map((log, idx) => (
-                  <div key={idx} className="flex flex-col items-end max-w-[80%] ml-auto">
+                {/* Show initial outreach attempts from logs */}
+                {creator.OutreachLogs?.map((log: any, idx: number) => (
+                  <div key={`outreach-${idx}`} className="flex flex-col items-end max-w-[80%] ml-auto">
                     <div className="bg-primary-600 text-white p-4 rounded-2xl rounded-tr-none shadow-sm text-sm">
                       <p className="font-bold mb-1 flex items-center gap-1 opacity-80 text-[10px] uppercase">
                         <Mail size={10} /> Outreach Sent ({log.channel})
                       </p>
-                      {log.subject_line && <p className="font-bold border-b border-white/20 pb-1 mb-2">Sub: {log.subject_line}</p>}
-                      <p className="opacity-90 italic">Initial outreach triggered by system.</p>
+                      {log.subject_line && <p className="font-bold border-b border-white/20 pb-2 mb-2">Sub: {log.subject_line}</p>}
+                      <p className="whitespace-pre-wrap leading-relaxed opacity-95">{log.message_content || 'Initial outreach triggered by system.'}</p>
                     </div>
-                    <span className="text-[10px] text-gray-400 mt-1 font-medium">{new Date(log.sent_at || log.created_at).toLocaleString()}</span>
+                    <span className="text-[10px] text-gray-400 mt-1 font-medium">{new Date(log.sent_at || log.sentAt || log.created_at || log.createdAt || Date.now()).toLocaleString()}</span>
                   </div>
                 ))}
 
@@ -370,7 +420,7 @@ export default function CreatorDetail() {
                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">
                         {msg.direction === 'inbound' ? `Influencer (${msg.channel})` : 'You (ATS Agent)'}
                       </p>
-                      <p className="whitespace-pre-wrap leading-relaxed">{msg.message_text}</p>
+                      <p className="whitespace-pre-wrap leading-relaxed">{cleanMessageText(msg.message_text)}</p>
                     </div>
                     <span className="text-[10px] text-gray-400 mt-1 font-medium">
                       {new Date(msg.message_time).toLocaleString()}
@@ -383,39 +433,15 @@ export default function CreatorDetail() {
         </CardContent>
       </Card>
 
-      {/* AI Analysis Summary Section */}
-      <Card className="border-primary-100 bg-gradient-to-br from-white to-primary-50/20 overflow-hidden">
-        <div className="h-1 bg-gradient-to-r from-primary-400 via-primary-600 to-primary-400"></div>
-        <CardContent className="p-8">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="p-2 bg-primary-100 rounded-lg text-primary-600">
-              <Sparkles size={24} />
-            </div>
-            <div>
-              <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter italic">AI Creator Analysis Summary</h2>
-              <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Powered by Gemini Pro Vision & Analytics Engine</p>
-            </div>
-          </div>
 
-          <div className="space-y-4">
-            <h4 className="text-sm font-black text-gray-800 uppercase flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary-500"></div>
-              Key Strengths & Relevance
-            </h4>
-            <p className="text-sm text-gray-600 leading-relaxed pl-4 border-l-2 border-gray-100">
-              {creator.full_name} is a high-impact creator in the <span className="font-bold text-gray-900">{creator.category}</span> space. 
-              With a strong base in <span className="font-bold text-gray-900">{creator.city}</span>, they align perfectly with your campaign's target demographics. 
-              Their outreach readiness score of <span className="font-bold text-primary-600">{creator.outreach_readiness_score}</span> suggests a highly professional digital presence and high probability of collaboration success.
-            </p>
-          </div>
-
-          <div className="mt-8 pt-6 border-t border-gray-100 flex items-center justify-center">
-            <div className="text-[10px] text-gray-400 italic">
-              AI analysis is based on available public metrics and profile data.
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      
+      <OutreachPreviewModal
+        creatorId={creator?.id || ''}
+        campaignId={creator?.campaign_id}
+        isOpen={outreachModalOpen}
+        onClose={() => setOutreachModalOpen(false)}
+        onSend={handleConfirmSendOutreach}
+      />
     </div>
   );
 }

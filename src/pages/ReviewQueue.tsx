@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
+import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { Check, X, Search, Instagram, Mail, Activity } from 'lucide-react';
 import { getAllCreators, reviewLead } from '../lib/api';
 import type { Creator } from '../types';
@@ -10,6 +11,7 @@ export default function ReviewQueue() {
   const [queue, setQueue] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
 
   const fetchQueue = async () => {
     try {
@@ -35,6 +37,11 @@ export default function ReviewQueue() {
     const currentLead = queue[currentIndex];
     if (!currentLead) return;
 
+    if (action === 'approve') {
+      setOutreachModalCreatorId(currentLead.id);
+      return;
+    }
+
     try {
       await reviewLead(currentLead.id, action);
       
@@ -46,6 +53,21 @@ export default function ReviewQueue() {
       }
     } catch (err) {
       alert(`Failed to ${action} lead.`);
+    }
+  };
+
+  const handleConfirmApprove = async (customSubject?: string, customBody?: string) => {
+    if (!outreachModalCreatorId) return;
+    try {
+      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody);
+      if (currentIndex < queue.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        fetchQueue();
+      }
+    } catch (err) {
+      alert('Failed to approve lead.');
+      throw err;
     }
   };
 
@@ -187,6 +209,13 @@ export default function ReviewQueue() {
           </div>
         </div>
       )}
+      
+      <OutreachPreviewModal
+        creatorId={outreachModalCreatorId || ''}
+        isOpen={!!outreachModalCreatorId}
+        onClose={() => setOutreachModalCreatorId(null)}
+        onSend={handleConfirmApprove}
+      />
     </div>
   );
 }

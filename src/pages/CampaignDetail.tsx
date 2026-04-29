@@ -4,7 +4,8 @@ import {
   getCampaignById, 
   getCampaignLeads, 
   triggerDiscovery,
-  updateCampaignTemplate 
+  updateCampaignTemplate,
+  reviewLead
 } from '../lib/api';
 import type { Campaign, Creator } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
@@ -12,7 +13,8 @@ import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
-import { ArrowLeft, Sparkles, Activity, Users, Mail, Info, Check } from 'lucide-react';
+import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
+import { ArrowLeft, Sparkles, Activity, Users, Mail, Info, Check, X } from 'lucide-react';
 
 export default function CampaignDetail() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +25,7 @@ export default function CampaignDetail() {
   const [templateSubject, setTemplateSubject] = useState('');
   const [templateBody, setTemplateBody] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!id) return;
@@ -62,6 +65,31 @@ export default function CampaignDetail() {
       alert('Failed to trigger AI Discovery.');
     } finally {
       setDiscovering(false);
+    }
+  };
+
+  const handleReview = async (creatorId: string, action: 'approve' | 'reject') => {
+    const lead = campaign?.leads?.find((l: any) => l.creator?.id === creatorId)?.creator;
+    if (action === 'approve' && (lead?.review_status === 'pending_review' || lead?.review_status === 'reviewed')) {
+      setOutreachModalCreatorId(creatorId);
+      return;
+    }
+    try {
+      await reviewLead(creatorId, action);
+      fetchData(); // Reload leads to reflect status change
+    } catch (err) {
+      alert('Failed to review lead: ' + err);
+    }
+  };
+
+  const handleConfirmApprove = async (customSubject?: string, customBody?: string) => {
+    if (!outreachModalCreatorId) return;
+    try {
+      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody);
+      fetchData();
+    } catch (err) {
+      alert('Failed to review lead: ' + err);
+      throw err;
     }
   };
   
@@ -109,7 +137,6 @@ export default function CampaignDetail() {
         </div>
         
         <div className="flex items-center gap-3">
-          <Button variant="outline" icon={<Users size={16} />}>Manage Leads</Button>
           <Button 
             onClick={handleDiscovery} 
             disabled={discovering}
@@ -139,9 +166,10 @@ export default function CampaignDetail() {
               <Thead>
                 <Tr>
                   <Th>Creator</Th>
-                  <Th>Review Status</Th>
                   <Th className="text-center">Relevance</Th>
                   <Th className="text-center">Readiness</Th>
+                  <Th>Review Status</Th>
+                  <Th className="text-right">Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -158,9 +186,29 @@ export default function CampaignDetail() {
                         </div>
                       </div>
                     </Td>
-                    <Td><StatusBadge status={lead.review_status as any || 'pending'} /></Td>
                     <Td><ScoreBadge score={lead.relevance_score || 0} /></Td>
                     <Td><ScoreBadge score={lead.outreach_readiness_score || 0} /></Td>
+                    <Td><StatusBadge status={lead.review_status as any || 'pending'} /></Td>
+                    <Td className="text-right">
+                      {(lead.review_status === 'hold' || !lead.review_status || lead.review_status === 'pending_review' || lead.review_status === 'reviewed' || lead.review_status === 'pending') && lead.review_status !== 'approved' && lead.review_status !== 'rejected' && (
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors" 
+                            onClick={() => handleReview(lead.id, 'approve')}
+                            title="Shortlist / Approve"
+                          >
+                            <Check size={16} />
+                          </button>
+                          <button 
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors" 
+                            onClick={() => handleReview(lead.id, 'reject')}
+                            title="Reject"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </Td>
                   </Tr>
                 ))}
               </Tbody>
@@ -257,6 +305,14 @@ export default function CampaignDetail() {
           </Card>
         </div>
       </div>
+      
+      <OutreachPreviewModal
+        creatorId={outreachModalCreatorId || ''}
+        campaignId={id}
+        isOpen={!!outreachModalCreatorId}
+        onClose={() => setOutreachModalCreatorId(null)}
+        onSend={handleConfirmApprove}
+      />
     </div>
   );
 }

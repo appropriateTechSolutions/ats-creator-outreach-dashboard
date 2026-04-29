@@ -1,14 +1,26 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden font-sans text-gray-900">
-      <Sidebar />
-      <div className="flex-col flex-1 pl-64 flex overflow-hidden">
-        <Topbar />
-        <main className="flex-1 overflow-y-auto p-8 relative">
+
+      {/* Sidebar — fixed, slides over content on mobile, pushes on desktop */}
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {/* Main area — on desktop shifts right when sidebar open */}
+      <div
+        className={`
+          flex flex-col flex-1 overflow-hidden min-w-0
+          transition-all duration-300 ease-in-out
+          ${sidebarOpen ? 'lg:ml-64' : 'ml-0'}
+        `}
+      >
+        <Topbar onMenuToggle={() => setSidebarOpen(prev => !prev)} sidebarOpen={sidebarOpen} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
           {children}
         </main>
       </div>
