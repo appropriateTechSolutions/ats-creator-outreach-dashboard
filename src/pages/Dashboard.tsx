@@ -52,8 +52,8 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <select className="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-4 py-2 shadow-sm font-medium outline-none">
+        <h1 className="text-2xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Dashboard</h1>
+        <select className="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-4 py-2 shadow-sm font-normal outline-none">
           <option>All Campaigns ({campaigns.length})</option>
           {campaigns.map(c => <option key={c.id}>{c.name}</option>)}
         </select>
@@ -96,44 +96,44 @@ export default function Dashboard() {
             {/* Funnel Chart Area */}
             <Card className="lg:col-span-2">
               <CardHeader>
-                <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Pipeline Funnel</h2>
+                <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">Pipeline Funnel</h2>
               </CardHeader>
               <CardContent className="h-64 flex flex-col justify-center gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-4">
-                    <div className="w-24 text-right text-xs font-bold text-gray-500">New</div>
+                    <div className="w-24 text-right text-xs font-normal text-gray-400 uppercase tracking-widest">New</div>
                     <div className="bg-gray-100 rounded-full h-8 flex-1 overflow-hidden">
                       <div className="bg-gray-300 h-full transition-all" style={{ width: '100%' }}></div>
                     </div>
-                    <div className="w-12 text-sm font-bold text-gray-700">{stats.kpis.totalCreators.value}</div>
+                    <div className="w-12 text-sm font-normal text-gray-700">{stats.kpis.totalCreators.value}</div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-24 text-right text-xs font-bold text-gray-500">Contacted</div>
+                    <div className="w-24 text-right text-xs font-normal text-gray-400 uppercase tracking-widest">Contacted</div>
                     <div className="bg-gray-100 rounded-full h-8 flex-1 overflow-hidden">
                       <div className="bg-primary-500 h-full transition-all" style={{ width: getPercentLength(stats.funnel.contacted, stats.kpis.totalCreators.value) }}></div>
                     </div>
-                    <div className="w-12 text-sm font-bold text-gray-700">{stats.funnel.contacted}</div>
+                    <div className="w-12 text-sm font-normal text-gray-700">{stats.funnel.contacted}</div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-24 text-right text-xs font-bold text-gray-500">Replied</div>
+                    <div className="w-24 text-right text-xs font-normal text-gray-400 uppercase tracking-widest">Replied</div>
                     <div className="bg-gray-100 rounded-full h-8 flex-1 overflow-hidden">
                       <div className="bg-primary-700 h-full transition-all" style={{ width: getPercentLength(stats.funnel.replied, stats.kpis.totalCreators.value) }}></div>
                     </div>
-                    <div className="w-12 text-sm font-bold text-gray-700">{stats.funnel.replied}</div>
+                    <div className="w-12 text-sm font-normal text-gray-700">{stats.funnel.replied}</div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-24 text-right text-xs font-bold text-gray-500">Qualified</div>
+                    <div className="w-24 text-right text-xs font-normal text-gray-400 uppercase tracking-widest">Qualified</div>
                     <div className="bg-gray-100 rounded-full h-8 flex-1 overflow-hidden">
                       <div className="bg-success-400 h-full transition-all" style={{ width: getPercentLength(stats.funnel.qualified, stats.kpis.totalCreators.value) }}></div>
                     </div>
-                    <div className="w-12 text-sm font-bold text-gray-700">{stats.funnel.qualified}</div>
+                    <div className="w-12 text-sm font-normal text-gray-700">{stats.funnel.qualified}</div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-24 text-right text-xs font-bold text-gray-500">Converted</div>
+                    <div className="w-24 text-right text-xs font-normal text-gray-400 uppercase tracking-widest">Converted</div>
                     <div className="bg-gray-100 rounded-full h-8 flex-1 overflow-hidden">
                       <div className="bg-success-600 h-full transition-all" style={{ width: getPercentLength(stats.funnel.converted, stats.kpis.totalCreators.value) }}></div>
                     </div>
-                    <div className="w-12 text-sm font-bold text-gray-700">{stats.funnel.converted}</div>
+                    <div className="w-12 text-sm font-normal text-gray-700">{stats.funnel.converted}</div>
                   </div>
                 </div>
               </CardContent>
@@ -142,25 +142,25 @@ export default function Dashboard() {
             {/* Outreach Status */}
             <Card>
               <CardHeader>
-                <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Outreach Queue</h2>
+                <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">Outreach Queue</h2>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="p-4 bg-warning-50 border border-warning-100 rounded-xl flex justify-between items-center">
                   <div>
-                    <div className="text-xs font-bold text-warning-800 uppercase tracking-wider mb-1">Approved · Pending Send</div>
-                    <div className="text-2xl font-black text-warning-900">{stats.outreachQueue.pending}</div>
+                    <div className="text-xs font-normal text-warning-800 uppercase tracking-widest mb-1">Approved · Pending Send</div>
+                    <div className="text-2xl font-normal text-warning-900">{stats.outreachQueue.pending}</div>
                   </div>
                   <div className="w-10 h-10 bg-warning-200 rounded-full flex items-center justify-center text-warning-700"><Mail size={18}/></div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 text-center">
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Total Sent</div>
-                    <div className="text-xl font-bold text-gray-900">{stats.outreachQueue.sent}</div>
+                    <div className="text-xs font-normal text-gray-400 uppercase tracking-widest mb-1">Total Sent</div>
+                    <div className="text-xl font-normal text-gray-900">{stats.outreachQueue.sent}</div>
                   </div>
                   <div className="p-4 bg-error-50 border border-error-100 rounded-xl text-center">
-                    <div className="text-xs font-bold text-error-700 uppercase tracking-wider mb-1">Failed</div>
-                    <div className="text-xl font-bold text-error-600">{stats.outreachQueue.failed}</div>
+                    <div className="text-xs font-normal text-error-700 uppercase tracking-widest mb-1">Failed</div>
+                    <div className="text-xl font-normal text-error-600">{stats.outreachQueue.failed}</div>
                   </div>
                 </div>
 
@@ -174,7 +174,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2">
               <CardHeader>
-                <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Top Scoring Discovery Leads</h2>
+                <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">Top Discovery Leads</h2>
               </CardHeader>
               {topCreators.length === 0 ? (
                 <div className="p-12 text-center text-gray-500">No pending leads. Trigger AI discovery inside a Campaign!</div>
@@ -194,11 +194,11 @@ export default function Dashboard() {
                       <Tr key={c.id}>
                         <Td>
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-bold text-xs uppercase">
+                            <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-xs uppercase">
                               {c.handle?.charAt(0)}
                             </div>
                             <div>
-                              <div className="font-semibold text-gray-900">@{c.handle}</div>
+                               <div className="font-normal text-gray-900 font-outfit uppercase tracking-tight">@{c.handle}</div>
                               <div className="text-xs text-gray-500 truncate max-w-[120px]">{c.full_name || c.category}</div>
                             </div>
                           </div>
@@ -221,11 +221,11 @@ export default function Dashboard() {
             {/* Recent Activity */}
             <Card>
               <CardHeader>
-                <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Recent Activity</h2>
+                <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">Recent Activity</h2>
               </CardHeader>
               <CardContent className="space-y-6">
                 {stats.recentActivity.length === 0 ? (
-                   <div className="text-center text-sm text-gray-500 py-4 font-medium">No recent activity detected.</div>
+                   <div className="text-center text-sm text-gray-500 py-4 font-normal uppercase tracking-widest text-[10px]">No recent activity detected.</div>
                 ) : (
                   stats.recentActivity.map((act: any, idx: number) => (
                     <div key={idx} className="flex gap-4 items-start group">
@@ -244,11 +244,11 @@ export default function Dashboard() {
                         )}
                       </div>
                       <div className="pt-1.5 pb-2">
-                        <p className="text-sm font-semibold text-gray-900 leading-tight">{act.message}</p>
+                        <p className="text-sm font-normal text-gray-900 leading-tight">{act.message}</p>
                         <div className="flex items-center gap-1.5 mt-1.5 text-gray-400">
                            <Clock size={12} />
-                           <span className="text-xs font-medium">{getRelativeTime(act.timestamp)}</span>
-                           <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-gray-50 border border-gray-100 ml-1">
+                           <span className="text-xs font-normal">{getRelativeTime(act.timestamp)}</span>
+                           <span className="text-[10px] uppercase font-normal tracking-widest px-1.5 py-0.5 rounded bg-gray-50 border border-gray-100 ml-1">
                              {act.status || 'Active'}
                            </span>
                         </div>

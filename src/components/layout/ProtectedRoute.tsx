@@ -11,7 +11,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50 text-gray-500">
         <Activity className="animate-spin mb-4" size={32} />
-        <p className="font-medium tracking-wide text-sm">Authenticating...</p>
+        <p className="font-normal uppercase tracking-[0.2em] text-[10px]">Authenticating...</p>
       </div>
     );
   }

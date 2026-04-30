@@ -78,7 +78,7 @@ export default function Conversations() {
     <div className="space-y-6 max-w-7xl mx-auto h-[calc(100vh-100px)] flex flex-col pb-6 animate-[fadeIn_0.3s_ease]">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Inbox & Conversations</h1>
+          <h1 className="text-2xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Inbox & Conversations</h1>
           <p className="text-sm text-gray-500">Manage replies and negotiate with leads.</p>
         </div>
         <Button 
@@ -124,12 +124,12 @@ export default function Conversations() {
                     className={`w-full text-left p-4 hover:bg-white transition-colors block focus:outline-none ${activeId === c.id ? 'bg-white border-l-4 border-primary-500' : 'border-l-4 border-transparent'}`}
                   >
                     <div className="flex justify-between items-start mb-1">
-                      <span className="font-bold text-gray-900 text-sm">@{c.handle}</span>
+                      <span className="font-normal text-gray-900 text-sm font-outfit uppercase tracking-tight">@{c.handle}</span>
                       <span className="text-xs text-gray-500 whitespace-nowrap">
                         {c.conversation?.latest_inbound_at ? format(new Date(c.conversation.latest_inbound_at), 'MMM d, h:mm a') : ''}
                       </span>
                     </div>
-                    <div className="text-xs font-semibold text-gray-600 truncate mb-1">
+                    <div className="text-xs font-normal text-gray-600 truncate mb-1">
                       Re: Collab Opportunity
                     </div>
                     <p className="text-xs text-gray-500 truncate max-w-full">
@@ -149,11 +149,11 @@ export default function Conversations() {
               {/* Header */}
               <div className="p-5 border-b border-gray-100 flex justify-between items-center shadow-sm z-10">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold">
+                  <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-normal uppercase font-outfit">
                     {activeConvo.handle?.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900 leading-tight">@{activeConvo.handle}</h2>
+                    <h2 className="text-lg font-normal text-gray-900 leading-tight font-outfit uppercase tracking-tight">@{activeConvo.handle}</h2>
                     <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
                       <Mail size={12} /> {activeConvo.email}
                     </div>
@@ -175,7 +175,7 @@ export default function Conversations() {
                           ? 'bg-primary-600 text-white rounded-tr-sm' 
                           : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm'
                       }`}>
-                        <div className={`text-xs font-medium mb-1 ${msg.direction === 'outbound' ? 'text-primary-100' : 'text-gray-400'}`}>
+                        <div className={`text-xs font-normal mb-1 ${msg.direction === 'outbound' ? 'text-primary-100' : 'text-gray-400'}`}>
                           {msg.direction === 'outbound' ? 'You' : `@${activeConvo.handle}`} • {format(new Date(msg.message_time), 'MMM d, h:mm a')}
                         </div>
                         <p className="text-sm whitespace-pre-wrap leading-relaxed">
@@ -191,7 +191,7 @@ export default function Conversations() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
               <MessageSquare size={48} className="mb-4 opacity-20" />
-              <p className="font-medium">Select a conversation to view.</p>
+              <p className="font-normal">Select a conversation to view.</p>
             </div>
           )}
         </div>

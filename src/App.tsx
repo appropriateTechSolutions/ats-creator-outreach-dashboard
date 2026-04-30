@@ -14,13 +14,16 @@ import Meetings from './pages/Meetings';
 import Login from './pages/Login';
 import AcceptInvite from './pages/AcceptInvite';
 import Users from './pages/Users';
+import UserDetail from './pages/UserDetail';
 import Clients from './pages/Clients';
+import ClientDetail from './pages/ClientDetail';
 import Brands from './pages/Brands';
+import BrandDetail from './pages/BrandDetail';
 
 // Temporary placeholders for missing pages
 const Placeholder = ({ title }: { title: string }) => (
   <div className="flex items-center justify-center h-full text-gray-400">
-    <h2 className="text-xl font-medium">{title} Page (Under Construction)</h2>
+    <h2 className="text-xl font-normal font-outfit uppercase tracking-tight">{title} Page (Under Construction)</h2>
   </div>
 );
 
@@ -54,8 +57,11 @@ export default function App() {
             <Route path="/conversations" element={<Conversations />} />
             <Route path="/meetings" element={<Meetings />} />
             <Route path="/users" element={<Users />} />
+            <Route path="/users/:id" element={<UserDetail />} />
             <Route path="/clients" element={<Clients />} />
+            <Route path="/clients/:id" element={<ClientDetail />} />
             <Route path="/brands" element={<Brands />} />
+            <Route path="/brands/:id" element={<BrandDetail />} />
             <Route path="/analytics" element={<Placeholder title="Analytics" />} />
           </Route>
           

@@ -72,7 +72,7 @@ export default function Creators() {
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Global Creator Directory</h1>
+          <h1 className="text-2xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Global Creator Directory</h1>
           <p className="text-sm text-gray-500">View and filter all discovered leads across all campaigns.</p>
         </div>
       </div>
@@ -102,7 +102,7 @@ export default function Creators() {
 
             <Button variant="ghost" className="px-2 text-gray-500" icon={<Filter size={16}/>}>Advanced</Button>
           </div>
-          <div className="text-sm text-gray-500 font-medium">
+          <div className="text-sm text-gray-500 font-normal">
             {filteredCreators.length} records found
           </div>
         </div>
@@ -128,25 +128,35 @@ export default function Creators() {
                   <Tr key={c.id}>
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-bold text-sm uppercase ring-2 ring-white shadow-sm">
+                        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm">
                           {c.handle?.charAt(0)}
                         </div>
                         <div>
-                          <Link to={`/creators/${c.id}`} className="font-bold text-gray-900 hover:text-primary-600 block leading-tight">
+                          <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 block leading-tight font-outfit uppercase tracking-tight">
                             @{c.handle}
                           </Link>
-                          <div className="text-[11px] text-gray-500 mt-0.5 truncate max-w-[180px]">{c.full_name || 'No Name Provided'}</div>
+                          <div className="flex gap-1.5 mt-1">
+                            <a href={`https://instagram.com/${c.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-pink-600 transition-colors">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+                            </a>
+                            <a href={`https://youtube.com/@${c.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-red-600 transition-colors">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 2-2h15a2 2 0 0 1 2 2 24.12 24.12 0 0 1 0 10 2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2Z"/><path d="m10 15 5-3-5-3z"/></svg>
+                            </a>
+                            <a href={`https://tiktok.com/@${c.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
+                            </a>
+                          </div>
                         </div>
                       </div>
                     </Td>
                     <Td>
                       <div className="flex gap-1 flex-wrap max-w-[150px]">
                         {c.category?.split(',').slice(0, 2).map((cat, i) => (
-                           <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-semibold uppercase tracking-wider">{cat.trim().substring(0,10)}</span>
+                           <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-normal uppercase tracking-wider">{cat.trim().substring(0,10)}</span>
                         ))}
                       </div>
                     </Td>
-                    <Td className="text-center font-medium text-gray-700 text-sm">
+                    <Td className="text-center font-normal text-gray-700 text-sm">
                        {c.followers_count ? (c.followers_count > 1000000 ? (c.followers_count/1000000).toFixed(1) + 'M' : (c.followers_count/1000).toFixed(1) + 'K') : '-'}
                     </Td>
                     <Td className="text-center">

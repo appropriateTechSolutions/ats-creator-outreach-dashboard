@@ -120,13 +120,13 @@ export default function CampaignDetail() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
-      <Link to="/campaigns" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
+      <Link to="/campaigns" className="inline-flex items-center text-sm font-normal text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-widest">
         <ArrowLeft size={16} className="mr-1" /> Back to Campaigns
       </Link>
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{campaign.name}</h1>
+          <h1 className="text-3xl font-normal text-gray-900 mb-2 font-outfit uppercase tracking-tight">{campaign.name}</h1>
           <div className="flex items-center gap-3 text-sm text-gray-600">
             <StatusBadge status={campaign.status as any} />
             <span>•</span>
@@ -151,14 +151,14 @@ export default function CampaignDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
         <Card className="lg:col-span-2">
           <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-[12px]">
-            <h2 className="text-lg font-bold text-gray-900">Campaign Leads ({leads.length})</h2>
+            <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaign Leads ({leads.length})</h2>
           </div>
           {leads.length === 0 ? (
             <div className="p-16 text-center">
               <div className="w-16 h-16 bg-primary-50 text-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Sparkles size={32} />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">No leads found yet</h3>
+              <h3 className="text-lg font-normal text-gray-900 uppercase tracking-widest font-outfit">No leads found yet</h3>
               <p className="text-gray-500 mt-1 max-w-sm mx-auto">Trigger the AI Discovery engine to automatically scrape, score, and qualify influencers matching this campaign's target profile.</p>
             </div>
           ) : (
@@ -177,11 +177,11 @@ export default function CampaignDetail() {
                   <Tr key={lead.id}>
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs">
+                        <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-normal text-xs">
                           {lead.handle?.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <Link to={`/creators/${lead.id}`} className="font-semibold text-gray-900 hover:text-primary-600">@{lead.handle}</Link>
+                          <Link to={`/creators/${lead.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors">@{lead.handle}</Link>
                           <div className="text-xs text-gray-500">{lead.platform}</div>
                         </div>
                       </div>
@@ -219,32 +219,32 @@ export default function CampaignDetail() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Target Profile</h2>
+              <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">Target Profile</h2>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase">Keywords</p>
+                <p className="text-xs font-normal text-gray-500 uppercase tracking-widest">Keywords</p>
                 <div className="flex gap-2 flex-wrap mt-2">
                   {campaign.keywords?.map(k => (
-                    <span key={k} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">{k}</span>
+                    <span key={k} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-normal uppercase tracking-wider">{k}</span>
                   ))}
                   {!campaign.keywords?.length && <span className="text-sm text-gray-400">None provided</span>}
                 </div>
               </div>
               
               <div className="pt-4 border-t border-gray-100">
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Metrics</p>
+                <p className="text-xs font-normal text-gray-500 uppercase tracking-widest mb-4">Metrics Intelligence</p>
                 <div className="flex justify-between items-center text-sm mb-1">
                   <span className="text-gray-600">Pending Review</span>
-                  <span className="font-bold text-gray-900">{leads.filter(l => l.review_status === 'pending').length}</span>
+                  <span className="font-normal text-gray-900">{leads.filter(l => l.review_status === 'pending').length}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm mb-1">
                   <span className="text-gray-600">Approved</span>
-                  <span className="font-bold text-success-600">{leads.filter(l => l.review_status === 'approved').length}</span>
+                  <span className="font-normal text-success-600">{leads.filter(l => l.review_status === 'approved').length}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">Rejected</span>
-                  <span className="font-bold text-error-600">{leads.filter(l => l.review_status === 'rejected').length}</span>
+                  <span className="font-normal text-error-600">{leads.filter(l => l.review_status === 'rejected').length}</span>
                 </div>
               </div>
             </CardContent>
@@ -252,13 +252,13 @@ export default function CampaignDetail() {
 
           <Card className="border-primary-100 bg-primary-50/10">
             <CardHeader className="flex flex-row justify-between items-center pb-2">
-              <h2 className="text-sm font-bold text-primary-700 uppercase tracking-wide flex items-center gap-2">
+              <h2 className="text-sm font-normal text-primary-700 uppercase tracking-widest flex items-center gap-2 font-outfit">
                 <Mail size={16} /> Outreach Template
               </h2>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Email Subject</label>
+                <label className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Email Subject</label>
                 <input 
                   type="text" 
                   value={templateSubject}
@@ -269,7 +269,7 @@ export default function CampaignDetail() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Message Body</label>
+                <label className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Message Body</label>
                 <textarea 
                   rows={8}
                   value={templateBody}
@@ -282,11 +282,11 @@ export default function CampaignDetail() {
               <div className="bg-white/50 border border-primary-100 rounded-lg p-3 space-y-2">
                  <div className="flex items-center gap-2 text-primary-700">
                    <Info size={14} />
-                   <span className="text-[10px] font-bold uppercase tracking-wider">Placeholders</span>
+                   <span className="text-[10px] font-normal uppercase tracking-widest">Placeholders</span>
                  </div>
                  <div className="flex flex-wrap gap-1.5">
                    {['handle', 'display_name', 'city', 'campaign_name'].map(p => (
-                     <code key={p} className="text-[10px] bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded font-bold">
+                     <code key={p} className="text-[10px] bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded font-normal uppercase tracking-tighter">
                        {`{{${p}}}`}
                      </code>
                    ))}

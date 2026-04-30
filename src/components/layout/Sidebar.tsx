@@ -36,9 +36,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { name: 'Conversations', path: '/conversations', icon: <MessageSquare size={20} /> },
     { name: 'Meetings', path: '/meetings', icon: <Calendar size={20} /> },
     { name: 'Users', path: '/users', icon: <Users size={20} />, adminOnly: true },
-    { name: 'Automation Logs', path: '/automation-logs', icon: <Activity size={20} />, internalOnly: true },
-    { name: 'System Templates', path: '/templates', icon: <Layout size={20} />, internalOnly: true },
-    { name: 'Analytics', path: '/analytics', icon: <Activity size={20} /> },
   ];
 
   const filteredNavItems = navItems.filter(item => {
@@ -88,7 +85,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <div className="w-7 h-7 rounded-lg bg-primary-600 flex items-center justify-center flex-shrink-0">
               <Activity size={16} className="text-white" />
             </div>
-            <span className="font-bold text-gray-900 tracking-tight text-sm">
+            <span className="font-normal text-gray-900 tracking-tight text-sm font-outfit uppercase">
               ATS Outreach
             </span>
           </div>
@@ -96,7 +93,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* Nav Items */}
         <div className="px-4 py-2 flex-1 overflow-y-auto">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">
+          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4 px-2">
             Main Menu
           </div>
           <nav className="space-y-1">
@@ -108,7 +105,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   if (window.innerWidth < 1024) onClose();
                 }}
                 className={({ isActive }) => 
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors font-medium text-sm ${
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors font-normal text-sm ${
                     isActive 
                       ? 'bg-primary-50 text-primary-700' 
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'

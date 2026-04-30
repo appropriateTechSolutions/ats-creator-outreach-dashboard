@@ -130,7 +130,7 @@ export default function Meetings() {
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Meetings & Conversions</h1>
+          <h1 className="text-2xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Meetings & Conversions</h1>
           <p className="text-sm text-gray-500">Track your influencer discovery calls and partner onboarding pipeline.</p>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
@@ -164,8 +164,8 @@ export default function Meetings() {
               <Calendar size={20} />
             </div>
             <div>
-              <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">Scheduled</div>
-              <div className="text-xl font-black text-gray-900">{stats.scheduled}</div>
+              <div className="text-xs text-gray-500 uppercase font-normal tracking-widest">Scheduled</div>
+              <div className="text-xl font-normal text-gray-900">{stats.scheduled}</div>
             </div>
           </div>
         </Card>
@@ -175,8 +175,8 @@ export default function Meetings() {
               <CheckCircle size={20} />
             </div>
             <div>
-              <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">Completed</div>
-              <div className="text-xl font-black text-gray-900">{stats.completed}</div>
+              <div className="text-xs text-gray-500 uppercase font-normal tracking-widest">Completed</div>
+              <div className="text-xl font-normal text-gray-900">{stats.completed}</div>
             </div>
           </div>
         </Card>
@@ -186,8 +186,8 @@ export default function Meetings() {
               <AlertCircle size={20} />
             </div>
             <div>
-              <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">No Show</div>
-              <div className="text-xl font-black text-gray-900">{stats.noShow}</div>
+              <div className="text-xs text-gray-500 uppercase font-normal tracking-widest">No Show</div>
+              <div className="text-xl font-normal text-gray-900">{stats.noShow}</div>
             </div>
           </div>
         </Card>
@@ -197,8 +197,8 @@ export default function Meetings() {
               <UserCheck size={20} />
             </div>
             <div>
-              <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">Approved</div>
-              <div className="text-xl font-black text-gray-900">{stats.approved}</div>
+              <div className="text-xs text-gray-500 uppercase font-normal tracking-widest">Approved</div>
+              <div className="text-xl font-normal text-gray-900">{stats.approved}</div>
             </div>
           </div>
         </Card>
@@ -215,7 +215,7 @@ export default function Meetings() {
              <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center text-primary-500 mx-auto mb-4">
                 <Calendar size={32} />
              </div>
-             <h3 className="text-lg font-bold text-gray-900">No Meetings Found</h3>
+             <h3 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">No Meetings Found</h3>
              <p className="text-gray-500 max-w-sm mt-1 mx-auto">
                {searchQuery ? 'No creators match your search criteria.' : 'Leads that book a call via Calendly or manual links will automatically appear here.'}
              </p>
@@ -240,18 +240,18 @@ export default function Meetings() {
                   <Tr key={m.id} className="hover:bg-gray-50/50 transition-colors">
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center font-bold text-sm uppercase shadow-sm">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center font-normal text-sm uppercase shadow-sm font-outfit">
                           {m.Creator?.handle?.charAt(0) || 'C'}
                         </div>
                         <div>
-                          <div className="font-bold text-gray-900">@{m.Creator?.handle}</div>
-                          <div className="text-xs text-gray-500 font-medium">Campaign: {m.Campaign?.name || 'Organic'}</div>
+                          <div className="font-normal text-gray-900 font-outfit uppercase tracking-tight">@{m.Creator?.handle}</div>
+                          <div className="text-xs text-gray-500 font-normal">Campaign: {m.Campaign?.name || 'Organic'}</div>
                         </div>
                       </div>
                     </Td>
                     <Td>
                       <div className="flex flex-col">
-                        <div className="flex items-center gap-1.5 font-semibold text-gray-900 text-sm">
+                        <div className="flex items-center gap-1.5 font-normal text-gray-900 text-sm">
                           <Calendar size={14} className="text-primary-500" />
                           {format(new Date(m.meeting_date), 'MMM dd, yyyy')}
                         </div>
@@ -264,11 +264,11 @@ export default function Meetings() {
                     <Td>
                       <div className="flex items-center gap-2">
                          {isCalendly ? (
-                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase bg-blue-50 text-blue-700 border border-blue-100">
+                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-normal uppercase bg-blue-50 text-blue-700 border border-blue-100 tracking-widest">
                              Calendly
                            </span>
                          ) : (
-                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase bg-gray-50 text-gray-600 border border-gray-100">
+                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-normal uppercase bg-gray-50 text-gray-600 border border-gray-100 tracking-widest">
                              Manual
                            </span>
                          )}
@@ -278,12 +278,12 @@ export default function Meetings() {
                       <div className="flex flex-col gap-1">
                         <StatusBadge status={m.status} />
                         {m.outcome === 'approved' && (
-                          <span className="text-[10px] font-bold text-green-600 flex items-center gap-0.5">
+                          <span className="text-[10px] font-normal text-green-600 flex items-center gap-0.5 uppercase tracking-widest">
                             <CheckCircle size={10} /> Approved
                           </span>
                         )}
                         {m.outcome === 'rejected' && (
-                          <span className="text-[10px] font-bold text-red-600 flex items-center gap-0.5">
+                          <span className="text-[10px] font-normal text-red-600 flex items-center gap-0.5 uppercase tracking-widest">
                             <AlertCircle size={10} /> Rejected
                           </span>
                         )}
@@ -338,7 +338,7 @@ export default function Meetings() {
       >
         <div className="space-y-4 pt-2">
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Select Qualified Creator</label>
+            <label className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest">Select Qualified Creator</label>
             <select 
               className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
               value={selectedCreatorId}
@@ -356,7 +356,7 @@ export default function Meetings() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Calendly / Booking Link</label>
+            <label className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest">Calendly / Booking Link</label>
             <div className="flex gap-2">
               <div className="relative flex-grow">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -376,9 +376,9 @@ export default function Meetings() {
           <div className="bg-primary-50 p-3 rounded-lg border border-primary-100 flex gap-3">
              <div className="text-primary-600 mt-0.5"><Send size={18} /></div>
              <div>
-                <p className="text-xs font-bold text-primary-900">What happens next?</p>
+                <p className="text-xs font-normal text-primary-900 uppercase tracking-widest">What happens next?</p>
                 <p className="text-[11px] text-primary-700 leading-relaxed mt-0.5">
-                  The system will log this invitation. When the creator books via this link, your dashboard will update to **"Booked"** automatically.
+                  The system will log this invitation. When the creator books via this link, your dashboard will update to "Booked" automatically.
                 </p>
              </div>
           </div>

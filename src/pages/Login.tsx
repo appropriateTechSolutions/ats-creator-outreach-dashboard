@@ -35,7 +35,7 @@ export default function Login() {
             <Activity className="text-white" size={28} />
           </div>
         </div>
-        <h2 className="text-center text-3xl font-extrabold text-gray-900 tracking-tight">
+        <h2 className="text-center text-3xl font-normal text-gray-900 tracking-tight font-outfit uppercase">
           Welcome to ATS Hub
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
@@ -47,13 +47,13 @@ export default function Login() {
         <div className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 sm:rounded-2xl sm:px-10 border border-gray-100">
           <form className="space-y-6" onSubmit={handleLogin}>
             {error && (
-              <div className="p-3 bg-error-50 text-error-700 text-sm rounded-lg border border-error-100 font-medium">
+              <div className="p-3 bg-error-50 text-error-700 text-sm rounded-lg border border-error-100 font-normal">
                 {error}
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest">
                 Email address
               </label>
               <input
@@ -67,7 +67,7 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest">
                 Password
               </label>
               <input

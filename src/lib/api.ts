@@ -47,6 +47,7 @@ export const inviteUser = (data: { full_name: string, email: string, role: strin
   api.post('/users/invite', data);
 
 export const getUsers = (): Promise<any[]> => api.get('/users');
+export const getUserById = (id: string): Promise<any> => api.get(`/users/${id}`);
 
 export const verifyInvite = (token: string): Promise<any> => 
   api.get(`/auth/invite/verify?token=${token}`);
@@ -59,11 +60,13 @@ export const disableUser = (id: string): Promise<any> => api.post(`/users/${id}/
 
 // Clients
 export const getClients = (): Promise<any[]> => api.get('/clients');
-export const createClient = (data: { name: string }): Promise<any> => api.post('/clients', data);
+export const getClientById = (id: string): Promise<any> => api.get(`/clients/${id}`);
+export const createClient = (data: any): Promise<any> => api.post('/clients', data);
 
 // Brands
 export const getBrands = (clientId?: string): Promise<any[]> => api.get('/brands', { params: { client_id: clientId } });
-export const createBrand = (data: { name: string, client_id: string }): Promise<any> => api.post('/brands', data);
+export const getBrandById = (id: string): Promise<any> => api.get(`/brands/${id}`);
+export const createBrand = (data: any): Promise<any> => api.post('/brands', data);
 
 // ─── Campaigns ────────────────────────────────────────
 export const getCampaigns = (): Promise<Campaign[]> => api.get('/campaigns');

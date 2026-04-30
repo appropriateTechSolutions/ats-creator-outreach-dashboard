@@ -52,11 +52,11 @@ export function Topbar({ onMenuToggle, sidebarOpen }: TopbarProps) {
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 cursor-pointer group focus:outline-none"
           >
-            <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-bold text-xs ring-2 ring-transparent group-hover:ring-primary-100 transition-all uppercase">
+            <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-xs ring-2 ring-transparent group-hover:ring-primary-100 transition-all uppercase">
               {user?.full_name?.substring(0, 2) || 'US'}
             </div>
             <div className="hidden md:block text-left">
-              <div className="text-sm font-semibold text-gray-700 leading-tight">{user?.full_name || 'Admin User'}</div>
+              <div className="text-sm font-normal text-gray-700 leading-tight font-outfit uppercase tracking-tight">{user?.full_name || 'Admin User'}</div>
               <div className="text-[10px] uppercase tracking-wider text-gray-500 mt-0.5">{user?.role || 'Role'}</div>
             </div>
             <ChevronDown size={14} className="text-gray-400 group-hover:text-gray-600 hidden md:block" />
@@ -68,7 +68,7 @@ export function Topbar({ onMenuToggle, sidebarOpen }: TopbarProps) {
                 onClick={() => { setMenuOpen(false); logout(); }}
                 className="w-full text-left px-4 py-2 text-sm text-error-600 hover:bg-error-50 flex items-center gap-2 font-medium"
               >
-                <LogOut size={16} /> Logout
+                <LogOut size={16} /> <span className="font-normal uppercase tracking-widest text-[10px]">Logout</span>
               </button>
             </div>
           )}

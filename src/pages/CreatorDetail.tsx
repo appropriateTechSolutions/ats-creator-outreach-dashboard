@@ -139,18 +139,18 @@ export default function CreatorDetail() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
-      <Link to="/creators" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mb-4">
+      <Link to="/creators" className="inline-flex items-center text-sm font-normal text-gray-500 hover:text-gray-900 transition-colors mb-4">
         <ArrowLeft size={16} className="mr-1" /> Back to Directory
       </Link>
 
       <Card>
         <div className="bg-gradient-to-r from-gray-50 to-white px-8 py-8 border-b border-gray-100 flex items-start justify-between rounded-t-[12px]">
           <div className="flex items-center gap-6">
-            <div className="w-20 h-20 rounded-full bg-primary-600 text-white flex items-center justify-center font-black text-4xl uppercase shadow-lg shadow-primary-500/30 ring-4 ring-white">
+             <div className="w-20 h-20 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-4xl uppercase shadow-lg shadow-primary-500/30 ring-4 ring-white">
               {creator.handle?.charAt(0)}
             </div>
             <div>
-              <h1 className="text-3xl font-black text-gray-900 flex items-center gap-2">
+               <h1 className="text-3xl font-normal text-gray-900 flex items-center gap-2 font-outfit uppercase tracking-tight">
                 <a 
                   href={
                     (() => {
@@ -167,11 +167,31 @@ export default function CreatorDetail() {
                   <ExternalLink size={18} className="text-gray-300 group-hover:text-primary-400 transition-colors" />
                 </a>
               </h1>
-              <p className="text-gray-500 font-medium text-lg mt-0.5">{creator.full_name || 'No full name provided'}</p>
+              <p className="text-gray-500 font-medium text-lg mt-1">{creator.full_name || 'No full name provided'}</p>
+              <div className="flex gap-4 mt-3">
+                {creator.has_instagram && (
+                  <a href={`https://instagram.com/${creator.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-pink-600 transition-colors flex items-center gap-1">
+                    <Instagram size={16} />
+                     <span className="text-xs font-normal">Instagram</span>
+                  </a>
+                )}
+                {creator.has_youtube && (
+                  <a href={`https://youtube.com/@${creator.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-red-600 transition-colors flex items-center gap-1">
+                    <Youtube size={16} />
+                     <span className="text-xs font-normal">YouTube</span>
+                  </a>
+                )}
+                {creator.has_tiktok && (
+                  <a href={`https://tiktok.com/@${creator.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-black transition-colors flex items-center gap-1">
+                    <Activity size={16} />
+                     <span className="text-xs font-normal">TikTok</span>
+                  </a>
+                )}
+              </div>
               
               <div className="flex gap-2 mt-3">
                 {creator.category?.split(',').map(c => (
-                  <span key={c} className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded text-xs font-bold uppercase tracking-wider">{c.trim()}</span>
+                   <span key={c} className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded text-xs font-normal uppercase tracking-wider">{c.trim()}</span>
                 ))}
               </div>
             </div>
@@ -181,7 +201,7 @@ export default function CreatorDetail() {
             </div>
             <StatusBadge status={creator.review_status as any || 'pending'} />
             <div className="flex items-center gap-2 mt-2">
-               <span className="text-xs font-bold text-gray-400 uppercase">Master Readiness:</span>
+               <span className="text-xs font-normal text-gray-400 uppercase">Master Readiness:</span>
                <ScoreBadge score={creator.outreach_readiness_score || 0} />
             </div>
             
@@ -200,13 +220,13 @@ export default function CreatorDetail() {
         {/* Creator Insights Section (Summary, Bio, Email, Location) */}
         <div className="px-8 py-6 bg-primary-50/30 border-b border-gray-100">
            <div className="mb-6">
-              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
                 <Sparkles size={12} className="text-primary-600" /> SUMMARY
               </h4>
               <p className="text-sm text-gray-700 leading-relaxed italic border-l-2 border-primary-200 pl-4">
-                {creator.full_name} is a high-impact creator in the <span className="font-bold text-gray-900">{creator.category}</span> space. 
-                With a strong base in <span className="font-bold text-gray-900">{creator.city}</span>, they align perfectly with your campaign's target demographics. 
-                Their outreach readiness score of <span className="font-bold text-primary-600">{creator.outreach_readiness_score}</span> suggests a highly professional digital presence and high probability of collaboration success.
+                {creator.full_name} is a high-impact creator in the <span className="font-normal text-gray-900">{creator.category}</span> space. 
+                With a strong base in <span className="font-normal text-gray-900">{creator.city}</span>, they align perfectly with your campaign's target demographics. 
+                Their outreach readiness score of <span className="font-normal text-primary-600">{creator.outreach_readiness_score}</span> suggests a highly professional digital presence and high probability of collaboration success.
               </p>
            </div>
 
@@ -214,7 +234,7 @@ export default function CreatorDetail() {
              <div className="flex gap-3">
                 <div className="mt-1 text-primary-600"><FileText size={18} /></div>
                 <div>
-                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">About / Bio</h4>
+                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">About / Bio</h4>
                   <p className="text-sm text-gray-700 leading-relaxed italic">
                     {creator.bio || "No bio available for this creator."}
                   </p>
@@ -223,18 +243,18 @@ export default function CreatorDetail() {
              <div className="flex gap-3">
                 <div className="mt-1 text-primary-600"><Mail size={18} /></div>
                 <div>
-                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Direct Contact</h4>
-                  <p className="text-sm font-bold text-gray-800">
+                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">Direct Contact</h4>
+                  <p className="text-sm font-normal text-gray-800">
                     {creator.email || "Email hidden or not found"}
                   </p>
-                  {creator.has_email && <span className="text-[10px] text-green-600 font-bold flex items-center gap-1 mt-1"><Check size={10} /> Verified Email</span>}
+                  {creator.has_email && <span className="text-[10px] text-green-600 font-normal flex items-center gap-1 mt-1"><Check size={10} /> Verified Email</span>}
                 </div>
              </div>
              <div className="flex gap-3">
                 <div className="mt-1 text-primary-600"><MapPin size={18} /></div>
                 <div>
-                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Target Location</h4>
-                  <p className="text-sm font-bold text-gray-800 capitalize">
+                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">Target Location</h4>
+                  <p className="text-sm font-normal text-gray-800 capitalize">
                     {creator.city ? `${creator.city}${creator.state ? `, ${creator.state}` : ''}${creator.country ? `, ${creator.country}` : ''}` : 'Location unknown'}
                   </p>
                   <span className="text-[10px] text-gray-500 font-medium">Primarily active in this region</span>
@@ -247,7 +267,7 @@ export default function CreatorDetail() {
           
           {/* Platform Wise Scores */}
           <div className="lg:col-span-2 space-y-4">
-            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2">
               <UserCheck size={18} className="text-primary-600" /> Platform-wise Score Breakdown
             </h3>
             
@@ -265,10 +285,10 @@ export default function CreatorDetail() {
                 return (
                   <div key={platform.key} className="bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm">
                     <div className="flex justify-between items-center mb-4">
-                      <div className="flex items-center gap-2 font-black text-gray-800 text-sm uppercase tracking-wide">
+                      <div className="flex items-center gap-2 font-normal text-gray-800 text-sm uppercase tracking-wide">
                         {platform.icon} {platform.label}
                       </div>
-                      <div className={`text-xl font-black ${
+                      <div className={`text-xl font-normal ${
                         score >= 70 ? 'text-green-600' :
                         score >= 40 ? 'text-primary-600' : 'text-gray-500'
                       }`}>
@@ -280,15 +300,15 @@ export default function CreatorDetail() {
                     {profile && (
                       <div className="flex gap-4 mb-4 pb-4 border-b border-gray-200/50">
                         <div className="flex-1">
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Followers</p>
-                          <p className="text-sm font-black text-gray-900 flex items-center gap-1">
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Followers</p>
+                          <p className="text-sm font-normal text-gray-900 flex items-center gap-1">
                             <Users size={12} className="text-gray-400" />
                             {profile.followers?.toLocaleString() || 'N/A'}
                           </p>
                         </div>
                         <div className="flex-1">
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Engagement</p>
-                          <p className="text-sm font-black text-gray-900">
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Engagement</p>
+                          <p className="text-sm font-normal text-gray-900">
                             {profile.engagement_rate ? `${(Number(profile.engagement_rate) * 100).toFixed(2)}%` : 'N/A'}
                           </p>
                         </div>
@@ -301,7 +321,7 @@ export default function CreatorDetail() {
                         {Object.entries(pData.breakdown).map(([key, val]) => (
                            <div key={key} className="flex justify-between items-center text-xs">
                              <span className="text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
-                             <span className="font-bold text-gray-700">+{val as number} points</span>
+                             <span className="font-normal text-gray-700">+{val as number} points</span>
                            </div>
                         ))}
                       </div>
@@ -322,19 +342,19 @@ export default function CreatorDetail() {
           
           <div className="space-y-6">
             <div>
-               <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest mb-4">Match Breakdown</h3>
+               <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-4">Match Breakdown</h3>
                <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
                  
                  <div className="flex justify-between items-center mb-2">
-                   <span className="text-xs font-bold text-gray-900 uppercase tracking-widest">Total Match</span>
-                   <span className="text-xl font-black text-primary-600">{Math.round(Number(creator.relevance_score) || 0)}%</span>
+                   <span className="text-xs font-normal text-gray-900 uppercase tracking-widest">Total Match</span>
+                   <span className="text-xl font-normal text-primary-600">{Math.round(Number(creator.relevance_score) || 0)}%</span>
                  </div>
                  
                  <div className="space-y-3 pl-3 border-l-2 border-primary-100">
                     {/* City Match */}
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-500 font-medium">City Match</span>
-                      <span className="text-sm font-bold text-gray-900">
+                      <span className="text-sm font-normal text-gray-900">
                         {Number(creator.relevance_score) >= 33 ? '+33.3%' : '0%'}
                       </span>
                     </div>
@@ -342,7 +362,7 @@ export default function CreatorDetail() {
                     {/* Niche Match */}
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-500 font-medium">Niche Match</span>
-                      <span className="text-sm font-bold text-gray-900">
+                      <span className="text-sm font-normal text-gray-900">
                         {Number(creator.relevance_score) >= 66 ? '+33.3%' : '0%'}
                       </span>
                     </div>
@@ -350,7 +370,7 @@ export default function CreatorDetail() {
                     {/* Keyword Match */}
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-500 font-medium">Keyword Match</span>
-                      <span className="text-sm font-bold text-gray-900">
+                      <span className="text-sm font-normal text-gray-900">
                         {Number(creator.relevance_score) >= 67 
                           ? `+${(Number(creator.relevance_score) - 66.6).toFixed(1)}%` 
                           : Number(creator.relevance_score) > 33 && Number(creator.relevance_score) < 66
@@ -374,12 +394,12 @@ export default function CreatorDetail() {
       {/* Conversation History Section */}
       <Card>
         <CardHeader className="border-b border-gray-100 flex flex-row items-center justify-between py-4">
-          <div className="flex items-center gap-2 font-black text-gray-900 uppercase tracking-widest text-sm">
+          <div className="flex items-center gap-2 font-normal text-gray-900 uppercase tracking-widest text-sm font-outfit">
             <MessageCircle size={18} className="text-primary-600" />
             Conversation History
           </div>
           {creator.conversation?.detected_intent && (
-            <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+            <div className={`px-3 py-1 rounded-full text-[10px] font-normal uppercase tracking-wider ${
               creator.conversation.detected_intent === 'interested' ? 'bg-green-100 text-green-700' :
               creator.conversation.detected_intent === 'not_interested' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
             }`}>

@@ -36,7 +36,7 @@ export function Tr({ children, onClick, className = '' }: { children: React.Reac
 
 export function Th({ children, className = '' }: { children: React.ReactNode, className?: string }) {
   return (
-    <th className={`px-6 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest ${className}`}>
+    <th className={`px-6 py-3 text-[10px] font-normal text-gray-500 uppercase tracking-[0.2em] ${className}`}>
       {children}
     </th>
   );

@@ -75,7 +75,7 @@ export default function AcceptInvite() {
     <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">ATS Outreach</h1>
+          <h1 className="text-3xl font-normal text-white mb-2 font-outfit uppercase tracking-tight">ATS Outreach</h1>
           <p className="text-slate-400">Secure Invitation Acceptance</p>
         </div>
 
@@ -85,7 +85,7 @@ export default function AcceptInvite() {
               <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-8 h-8 text-emerald-500" />
               </div>
-              <h2 className="text-2xl font-bold text-white">Account Activated!</h2>
+              <h2 className="text-2xl font-normal text-white font-outfit uppercase tracking-tight">Account Activated!</h2>
               <p className="text-slate-400">
                 Your password has been set successfully. Redirecting you to login...
               </p>
@@ -95,7 +95,7 @@ export default function AcceptInvite() {
               <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <AlertCircle className="w-8 h-8 text-red-500" />
               </div>
-              <h2 className="text-xl font-bold text-white">Invitation Error</h2>
+              <h2 className="text-xl font-normal text-white font-outfit uppercase tracking-tight">Invitation Error</h2>
               <p className="text-red-400">{error}</p>
               <Button onClick={() => navigate('/login')} variant="outline" className="w-full">
                 Back to Login
@@ -105,14 +105,14 @@ export default function AcceptInvite() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <p className="text-sm text-slate-400 mb-1">Invited User</p>
-                <p className="text-white font-medium">{inviteData?.full_name}</p>
+                <p className="text-white font-normal font-outfit uppercase tracking-tight">{inviteData?.full_name}</p>
                 <p className="text-slate-500 text-sm">{inviteData?.email}</p>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                    <Lock className="w-4 h-4" /> New Password
+                  <label className="text-sm text-slate-300 flex items-center gap-2">
+                    <Lock className="w-4 h-4" /> <span className="font-normal uppercase tracking-widest text-[10px]">New Password</span>
                   </label>
                   <Input
                     type="password"
@@ -125,8 +125,8 @@ export default function AcceptInvite() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                    <Lock className="w-4 h-4" /> Confirm Password
+                  <label className="text-sm text-slate-300 flex items-center gap-2">
+                    <Lock className="w-4 h-4" /> <span className="font-normal uppercase tracking-widest text-[10px]">Confirm Password</span>
                   </label>
                   <Input
                     type="password"
@@ -141,7 +141,7 @@ export default function AcceptInvite() {
 
               <Button 
                 type="submit" 
-                className="w-full bg-[#38BDF8] hover:bg-[#0EA5E9] text-white font-bold py-3"
+                className="w-full bg-[#38BDF8] hover:bg-[#0EA5E9] text-white font-normal uppercase tracking-widest py-3"
                 disabled={submitting}
               >
                 {submitting ? (
