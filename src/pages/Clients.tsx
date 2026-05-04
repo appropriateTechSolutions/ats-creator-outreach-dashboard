@@ -22,6 +22,7 @@ import * as api from '../lib/api';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { LoadingState } from '../components/ui/LoadingState';
 
 interface Client {
   id: string;
@@ -146,9 +147,8 @@ export default function Clients() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center text-gray-400">
-                    <RefreshCw className="animate-spin mx-auto mb-3 text-primary-500" size={32} />
-                    <p className="font-normal">Syncing tenant data...</p>
+                  <td colSpan={5} className="py-20">
+                    <LoadingState message="Accessing Agency Tenants..." />
                   </td>
                 </tr>
               ) : filteredClients.length === 0 ? (
@@ -165,15 +165,10 @@ export default function Clients() {
                     className="hover:bg-primary-50/30 transition-colors group cursor-pointer"
                   >
                     <td className="px-6 py-5">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-primary-600 group-hover:scale-110 transition-transform">
-                          <Building2 size={24} />
-                        </div>
                         <div>
                           <div className="font-normal text-gray-900 text-lg leading-tight uppercase tracking-tight font-outfit">{client.name}</div>
                           <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-0.5">{client.industry || 'General Sector'}</div>
                         </div>
-                      </div>
                     </td>
                     <td className="px-6 py-5 text-center">
                       <span className={`px-3 py-1 rounded text-[10px] font-normal uppercase tracking-wider border ${
@@ -246,7 +241,7 @@ export default function Clients() {
                   placeholder="Full registered company name"
                 />
                 <div className="space-y-1.5">
-                  <label className="text-sm font-normal text-gray-600 font-outfit flex items-center gap-2">
+                  <label className="text-xs font-normal text-gray-500 block font-outfit uppercase tracking-widest mb-1.5 flex items-center gap-2">
                     <Globe size={14} className="text-gray-400" /> Website URL
                   </label>
                   <input
@@ -258,7 +253,7 @@ export default function Clients() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-normal text-gray-600 font-outfit flex items-center gap-2">
+                  <label className="text-xs font-normal text-gray-500 block font-outfit uppercase tracking-widest mb-1.5 flex items-center gap-2">
                     <Tag size={14} className="text-gray-400" /> Industry Sector
                   </label>
                   <input
@@ -273,7 +268,7 @@ export default function Clients() {
 
               {/* Primary Contact Section */}
               <div className="p-6 bg-gray-50 rounded-2xl space-y-4">
-                <h3 className="text-xs font-bold text-gray-400 font-outfit uppercase tracking-widest flex items-center gap-2">
+                <h3 className="text-xs font-normal text-gray-400 font-outfit uppercase tracking-widest flex items-center gap-2 mb-4">
                   <User size={14} className="text-primary-600" /> Primary Contact Person
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -299,7 +294,7 @@ export default function Clients() {
               {/* Configuration Section */}
               <div className="grid grid-cols-3 gap-6">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-600 font-outfit">Plan Type</label>
+                  <label className="text-xs font-normal text-gray-500 block font-outfit uppercase tracking-widest mb-1.5">Plan Type</label>
                   <select
                     value={formData.plan_type}
                     onChange={e => setFormData({ ...formData, plan_type: e.target.value })}
@@ -313,7 +308,7 @@ export default function Clients() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-600 font-outfit">Billing Status</label>
+                  <label className="text-xs font-normal text-gray-500 block font-outfit uppercase tracking-widest mb-1.5">Billing Status</label>
                   <select
                     value={formData.billing_status}
                     onChange={e => setFormData({ ...formData, billing_status: e.target.value })}
@@ -328,7 +323,7 @@ export default function Clients() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-600 font-outfit">Account Status</label>
+                  <label className="text-xs font-normal text-gray-500 block font-outfit uppercase tracking-widest mb-1.5">Account Status</label>
                   <select
                     value={formData.status}
                     onChange={e => setFormData({ ...formData, status: e.target.value })}
@@ -342,7 +337,7 @@ export default function Clients() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-600 font-outfit flex items-center gap-2">
+                <label className="text-xs font-normal text-gray-500 block font-outfit uppercase tracking-widest mb-1.5 flex items-center gap-2">
                   <FileText size={14} className="text-gray-400" /> Internal Notes
                 </label>
                 <textarea

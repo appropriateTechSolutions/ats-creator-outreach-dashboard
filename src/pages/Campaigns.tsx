@@ -9,12 +9,16 @@ import { Link, useNavigate } from 'react-router-dom';
 import { getCampaigns, createCampaign, getBrands } from '../lib/api';
 import type { Campaign } from '../types';
 import { format } from 'date-fns';
+import { Modal } from '../components/ui/Modal';
+import { Input } from '../components/ui/Input';
+import { LoadingState } from '../components/ui/LoadingState';
 
 export default function Campaigns() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isDrawerOpen, setDrawerOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [customCat, setCustomCat] = useState('');
   const navigate = useNavigate();
 
   // Form State matching PRD Hierarchy
@@ -73,8 +77,9 @@ export default function Campaigns() {
         email_subject: 'Collaboration with {{campaign_name}}',
         email_body: 'Hey {{full_name}}, love your content! We would love to collaborate for our {{campaign_name}} campaign in {{city}}.\n\nOffer: {{product_offer_notes}}'
       });
-      setDrawerOpen(false);
+      setIsModalOpen(false);
       setFormData({ name: '', brand_id: '', category: [], city: '', keywords: '', product_offer_notes: '', discovery_channels: ['instagram'] });
+      setCustomCat('');
       fetchData();
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Failed to create campaign';
@@ -93,6 +98,17 @@ export default function Campaigns() {
     }));
   };
 
+  const handleAddCustomCategory = () => {
+    if (!customCat.trim()) return;
+    if (!formData.category.includes(customCat.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        category: [...prev.category, customCat.trim()]
+      }));
+    }
+    setCustomCat('');
+  };
+
   const toggleChannel = (id: string) => {
     setFormData(prev => ({
       ...prev,
@@ -108,7 +124,7 @@ export default function Campaigns() {
       id: 'instagram', 
       label: 'Instagram',
       icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-pink-600">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#E1306C]">
           <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
           <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
           <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line>
@@ -140,10 +156,10 @@ export default function Campaigns() {
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Campaigns</h1>
+          <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaigns</h1>
           <p className="text-sm text-gray-500">Manage your outreach campaigns and segments.</p>
         </div>
-        <Button onClick={() => setDrawerOpen(true)} icon={<Plus size={16} />}>Create Campaign</Button>
+        <Button onClick={() => setIsModalOpen(true)} icon={<Plus size={16} />}>Create Campaign</Button>
       </div>
 
       <Card>
@@ -163,7 +179,9 @@ export default function Campaigns() {
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-gray-500">Loading campaigns...</div>
+          <div className="py-20">
+            <LoadingState message="Loading Outreach Campaigns..." />
+          </div>
         ) : (
           <Table>
             <Thead>
@@ -193,7 +211,7 @@ export default function Campaigns() {
                   </Td>
                   <Td><StatusBadge status={c.status as any} /></Td>
                   <Td className="text-gray-500 text-xs">
-                    {c.created_at ? format(new Date(c.created_at), 'MMM d, yyyy') : 'Recently'}
+                    {(c.created_at || (c as any).createdAt) ? format(new Date(c.created_at || (c as any).createdAt), 'MMM d, yyyy') : 'Recently'}
                   </Td>
                 </Tr>
               ))}
@@ -207,32 +225,30 @@ export default function Campaigns() {
         )}
       </Card>
 
-      <Drawer 
-        isOpen={isDrawerOpen} 
-        onClose={() => setDrawerOpen(false)} 
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
         title="Create New Campaign"
       >
-        <form onSubmit={handleCreate} className="space-y-6 pb-24 overflow-y-auto custom-scrollbar pr-2">
+        <form onSubmit={handleCreate} className="space-y-6">
           
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Campaign Name *</label>
-              <input
-                type="text"
+              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Campaign Name *</label>
+              <Input
                 required
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm"
                 placeholder="Summer Skincare 2026"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Brand *</label>
+              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Brand *</label>
               <select
                 required
                 value={formData.brand_id}
                 onChange={e => setFormData({ ...formData, brand_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm"
+                className="w-full h-11 px-4 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
               >
                 <option value="">Select Brand</option>
                 {brands.map(b => (
@@ -243,67 +259,91 @@ export default function Campaigns() {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Discovery Categories *</label>
-            <div className="flex flex-wrap gap-2">
+            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-2.5">Discovery Categories *</label>
+            <div className="flex flex-wrap gap-2 mb-3">
               {standardCategories.map(cat => (
                 <button
                   type="button"
                   key={cat}
                   onClick={() => toggleCategory(cat)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-normal uppercase tracking-widest border transition-all ${
                     formData.category.includes(cat) 
-                      ? 'bg-primary-600 text-white border-primary-600' 
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300'
+                      ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' 
+                      : 'bg-white text-gray-600 border-gray-100 hover:border-primary-300'
                   }`}
                 >
                   {cat}
                 </button>
               ))}
+              {formData.category.filter(c => !standardCategories.includes(c)).map(cat => (
+                <button
+                  type="button"
+                  key={cat}
+                  onClick={() => toggleCategory(cat)}
+                  className="px-3 py-1.5 rounded-full text-[10px] font-normal uppercase tracking-widest border bg-primary-50 text-primary-600 border-primary-200 shadow-sm"
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            
+            <div className="flex gap-2">
+              <Input 
+                placeholder="Or enter custom category..." 
+                value={customCat}
+                onChange={e => setCustomCat(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), handleAddCustomCategory())}
+                className="h-10 text-xs bg-gray-50/50"
+              />
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleAddCustomCategory}
+                className="h-10 text-[10px]"
+              >
+                Add
+              </Button>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Search Keywords</label>
-              <input
-                type="text"
+              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Search Keywords</label>
+              <Input
                 value={formData.keywords}
                 onChange={e => setFormData({ ...formData, keywords: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm"
                 placeholder="vegan, organic, eco"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Target City *</label>
-              <input
-                type="text"
+              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Target City *</label>
+              <Input
                 required
                 value={formData.city}
                 onChange={e => setFormData({ ...formData, city: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm"
                 placeholder="London"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Platforms *</label>
-            <div className="flex gap-2">
+            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-2.5">Platforms *</label>
+            <div className="flex gap-3">
               {platforms.map(p => (
                 <button
                   type="button"
                   key={p.id}
                   onClick={() => toggleChannel(p.id)}
-                  className={`flex-1 py-4 rounded-xl border-2 flex flex-col items-center justify-center transition-all duration-300 ${
+                  className={`flex-1 py-3 rounded-2xl border flex flex-col items-center justify-center transition-all duration-300 ${
                     formData.discovery_channels.includes(p.id)
-                      ? 'bg-white border-primary-500 ring-4 ring-primary-50 shadow-md transform scale-[1.02]'
+                      ? 'bg-white border-primary-500 ring-4 ring-primary-50 shadow-md transform scale-[1.05]'
                       : 'bg-gray-50 border-gray-100 text-gray-400 opacity-70 hover:bg-white hover:border-gray-200'
                   }`}
                 >
-                  <div className={`mb-2 p-2 rounded-lg ${formData.discovery_channels.includes(p.id) ? 'bg-white shadow-sm' : ''}`}>
+                  <div className={`mb-1.5 p-1.5 rounded-lg ${formData.discovery_channels.includes(p.id) ? 'bg-white shadow-sm' : ''}`}>
                     {p.icon}
                   </div>
-                  <span className={`text-[11px] font-black uppercase tracking-widest ${formData.discovery_channels.includes(p.id) ? 'text-gray-900' : 'text-gray-400'}`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-widest ${formData.discovery_channels.includes(p.id) ? 'text-gray-900' : 'text-gray-400'}`}>
                     {p.label}
                   </span>
                 </button>
@@ -312,25 +352,25 @@ export default function Campaigns() {
           </div>
 
           <div>
-             <label className="block text-sm font-semibold text-gray-700 mb-1">Offer Notes</label>
+             <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Offer Notes</label>
              <textarea
                 value={formData.product_offer_notes}
                 onChange={e => setFormData({ ...formData, product_offer_notes: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm resize-none"
+                className="w-full px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm resize-none"
                 rows={3}
                 placeholder="Free access + 15% affiliate..."
              />
           </div>
 
-          <div className="pt-4 mt-6 border-t border-gray-100 flex justify-end gap-3 pb-8">
-            <Button variant="outline" onClick={() => setDrawerOpen(false)} type="button">Cancel</Button>
-            <Button type="submit" disabled={isSubmitting}>
+          <div className="pt-4 border-t border-gray-50 flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsModalOpen(false)} type="button" className="font-normal uppercase text-[10px] tracking-widest">Cancel</Button>
+            <Button type="submit" disabled={isSubmitting} className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 font-normal uppercase text-[10px] tracking-widest">
               {isSubmitting ? 'Starting Agent...' : 'Launch Campaign'}
             </Button>
           </div>
           
         </form>
-      </Drawer>
+      </Modal>
     </div>
   );
 }

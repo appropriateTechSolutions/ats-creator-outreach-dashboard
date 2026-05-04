@@ -6,42 +6,57 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
+import { LoadingState } from '../components/ui/LoadingState';
 
 export default function CreatorDetail() {
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [creator, setCreator] = useState<Creator | null>(null);
   const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [outreachModalOpen, setOutreachModalOpen] = useState(false);
+  const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
+  const [matchExpanded, setMatchExpanded] = useState(false);
+
+  const togglePlatform = (key: string) => {
+    setExpandedPlatforms(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
 
   // Helper to clean up email signatures and quoted replies
   const cleanMessageText = (text: string) => {
     if (!text) return '';
-    const lines = text.split('\n');
+    // Normalize all line endings first and remove carriage returns
+    const normalizedText = text.replace(/\r/g, '');
+    const lines = normalizedText.split('\n');
     const cleanedLines = [];
     
     for (let line of lines) {
-      // Stop completely if we hit the standard "On [date], [person] wrote:" email reply header
-      if (/^On .* wrote:/i.test(line.trim())) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine && cleanedLines.length === 0) continue; 
+
+      // Aggressive stop for any common email reply headers
+      // We look for these anywhere in the line now for maximum safety
+      if (
+        /^\s*(On|From|Sent|To|Subject):/i.test(trimmedLine) || 
+        /wrote:$/i.test(trimmedLine) ||
+        trimmedLine.includes('Original Message') ||
+        trimmedLine.startsWith('---') ||
+        trimmedLine.startsWith('___')
+      ) {
         break;
       }
+      
       // Skip quoted lines
-      if (line.trim().startsWith('>')) {
+      if (trimmedLine.startsWith('>') || trimmedLine.startsWith('>>')) {
         continue;
       }
-      // Skip common antivirus signatures
-      if (line.includes('Virus-free') || line.includes('avg.com')) {
-        continue;
-      }
-      // Stop at common signature boundaries
-      if (line.trim() === '--' || line.trim() === 'Sent from my iPhone') {
-        break;
-      }
+      
       cleanedLines.push(line);
     }
     
@@ -74,7 +89,10 @@ export default function CreatorDetail() {
           }
         }
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        setError(err.toString());
+      })
       .finally(() => setLoading(false));
   };
 
@@ -116,11 +134,20 @@ export default function CreatorDetail() {
   };
 
   if (loading) {
-    return <div className="p-12 text-center text-gray-500">Loading creator profile...</div>;
+    return (
+      <div className="p-20">
+        <LoadingState message="Loading Creator Profile..." />
+      </div>
+    );
   }
 
-  if (!creator) {
-    return <div className="p-12 text-center text-error-500">Creator not found.</div>;
+  if (error || !creator) {
+    return (
+      <div className="p-12 text-center">
+        <div className="text-error-500 font-normal text-lg mb-4">{error || 'Creator not found.'}</div>
+        <Link to="/creators" className="text-primary-600 hover:underline">Return to Directory</Link>
+      </div>
+    );
   }
 
   // Parse scoring_notes safely (handle both snake_case and camelCase)
@@ -154,8 +181,9 @@ export default function CreatorDetail() {
                 <a 
                   href={
                     (() => {
-                      const profileUrl = creator.profiles?.[0]?.profile_url || creator.profile_url;
-                      if (profileUrl && !profileUrl.includes('scontent')) return profileUrl;
+                      const igProfile = creator.profiles?.find(p => p.platform.toLowerCase() === 'instagram');
+                      if (igProfile?.profile_url) return igProfile.profile_url;
+                      if (creator.profile_url && !creator.profile_url.includes('scontent')) return creator.profile_url;
                       return `https://instagram.com/${creator.handle?.replace(/^@/, '')}`;
                     })()
                   } 
@@ -170,19 +198,34 @@ export default function CreatorDetail() {
               <p className="text-gray-500 font-medium text-lg mt-1">{creator.full_name || 'No full name provided'}</p>
               <div className="flex gap-4 mt-3">
                 {creator.has_instagram && (
-                  <a href={`https://instagram.com/${creator.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-pink-600 transition-colors flex items-center gap-1">
+                  <a 
+                    href={creator.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${creator.handle?.replace(/^@/, '')}`} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="text-[#E1306C] hover:scale-105 transition-transform flex items-center gap-1"
+                  >
                     <Instagram size={16} />
                      <span className="text-xs font-normal">Instagram</span>
                   </a>
                 )}
                 {creator.has_youtube && (
-                  <a href={`https://youtube.com/@${creator.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-red-600 transition-colors flex items-center gap-1">
+                  <a 
+                    href={creator.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${creator.handle?.replace(/^@/, '')}`} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="text-[#FF0000] hover:scale-105 transition-transform flex items-center gap-1"
+                  >
                     <Youtube size={16} />
                      <span className="text-xs font-normal">YouTube</span>
                   </a>
                 )}
                 {creator.has_tiktok && (
-                  <a href={`https://tiktok.com/@${creator.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-black transition-colors flex items-center gap-1">
+                  <a 
+                    href={creator.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${creator.handle?.replace(/^@/, '')}`} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="text-gray-900 hover:scale-105 transition-transform flex items-center gap-1"
+                  >
                     <Activity size={16} />
                      <span className="text-xs font-normal">TikTok</span>
                   </a>
@@ -211,7 +254,7 @@ export default function CreatorDetail() {
               onClick={handleSendOutreach}
               disabled={sendingEmail || creator.review_status === 'rejected'}
             >
-              {sendingEmail ? <RefreshCw className="animate-spin" size={16} /> : <Send size={16} />}
+              {sendingEmail ? <LoadingState mini /> : <Send size={16} />}
               {creator.outreach_logs?.length > 0 ? 'Resend Outreach' : 'Send Outreach Now'}
             </Button>
           </div>
@@ -282,17 +325,27 @@ export default function CreatorDetail() {
                 const score = pData?.score || 0;
                 const profile = creator.profiles?.find(p => p.platform.toLowerCase() === platform.key);
                 
+                const isExpanded = expandedPlatforms[platform.key];
+                
                 return (
                   <div key={platform.key} className="bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm">
                     <div className="flex justify-between items-center mb-4">
                       <div className="flex items-center gap-2 font-normal text-gray-800 text-sm uppercase tracking-wide">
                         {platform.icon} {platform.label}
                       </div>
-                      <div className={`text-xl font-normal ${
-                        score >= 70 ? 'text-green-600' :
-                        score >= 40 ? 'text-primary-600' : 'text-gray-500'
-                      }`}>
-                        {score} <span className="text-xs text-gray-400 font-medium">/ 100</span>
+                      <div className="flex items-center gap-3">
+                        <div className={`text-xl font-normal ${
+                          score >= 70 ? 'text-green-600' :
+                          score >= 40 ? 'text-primary-600' : 'text-gray-500'
+                        }`}>
+                          {score} <span className="text-xs text-gray-400 font-medium">/ 100</span>
+                        </div>
+                        <button 
+                          onClick={() => togglePlatform(platform.key)}
+                          className="p-1 hover:bg-gray-200 rounded-full transition-colors text-gray-400"
+                        >
+                          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </button>
                       </div>
                     </div>
 
@@ -315,18 +368,22 @@ export default function CreatorDetail() {
                       </div>
                     )}
 
-                    {/* Show detailed logic points if we have them */}
-                    {pData?.breakdown ? (
-                      <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">
-                        {Object.entries(pData.breakdown).map(([key, val]) => (
-                           <div key={key} className="flex justify-between items-center text-xs">
-                             <span className="text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
-                             <span className="font-normal text-gray-700">+{val as number} points</span>
-                           </div>
-                        ))}
+                    {/* Show detailed logic points if expanded */}
+                    {isExpanded && (
+                      <div className="animate-[fadeIn_0.2s_ease]">
+                        {pData?.breakdown ? (
+                          <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">
+                            {Object.entries(pData.breakdown).map(([key, val]) => (
+                               <div key={key} className="flex justify-between items-center text-xs">
+                                 <span className="text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
+                                 <span className="font-normal text-gray-700">+{val as number} points</span>
+                               </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400 italic mt-4 pt-4 border-t border-gray-100">No algorithm breakdown points available.</p>
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-xs text-gray-400 italic mt-4 pt-4 border-t border-gray-100">No algorithm breakdown points available.</p>
                     )}
                   </div>
                 );
@@ -347,38 +404,48 @@ export default function CreatorDetail() {
                  
                  <div className="flex justify-between items-center mb-2">
                    <span className="text-xs font-normal text-gray-900 uppercase tracking-widest">Total Match</span>
-                   <span className="text-xl font-normal text-primary-600">{Math.round(Number(creator.relevance_score) || 0)}%</span>
+                   <div className="flex items-center gap-2">
+                    <span className="text-xl font-normal text-primary-600">{Math.round(Number(creator.relevance_score) || 0)}%</span>
+                    <button 
+                      onClick={() => setMatchExpanded(!matchExpanded)}
+                      className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-400"
+                    >
+                      {matchExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                  </div>
                  </div>
                  
-                 <div className="space-y-3 pl-3 border-l-2 border-primary-100">
-                    {/* City Match */}
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500 font-medium">City Match</span>
-                      <span className="text-sm font-normal text-gray-900">
-                        {Number(creator.relevance_score) >= 33 ? '+33.3%' : '0%'}
-                      </span>
-                    </div>
-                    
-                    {/* Niche Match */}
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500 font-medium">Niche Match</span>
-                      <span className="text-sm font-normal text-gray-900">
-                        {Number(creator.relevance_score) >= 66 ? '+33.3%' : '0%'}
-                      </span>
-                    </div>
-                    
-                    {/* Keyword Match */}
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500 font-medium">Keyword Match</span>
-                      <span className="text-sm font-normal text-gray-900">
-                        {Number(creator.relevance_score) >= 67 
-                          ? `+${(Number(creator.relevance_score) - 66.6).toFixed(1)}%` 
-                          : Number(creator.relevance_score) > 33 && Number(creator.relevance_score) < 66
-                            ? `+${(Number(creator.relevance_score) - 33.3).toFixed(1)}%`
-                            : '0%'}
-                      </span>
-                    </div>
-                 </div>
+                 {matchExpanded && (
+                   <div className="space-y-3 pl-3 border-l-2 border-primary-100 animate-[fadeIn_0.2s_ease]">
+                      {/* City Match */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-500 font-medium">City Match</span>
+                        <span className="text-sm font-normal text-gray-900">
+                          {Number(creator.relevance_score) >= 33 ? '+33.3%' : '0%'}
+                        </span>
+                      </div>
+                      
+                      {/* Niche Match */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-500 font-medium">Niche Match</span>
+                        <span className="text-sm font-normal text-gray-900">
+                          {Number(creator.relevance_score) >= 66 ? '+33.3%' : '0%'}
+                        </span>
+                      </div>
+                      
+                      {/* Keyword Match */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-500 font-medium">Keyword Match</span>
+                        <span className="text-sm font-normal text-gray-900">
+                          {Number(creator.relevance_score) >= 67 
+                            ? `+${(Number(creator.relevance_score) - 66.6).toFixed(1)}%` 
+                            : Number(creator.relevance_score) > 33 && Number(creator.relevance_score) < 66
+                              ? `+${(Number(creator.relevance_score) - 33.3).toFixed(1)}%`
+                              : '0%'}
+                        </span>
+                      </div>
+                   </div>
+                 )}
 
                  <p className="text-[10px] text-gray-400 leading-tight mt-4 pt-4 border-t border-gray-100 italic">
                    * Match % determines how well they fit your specific search filters defined in the campaign.

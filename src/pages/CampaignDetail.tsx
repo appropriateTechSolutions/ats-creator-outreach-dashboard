@@ -5,7 +5,9 @@ import {
   getCampaignLeads, 
   triggerDiscovery,
   updateCampaignTemplate,
-  reviewLead
+  reviewLead,
+  updateCampaign,
+  getBrands
 } from '../lib/api';
 import type { Campaign, Creator } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
@@ -14,7 +16,10 @@ import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
-import { ArrowLeft, Sparkles, Activity, Users, Mail, Info, Check, X } from 'lucide-react';
+import { LoadingState } from '../components/ui/LoadingState';
+import { ArrowLeft, Sparkles, Activity, Users, Mail, Info, Check, X, Edit2, Tag } from 'lucide-react';
+import { Modal } from '../components/ui/Modal';
+import { Input } from '../components/ui/Input';
 
 export default function CampaignDetail() {
   const { id } = useParams<{ id: string }>();
@@ -26,15 +31,41 @@ export default function CampaignDetail() {
   const [templateBody, setTemplateBody] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [customCat, setCustomCat] = useState('');
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    brand_id: '',
+    category: [] as string[],
+    city: '',
+    keywords: '',
+    product_offer_notes: '',
+    discovery_channels: ['instagram'] as string[]
+  });
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const fetchData = async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const camp = await getCampaignById(id);
+      const [camp, brandsData] = await Promise.all([
+        getCampaignById(id),
+        getBrands()
+      ]);
       setCampaign(camp);
+      setBrands(brandsData);
       setTemplateSubject(camp.template?.subject_line_template || '');
       setTemplateBody(camp.template?.body_template || '');
+      setEditFormData({
+        name: camp.name || '',
+        brand_id: camp.brand_id || '',
+        category: camp.category ? camp.category.split(',').map(c => c.trim()).filter(Boolean) : [],
+        city: camp.city || '',
+        keywords: Array.isArray(camp.keywords) ? camp.keywords.join(', ') : '',
+        product_offer_notes: camp.product_offer_notes || '',
+        discovery_channels: camp.discovery_channels || ['instagram']
+      });
       const campLeads = await getCampaignLeads(id);
       setLeads(campLeads);
     } catch (err) {
@@ -110,13 +141,114 @@ export default function CampaignDetail() {
     }
   };
 
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    setIsUpdating(true);
+    try {
+      await updateCampaign(id, {
+        name: editFormData.name,
+        brand_id: editFormData.brand_id,
+        category: editFormData.category.join(','),
+        city: editFormData.city,
+        keywords: editFormData.keywords.split(',').map(k => k.trim()).filter(Boolean),
+        product_offer_notes: editFormData.product_offer_notes,
+        discovery_channels: editFormData.discovery_channels
+      });
+      setIsEditModalOpen(false);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update campaign.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const toggleCategory = (cat: string) => {
+    setEditFormData(prev => ({
+      ...prev,
+      category: prev.category.includes(cat) 
+        ? prev.category.filter(c => c !== cat) 
+        : [...prev.category, cat]
+    }));
+  };
+
+  const handleAddCustomCategory = () => {
+    if (!customCat.trim()) return;
+    if (!editFormData.category.includes(customCat.trim())) {
+      setEditFormData(prev => ({
+        ...prev,
+        category: [...prev.category, customCat.trim()]
+      }));
+    }
+    setCustomCat('');
+  };
+
+  const toggleChannel = (id: string) => {
+    setEditFormData(prev => ({
+      ...prev,
+      discovery_channels: prev.discovery_channels.includes(id) 
+        ? (prev.discovery_channels.length > 1 ? prev.discovery_channels.filter(c => c !== id) : prev.discovery_channels)
+        : [...prev.discovery_channels, id]
+    }));
+  };
+
+  const standardCategories = ['Fashion', 'Beauty', 'Fitness', 'Food', 'Travel', 'Tech', 'Lifestyle', 'Health'];
+  const platforms = [
+    { 
+      id: 'instagram', 
+      label: 'Instagram',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#E1306C]">
+          <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
+          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+          <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line>
+        </svg>
+      )
+    },
+    { 
+      id: 'youtube', 
+      label: 'YouTube',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-600">
+          <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.42a2.78 2.78 0 0 0-1.94 2C1 8.14 1 12 1 12s0 3.86.46 5.58a2.78 2.78 0 0 0 1.94 2c1.72.42 8.6.42 8.6.42s6.88 0 8.6-.42a2.78 2.78 0 0 0 1.94-2C23 15.86 23 12 23 12s0-3.86-.46-5.58z"></path>
+          <polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"></polygon>
+        </svg>
+      )
+    },
+    { 
+      id: 'tiktok', 
+      label: 'TikTok',
+      icon: (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-900">
+          <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path>
+        </svg>
+      )
+    }
+  ];
+
   if (loading) {
-    return <div className="p-12 text-center text-gray-500">Loading campaign details...</div>;
+    return (
+      <div className="p-20">
+        <LoadingState message="Accessing Campaign Intelligence..." />
+      </div>
+    );
   }
 
   if (!campaign) {
     return <div className="p-12 text-center text-error-500 text-lg">Campaign not found.</div>;
   }
+
+  const handleUpdateStatus = async (newStatus: string) => {
+    if (!id) return;
+    try {
+      await updateCampaign(id, { status: newStatus });
+      fetchData();
+    } catch (err) {
+      alert(`Failed to update campaign status to ${newStatus}`);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
@@ -137,11 +269,38 @@ export default function CampaignDetail() {
         </div>
         
         <div className="flex items-center gap-3">
+          {campaign.status !== 'active' ? (
+            <Button 
+              variant="outline"
+              onClick={() => handleUpdateStatus('active')}
+              icon={<Check size={16} />}
+              className="border-green-200 text-green-600 hover:bg-green-50"
+            >
+              Activate Campaign
+            </Button>
+          ) : (
+            <Button 
+              variant="outline"
+              onClick={() => handleUpdateStatus('draft')}
+              icon={<X size={16} />}
+              className="border-amber-200 text-amber-600 hover:bg-amber-50"
+            >
+              Deactivate Campaign
+            </Button>
+          )}
+          <Button 
+            variant="outline"
+            onClick={() => setIsEditModalOpen(true)}
+            icon={<Edit2 size={16} />}
+            className="border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            Edit Parameters
+          </Button>
           <Button 
             onClick={handleDiscovery} 
             disabled={discovering}
             className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 border-none"
-            icon={discovering ? <Activity className="animate-spin" size={16} /> : <Sparkles size={16} />}
+            icon={discovering ? <LoadingState mini /> : <Sparkles size={16} />}
           >
             {discovering ? 'Executing AI...' : 'Run AI Discovery'}
           </Button>
@@ -178,10 +337,12 @@ export default function CampaignDetail() {
                     <Td>
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-normal text-xs">
-                          {lead.handle?.charAt(0).toUpperCase()}
+                          {(lead.full_name || lead.handle)?.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <Link to={`/creators/${lead.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors">@{lead.handle}</Link>
+                          <Link to={`/creators/${lead.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors">
+                            {lead.full_name || `@${lead.handle}`}
+                          </Link>
                           <div className="text-xs text-gray-500">{lead.platform}</div>
                         </div>
                       </div>
@@ -258,7 +419,7 @@ export default function CampaignDetail() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Email Subject</label>
+                <label className="text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Email Subject</label>
                 <input 
                   type="text" 
                   value={templateSubject}
@@ -269,7 +430,7 @@ export default function CampaignDetail() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Message Body</label>
+                <label className="text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Message Body</label>
                 <textarea 
                   rows={8}
                   value={templateBody}
@@ -297,7 +458,7 @@ export default function CampaignDetail() {
                 onClick={handleSaveTemplate}
                 disabled={savingTemplate}
                 className="w-full bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-500/20"
-                icon={savingTemplate ? <Activity className="animate-spin" size={16} /> : <Check size={16} />}
+                icon={savingTemplate ? <LoadingState mini /> : <Check size={16} />}
               >
                 {savingTemplate ? 'Saving...' : 'Save Campaign Template'}
               </Button>
@@ -313,6 +474,156 @@ export default function CampaignDetail() {
         onClose={() => setOutreachModalCreatorId(null)}
         onSend={handleConfirmApprove}
       />
+
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Campaign Parameters"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleEditSave} 
+              disabled={isUpdating}
+              className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30"
+            >
+              {isUpdating ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleEditSave} className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Campaign Name *</label>
+              <Input
+                required
+                value={editFormData.name}
+                onChange={e => setEditFormData({ ...editFormData, name: e.target.value })}
+                placeholder="Summer Skincare 2026"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Brand *</label>
+              <select
+                required
+                value={editFormData.brand_id}
+                onChange={e => setEditFormData({ ...editFormData, brand_id: e.target.value })}
+                className="w-full h-11 px-4 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
+              >
+                <option value="">Select Brand</option>
+                {brands.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-2.5">Discovery Categories *</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {standardCategories.map(cat => (
+                <button
+                  type="button"
+                  key={cat}
+                  onClick={() => toggleCategory(cat)}
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-normal uppercase tracking-widest border transition-all ${
+                    editFormData.category.includes(cat) 
+                      ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' 
+                      : 'bg-white text-gray-600 border-gray-100 hover:border-primary-300'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+              {editFormData.category.filter(c => !standardCategories.includes(c)).map(cat => (
+                <button
+                  type="button"
+                  key={cat}
+                  onClick={() => toggleCategory(cat)}
+                  className="px-3 py-1.5 rounded-full text-[10px] font-normal uppercase tracking-widest border bg-primary-50 text-primary-600 border-primary-200 shadow-sm"
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            
+            <div className="flex gap-2">
+              <Input 
+                placeholder="Or enter custom category..." 
+                value={customCat}
+                onChange={e => setCustomCat(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), handleAddCustomCategory())}
+                className="h-10 text-xs bg-gray-50/50"
+              />
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleAddCustomCategory}
+                className="h-10 text-[10px]"
+              >
+                Add
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Search Keywords</label>
+              <Input
+                value={editFormData.keywords}
+                onChange={e => setEditFormData({ ...editFormData, keywords: e.target.value })}
+                placeholder="vegan, organic, eco"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Target City *</label>
+              <Input
+                required
+                value={editFormData.city}
+                onChange={e => setEditFormData({ ...editFormData, city: e.target.value })}
+                placeholder="London"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-2.5">Platforms *</label>
+            <div className="flex gap-3">
+              {platforms.map(p => (
+                <button
+                  type="button"
+                  key={p.id}
+                  onClick={() => toggleChannel(p.id)}
+                  className={`flex-1 py-3 rounded-2xl border flex flex-col items-center justify-center transition-all duration-300 ${
+                    editFormData.discovery_channels.includes(p.id)
+                      ? 'bg-white border-primary-500 ring-4 ring-primary-50 shadow-md transform scale-[1.05]'
+                      : 'bg-gray-50 border-gray-100 text-gray-400 opacity-70 hover:bg-white hover:border-gray-200'
+                  }`}
+                >
+                  <div className={`mb-1.5 p-1.5 rounded-lg ${editFormData.discovery_channels.includes(p.id) ? 'bg-white shadow-sm' : ''}`}>
+                    {p.icon}
+                  </div>
+                  <span className={`text-[9px] font-bold uppercase tracking-widest ${editFormData.discovery_channels.includes(p.id) ? 'text-gray-900' : 'text-gray-400'}`}>
+                    {p.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+             <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Offer Notes</label>
+             <textarea
+                value={editFormData.product_offer_notes}
+                onChange={e => setEditFormData({ ...editFormData, product_offer_notes: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm resize-none"
+                rows={3}
+                placeholder="Free access + 15% affiliate..."
+             />
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

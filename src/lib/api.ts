@@ -85,7 +85,8 @@ export const getCampaignLeads = (campaignId: string): Promise<Creator[]> => api.
 export const getAllCreators = (): Promise<Creator[]> => api.get('/creators');
 export const getCreatorById = (creatorId: string): Promise<Creator> => api.get(`/creators/${creatorId}`);
 // ─── Statistics ───────────────────────────────────────
-export const getDashboardStats = (): Promise<any> => api.get('/stats/dashboard');
+export const getDashboardStats = (campaignId?: string): Promise<any> => 
+  api.get('/stats/dashboard', { params: { campaignId } });
 
 // ─── AI Discovery ─────────────────────────────────────
 export const triggerDiscovery = (categories: string[], city: string, campaignId: string, keywords: string[] = []): Promise<unknown> => 

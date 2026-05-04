@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { getAllCreators, reviewLead, sendSingleOutreach } from '../lib/api';
 import type { Creator } from '../types';
 import { format } from 'date-fns';
+import { LoadingState } from '../components/ui/LoadingState';
 import { Check, X, Mail } from 'lucide-react';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 
@@ -18,6 +19,7 @@ export default function Creators() {
   const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState('');
 
   const fetchCreators = () => {
     setLoading(true);
@@ -62,18 +64,27 @@ export default function Creators() {
     }
   };
 
-  const filteredCreators = creators.filter(c => 
-    c.handle?.toLowerCase().includes(search.toLowerCase()) || 
-    c.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.category?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredCreators = creators.filter(c => {
+    const matchesSearch = 
+      c.handle?.toLowerCase().includes(search.toLowerCase()) || 
+      c.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+      c.category?.toLowerCase().includes(search.toLowerCase());
+    
+    if (!statusFilter) return matchesSearch;
+    
+    if (statusFilter === 'pending') {
+      return matchesSearch && (c.review_status === 'pending' || c.review_status === 'pending_review' || c.review_status === 'hold' || c.review_status === 'reviewed' || !c.review_status);
+    }
+    
+    return matchesSearch && c.review_status === statusFilter;
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Global Creator Directory</h1>
-          <p className="text-sm text-gray-500">View and filter all discovered leads across all campaigns.</p>
+          <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Global Creator Directory</h1>
+          <p className="text-gray-500 font-normal">View and filter all discovered leads across all campaigns.</p>
         </div>
       </div>
 
@@ -93,14 +104,17 @@ export default function Creators() {
               />
             </div>
             
-            <select className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[140px]">
+            <select 
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[140px]"
+            >
               <option value="">Any Status</option>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
             </select>
 
-            <Button variant="ghost" className="px-2 text-gray-500" icon={<Filter size={16}/>}>Advanced</Button>
           </div>
           <div className="text-sm text-gray-500 font-normal">
             {filteredCreators.length} records found
@@ -108,7 +122,9 @@ export default function Creators() {
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-gray-500">Loading creator database...</div>
+          <div className="py-20">
+            <LoadingState message="Scouring Creator Database..." />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -129,21 +145,36 @@ export default function Creators() {
                     <Td>
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm">
-                          {c.handle?.charAt(0)}
+                          {(c.full_name || c.handle)?.charAt(0)}
                         </div>
                         <div>
                           <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 block leading-tight font-outfit uppercase tracking-tight">
-                            @{c.handle}
+                            {c.full_name || `@${c.handle}`}
                           </Link>
-                          <div className="flex gap-1.5 mt-1">
-                            <a href={`https://instagram.com/${c.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-pink-600 transition-colors">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+                          <div className="flex gap-2 mt-1.5">
+                            <a 
+                              href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="text-[#E1306C] hover:scale-110 transition-transform"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
                             </a>
-                            <a href={`https://youtube.com/@${c.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-red-600 transition-colors">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 2-2h15a2 2 0 0 1 2 2 24.12 24.12 0 0 1 0 10 2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2Z"/><path d="m10 15 5-3-5-3z"/></svg>
+                            <a 
+                              href={c.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${c.handle?.replace(/^@/, '')}`} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="text-[#FF0000] hover:scale-110 transition-transform"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 2-2h15a2 2 0 0 1 2 2 24.12 24.12 0 0 1 0 10 2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2Z"/><path d="m10 15 5-3-5-3z"/></svg>
                             </a>
-                            <a href={`https://tiktok.com/@${c.handle?.replace('@', '')}`} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-black transition-colors">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
+                            <a 
+                              href={c.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="text-gray-900 hover:scale-110 transition-transform"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
                             </a>
                           </div>
                         </div>

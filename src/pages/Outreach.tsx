@@ -63,12 +63,6 @@ export default function Outreach() {
           <h1 className="text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Outreach Dashboard</h1>
           <p className="text-gray-500 font-normal tracking-tight">Real-time monitoring of automated campaign sequences.</p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" icon={<Settings size={16} />} className="rounded-xl border-gray-200">Configure Templates</Button>
-          <div className="flex items-center gap-2 px-4 py-2 bg-success-50 text-success-700 rounded-xl text-sm font-normal border border-success-100 uppercase tracking-widest">
-            <Activity size={14} className="animate-pulse" /> System Active
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -166,20 +160,6 @@ export default function Outreach() {
             )}
           </div>
           
-          <Card className="bg-gradient-to-br from-primary-600 to-primary-700 border-0 p-6 text-white overflow-hidden relative">
-            <Activity className="absolute -right-4 -bottom-4 w-24 h-24 text-white/10" />
-             <p className="text-xs font-normal text-white/70 uppercase tracking-widest mb-1">Queue Status</p>
-             <h3 className="text-xl font-normal mb-4 font-outfit uppercase tracking-tight">Background Worker</h3>
-            <div className="space-y-3">
-                <div className="flex justify-between text-xs font-normal uppercase tracking-widest">
-                  <span>Drip Delay</span>
-                  <span>2.0s</span>
-               </div>
-               <div className="w-full bg-white/20 h-1 rounded-full">
-                  <div className="bg-white w-full h-full rounded-full" />
-               </div>
-            </div>
-          </Card>
         </div>
 
       </div>

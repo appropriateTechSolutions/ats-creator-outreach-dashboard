@@ -7,6 +7,7 @@ import { Calendar, Video, CheckCircle, Search, Clock, ExternalLink, UserCheck, A
 import { getMeetings, approvePartner, getAllCreators, bookMeeting } from '../lib/api';
 import { format } from 'date-fns';
 import { Modal } from '../components/ui/Modal';
+import { LoadingState } from '../components/ui/LoadingState';
 
 export default function Meetings() {
   const [meetings, setMeetings] = useState<any[]>([]);
@@ -130,8 +131,8 @@ export default function Meetings() {
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Meetings & Conversions</h1>
-          <p className="text-sm text-gray-500">Track your influencer discovery calls and partner onboarding pipeline.</p>
+          <h1 className="text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Meetings & Conversions</h1>
+          <p className="text-gray-500 font-normal">Track your influencer discovery calls and partner onboarding pipeline.</p>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
           <Button 
@@ -206,9 +207,8 @@ export default function Meetings() {
 
       <Card>
         {loading ? (
-          <div className="p-16 text-center text-gray-500 flex flex-col items-center gap-4">
-            <div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="font-medium">Loading meeting pipeline...</p>
+          <div className="p-16">
+            <LoadingState message="Synchronizing Meeting Pipeline..." />
           </div>
         ) : filteredMeetings.length === 0 ? (
           <div className="p-16 text-center">

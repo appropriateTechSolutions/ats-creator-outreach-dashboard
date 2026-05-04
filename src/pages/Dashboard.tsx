@@ -5,7 +5,8 @@ import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { Users, Mail, MessageSquare, Target, CheckCircle, Activity, AlertCircle, Clock } from 'lucide-react';
+import { Users, Mail, MessageSquare, Target, CheckCircle, Activity, AlertCircle, Clock, Sparkles } from 'lucide-react';
+import { LoadingState } from '../components/ui/LoadingState';
 import { getCampaigns, getAllCreators, getDashboardStats } from '../lib/api';
 import type { Campaign, Creator } from '../types';
 
@@ -14,80 +15,131 @@ export default function Dashboard() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
 
-  useEffect(() => {
-    Promise.all([getCampaigns(), getAllCreators(), getDashboardStats()])
-      .then(([camps, creats, dashboardStats]) => {
-        setCampaigns(camps);
-        setCreators(creats);
+  const fetchStats = (campaignId?: string) => {
+    setLoading(true);
+    getDashboardStats(campaignId)
+      .then(dashboardStats => {
         setStats(dashboardStats);
       })
-      .catch(err => console.error("Dashboard DB fetch error:", err))
+      .catch(err => console.error("Stats fetch error:", err))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    Promise.all([getCampaigns(), getAllCreators()])
+      .then(([camps, creats]) => {
+        setCampaigns(camps);
+        setCreators(creats);
+      })
+      .catch(err => console.error("Dashboard metadata fetch error:", err));
+    
+    fetchStats();
   }, []);
 
+  const handleCampaignChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setSelectedCampaignId(val);
+    fetchStats(val || undefined);
+  };
+
   const topCreators = [...creators]
-    .filter(c => !c.conversation?.latest_inbound_message && !c.review_status?.includes('reject'))
+    .filter(c => {
+      // If filtering by campaign, check if this campaign is in the creator's list
+      if (selectedCampaignId) {
+        const cIds = c.campaign_ids || [c.campaign_id];
+        return cIds.includes(selectedCampaignId);
+      }
+      return true;
+    })
     .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
-    .slice(0, 5);
+    .slice(0, 10);
 
   const getPercentLength = (val: number, max: number) => {
     if (max === 0) return '0%';
     return `${Math.max(5, Math.min(100, (val / max) * 100))}%`;
   };
 
-  const getRelativeTime = (timestamp: string) => {
-    const now = new Date();
-    const then = new Date(timestamp);
-    const diffMs = now.getTime() - then.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
+  const getRelativeTime = (timestamp: any) => {
+    try {
+      if (!timestamp) return 'Just now';
+      const now = new Date();
+      const then = new Date(timestamp);
+      
+      if (isNaN(then.getTime())) return 'Just now';
+      
+      const diffMs = now.getTime() - then.getTime();
+      const diffSecs = Math.floor(diffMs / 1000);
+      const diffMins = Math.floor(diffSecs / 60);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
+      if (diffSecs < 60) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return `${diffDays}d ago`;
+    } catch (e) {
+      return 'Just now';
+    }
   };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Dashboard</h1>
-        <select className="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-4 py-2 shadow-sm font-normal outline-none">
-          <option>All Campaigns ({campaigns.length})</option>
-          {campaigns.map(c => <option key={c.id}>{c.name}</option>)}
+        <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Dashboard</h1>
+        <select 
+          value={selectedCampaignId}
+          onChange={handleCampaignChange}
+          className="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-4 py-2 shadow-sm font-normal outline-none"
+        >
+          <option value="">All Campaigns ({campaigns.length})</option>
+          {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
 
       {loading || !stats ? (
-        <div className="flex flex-col items-center justify-center p-24 text-gray-400">
-          <Activity className="animate-spin mb-4" />
-          <p>Syncing CRM Data...</p>
+        <div className="py-24">
+          <LoadingState message="Syncing CRM Intelligence..." />
         </div>
       ) : (
         <>
-          {/* KPI Row */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {/* Single KPI Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             <KPICard 
-              title="Total Creators" 
+              title="Creators" 
               value={stats.kpis.totalCreators.value} 
-              icon={<Users size={20} />} 
-              trend={stats.kpis.totalCreators.trend !== 0 ? { value: stats.kpis.totalCreators.trend, isPositive: stats.kpis.totalCreators.trend >= 0 } : undefined} 
+              icon={<Users size={16} />} 
+              trend={stats.kpis.totalCreators.trend ? { value: stats.kpis.totalCreators.trend, isPositive: stats.kpis.totalCreators.trend >= 0 } : undefined} 
             />
-            <KPICard title="Contacted" value={stats.kpis.contacted.value} icon={<Mail size={20} />} />
+            <KPICard 
+              title="Campaigns" 
+              value={stats.kpis.totalCampaigns.value} 
+              icon={<Target size={16} />} 
+            />
+            <KPICard 
+              title="Clients" 
+              value={stats.kpis.totalClients.value} 
+              icon={<Activity size={16} />} 
+            />
+            <KPICard 
+              title="Sent" 
+              value={stats.kpis.contacted.value} 
+              icon={<Mail size={16} />} 
+            />
             <KPICard 
               title="Replied" 
               value={stats.kpis.replied.value} 
-              icon={<MessageSquare size={20} />} 
+              icon={<MessageSquare size={16} />} 
               trend={stats.kpis.replied.trend !== 0 ? { value: stats.kpis.replied.trend, isPositive: true } : undefined} 
               colorClass="text-secondary-600" 
             />
-            <KPICard title="Qualified" value={stats.kpis.qualified.value} icon={<Target size={20} />} colorClass="text-primary-600" />
+            <KPICard title="Qualified" value={stats.kpis.qualified.value} icon={<CheckCircle size={16} />} colorClass="text-primary-600" />
             <KPICard 
               title="Converted" 
               value={stats.kpis.converted.value} 
-              icon={<CheckCircle size={20} />} 
-              trend={stats.kpis.converted.trend !== 0 ? { value: stats.kpis.converted.trend, isPositive: stats.kpis.converted.trend >= 0 } : undefined} 
+              icon={<Sparkles size={16} />} 
+              trend={stats.kpis.converted.trend ? { value: stats.kpis.converted.trend, isPositive: stats.kpis.converted.trend >= 0 } : undefined} 
               colorClass="text-success-600" 
             />
           </div>

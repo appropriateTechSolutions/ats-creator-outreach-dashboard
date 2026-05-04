@@ -17,7 +17,7 @@ export function ScoreBadge({ score, label, className = '' }: { score: number, la
 
   return (
     <div className={`flex flex-col items-center justify-center ${className}`}>
-      <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-normal ${colorClass}`}>
+      <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-normal font-outfit ${colorClass}`}>
         <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${dotColor}`}></span>
         {Math.round(score)}
       </span>

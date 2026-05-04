@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { previewOutreach } from '../../lib/api';
+import { LoadingState } from './LoadingState';
 
 interface OutreachPreviewModalProps {
   creatorId: string;
@@ -69,8 +70,8 @@ export function OutreachPreviewModal({
 
         <div className="p-6 flex-1 overflow-y-auto space-y-4">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            <div className="py-12">
+              <LoadingState message="Generating AI Outreach..." />
             </div>
           ) : (
             <>
@@ -118,7 +119,7 @@ export function OutreachPreviewModal({
           >
             {sending ? (
               <>
-                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                <LoadingState mini />
                 Sending...
               </>
             ) : (

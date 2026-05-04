@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { inviteUser, getClients, getUsers } from '../lib/api';
+import { inviteUser, getClients, getUsers, resendInvite } from '../lib/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { UserPlus, Mail, Shield, User as UserIcon, Loader2, CheckCircle2, AlertCircle, Wand2, Search, X, Building2 } from 'lucide-react';
+import { UserPlus, Mail, Shield, User as UserIcon, Loader2, CheckCircle2, AlertCircle, Wand2, Search, X, Building2, RefreshCw } from 'lucide-react';
+import { LoadingState } from '../components/ui/LoadingState';
 
 export default function Users() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function Users() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +53,20 @@ export default function Users() {
     setFormData({ ...formData, client_id: uuid });
   };
 
+  const handleResendInvite = async (e: React.MouseEvent, userId: string) => {
+    e.stopPropagation(); // Prevent navigation to detail page
+    setActionLoading(userId);
+    try {
+      await resendInvite(userId);
+      // Show success toast or alert
+      alert('Invitation resent successfully!');
+    } catch (err: any) {
+      alert(err || 'Failed to resend invitation.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setInviteLoading(true);
@@ -78,7 +94,7 @@ export default function Users() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-normal text-gray-900 font-outfit uppercase tracking-tight">User Management</h1>
+          <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">User Management</h1>
           <p className="text-gray-500 font-normal">Manage internal team members and client accounts.</p>
         </div>
         <Button 
@@ -109,20 +125,20 @@ export default function Users() {
                 <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest">User Profile</th>
                 <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest text-center">Identity Type</th>
                 <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest">Administrative Role</th>
-                <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest text-right">Status</th>
+                <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest text-center">Status</th>
+                <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-8 py-20 text-center">
-                    <Loader2 className="w-10 h-10 animate-spin mx-auto text-primary-500 mb-4" />
-                    <p className="text-gray-400 font-normal uppercase tracking-widest text-[10px]">Retrieving User Intelligence...</p>
+                  <td colSpan={5} className="py-20">
+                    <LoadingState message="Retrieving User Access..." />
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-8 py-20 text-center text-gray-400 font-normal uppercase tracking-widest text-[10px]">
+                  <td colSpan={5} className="px-8 py-20 text-center text-gray-400 font-normal uppercase tracking-widest text-[10px]">
                     No users found in current scope.
                   </td>
                 </tr>
@@ -157,7 +173,7 @@ export default function Users() {
                         {u.role.replace('_', ' ')}
                       </div>
                     </td>
-                    <td className="px-8 py-5 text-right">
+                    <td className="px-8 py-5 text-center">
                       <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-normal uppercase tracking-widest border ${
                         u.status === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-amber-50 text-amber-600 border-amber-100'
                       }`}>
@@ -166,6 +182,24 @@ export default function Users() {
                         }`} />
                         {u.status}
                       </span>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      {u.status === 'invited' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleResendInvite(e, u.id)}
+                          disabled={actionLoading === u.id}
+                          className="text-primary-600 hover:text-primary-700 hover:bg-primary-50 p-2 rounded-lg"
+                          title="Resend Invitation"
+                        >
+                          {actionLoading === u.id ? (
+                            <LoadingState mini />
+                          ) : (
+                            <RefreshCw className="w-4 h-4" />
+                          )}
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -320,7 +354,7 @@ export default function Users() {
                   className="flex-[2] bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 font-normal uppercase text-[10px] tracking-widest" 
                   disabled={inviteLoading}
                 >
-                  {inviteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send Invitation'}
+                  {inviteLoading ? <LoadingState mini /> : 'Send Invitation'}
                 </Button>
               </div>
             </form>

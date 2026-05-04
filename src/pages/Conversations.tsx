@@ -6,6 +6,7 @@ import { RefreshCw, MessageSquare, Mail, Search } from 'lucide-react';
 import { getConversations, syncConversations, getConversationThread } from '../lib/api';
 import type { Creator, ConversationMessage } from '../types';
 import { format } from 'date-fns';
+import { LoadingState } from '../components/ui/LoadingState';
 
 export default function Conversations() {
   const [conversations, setConversations] = useState<Creator[]>([]);
@@ -72,20 +73,54 @@ export default function Conversations() {
     }
   };
 
+  // Helper to clean up email signatures and quoted replies
+  const cleanMessageText = (text: string) => {
+    if (!text) return '';
+    // Normalize all line endings first and remove carriage returns
+    const normalizedText = text.replace(/\r/g, '');
+    const lines = normalizedText.split('\n');
+    const cleanedLines = [];
+    
+    for (let line of lines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine && cleanedLines.length === 0) continue; 
+
+      // Aggressive stop for any common email reply headers
+      if (
+        /^\s*(On|From|Sent|To|Subject):/i.test(trimmedLine) || 
+        /wrote:$/i.test(trimmedLine) ||
+        trimmedLine.includes('Original Message') ||
+        trimmedLine.startsWith('---') ||
+        trimmedLine.startsWith('___')
+      ) {
+        break;
+      }
+      
+      // Skip quoted lines
+      if (trimmedLine.startsWith('>') || trimmedLine.startsWith('>>')) {
+        continue;
+      }
+      
+      cleanedLines.push(line);
+    }
+    
+    return cleanedLines.join('\n').trim();
+  };
+
   const activeConvo = conversations.find(c => c.id === activeId);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto h-[calc(100vh-100px)] flex flex-col pb-6 animate-[fadeIn_0.3s_ease]">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Inbox & Conversations</h1>
-          <p className="text-sm text-gray-500">Manage replies and negotiate with leads.</p>
+          <h1 className="text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Inbox & Conversations</h1>
+          <p className="text-gray-500 font-normal">Manage replies and negotiate with leads.</p>
         </div>
         <Button 
           onClick={handleSync} 
           disabled={syncing}
           variant="outline" 
-          icon={<RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />}
+          icon={syncing ? <LoadingState mini /> : <RefreshCw size={16} />}
         >
           {syncing ? 'Syncing Gmail...' : 'Sync Inbox'}
         </Button>
@@ -109,7 +144,9 @@ export default function Conversations() {
           
           <div className="flex-1 overflow-y-auto">
             {loading ? (
-              <div className="p-8 text-center text-gray-500 text-sm">Loading inbox...</div>
+              <div className="py-20">
+                <LoadingState message="Loading Conversations..." />
+              </div>
             ) : conversations.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <MessageSquare className="mx-auto mb-2 opacity-50" />
@@ -133,7 +170,7 @@ export default function Conversations() {
                       Re: Collab Opportunity
                     </div>
                     <p className="text-xs text-gray-500 truncate max-w-full">
-                      {c.conversation?.latest_inbound_message || 'No message content'}
+                      {cleanMessageText(c.conversation?.latest_inbound_message || 'No message content')}
                     </p>
                   </button>
                 ))}
@@ -179,7 +216,7 @@ export default function Conversations() {
                           {msg.direction === 'outbound' ? 'You' : `@${activeConvo.handle}`} • {format(new Date(msg.message_time), 'MMM d, h:mm a')}
                         </div>
                         <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                           {msg.message_text}
+                           {cleanMessageText(msg.message_text)}
                         </p>
                       </div>
                     </div>

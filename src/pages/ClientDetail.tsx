@@ -30,6 +30,7 @@ import * as api from '../lib/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { LoadingState } from '../components/ui/LoadingState';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Brand {
@@ -125,9 +126,8 @@ export default function ClientDetail() {
 
   if (loading) {
     return (
-      <div className="p-20 text-center text-gray-400">
-        <RefreshCw className="animate-spin mx-auto mb-4 text-primary-500" size={40} />
-        <p className="font-normal text-lg">Reconstructing Agency Tenant...</p>
+      <div className="p-20">
+        <LoadingState message="Reconstructing Agency Tenant..." />
       </div>
     );
   }
@@ -151,9 +151,6 @@ export default function ClientDetail() {
             <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO DIRECTORY
           </Link>
           <div className="flex items-center gap-6">
-            <div className="w-20 h-20 rounded-3xl bg-white shadow-xl border border-gray-100 flex items-center justify-center text-primary-600">
-              <Building2 size={40} />
-            </div>
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">{client.name}</h1>
@@ -172,7 +169,7 @@ export default function ClientDetail() {
       <Card className="border-none shadow-2xl bg-white overflow-hidden">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
           <h2 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2">
-            <FileText size={18} className="text-primary-600" /> Client Intelligence Profile
+            Client
           </h2>
           <div className="flex items-center gap-4">
              <span className="px-3 py-1 rounded bg-primary-50 text-primary-600 text-[10px] font-normal uppercase tracking-widest border border-primary-100">
@@ -242,7 +239,7 @@ export default function ClientDetail() {
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center">
           <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2">
-            <ShoppingBag size={18} className="text-primary-600" /> Managed Brands Identity
+            Brands
           </h3>
           <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">
             {client.brands?.length || 0} Registered Entities
@@ -292,7 +289,7 @@ export default function ClientDetail() {
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center">
           <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2">
-            <Users size={18} className="text-primary-600" /> Authorized Staff Network
+            Users
           </h3>
           <Button 
             size="sm" 
@@ -367,7 +364,7 @@ export default function ClientDetail() {
             
             <form onSubmit={handleSubmitInvite} className="p-6 space-y-5">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Full Name</label>
+                <label className="text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Full Name</label>
                 <div className="relative">
                   <UserIcon className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
                   <Input
@@ -381,7 +378,7 @@ export default function ClientDetail() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Email Address</label>
+                <label className="text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Email Address</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
                   <Input
@@ -397,14 +394,14 @@ export default function ClientDetail() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">User Type</label>
+                  <label className="text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">User Type</label>
                   <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 font-medium">
                     Client User
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Role</label>
+                  <label className="text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Role</label>
                   <select 
                     className="w-full rounded-lg border border-gray-200 p-2.5 text-sm"
                     value={formData.role}
@@ -436,7 +433,7 @@ export default function ClientDetail() {
                   Cancel
                 </Button>
                 <Button type="submit" className="flex-1" disabled={inviteLoading}>
-                  {inviteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send Invite'}
+                  {inviteLoading ? <LoadingState mini /> : 'Send Invite'}
                 </Button>
               </div>
             </form>

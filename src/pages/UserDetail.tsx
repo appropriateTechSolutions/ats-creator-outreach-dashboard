@@ -19,6 +19,7 @@ import {
 import * as api from '../lib/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { LoadingState } from '../components/ui/LoadingState';
 
 interface UserDetailData {
   id: string;
@@ -58,9 +59,8 @@ export default function UserDetail() {
 
   if (loading) {
     return (
-      <div className="p-20 text-center text-gray-400">
-        <RefreshCw className="animate-spin mx-auto mb-4 text-primary-500" size={40} />
-        <p className="font-normal text-lg">Retrieving User Intelligence...</p>
+      <div className="p-20">
+        <LoadingState message="Retrieving User Intelligence..." />
       </div>
     );
   }
@@ -196,7 +196,7 @@ export default function UserDetail() {
               <td className="px-8 py-5 text-sm font-normal text-gray-900">
                 <div className="flex items-center gap-2">
                   <Calendar size={14} className="text-gray-400" />
-                  {new Date(userData.created_at).toLocaleDateString(undefined, { dateStyle: 'full' })}
+                  {userData.created_at || (userData as any).createdAt ? new Date(userData.created_at || (userData as any).createdAt).toLocaleDateString(undefined, { dateStyle: 'full' }) : '---'}
                 </div>
               </td>
             </tr>

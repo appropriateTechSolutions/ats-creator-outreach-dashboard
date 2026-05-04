@@ -60,6 +60,8 @@ export interface Creator {
     }
   } | null
   review_status: string | null
+  campaign_id: string | null
+  campaign_ids: string[]
   assigned_status: string
   meetings: Meeting[]
   affiliate: Affiliate | null

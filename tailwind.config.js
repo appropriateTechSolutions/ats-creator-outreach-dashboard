@@ -8,6 +8,7 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
+        outfit: ['Outfit', 'sans-serif'],
       },
       colors: {
         // Based on the prompt: Primary Indigo/Blue, Success Green, Warning Amber, Error Red

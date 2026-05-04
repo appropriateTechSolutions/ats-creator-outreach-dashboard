@@ -23,6 +23,7 @@ import {
 import * as api from '../lib/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { LoadingState } from '../components/ui/LoadingState';
 
 interface Campaign {
   id: string;
@@ -75,9 +76,8 @@ export default function BrandDetail() {
 
   if (loading) {
     return (
-      <div className="p-20 text-center text-gray-400">
-        <RefreshCw className="animate-spin mx-auto mb-4 text-primary-500" size={40} />
-        <p className="font-normal text-lg">Retrieving Brand Intelligence...</p>
+      <div className="p-20">
+        <LoadingState message="Retrieving Brand Intelligence..." />
       </div>
     );
   }
@@ -101,9 +101,6 @@ export default function BrandDetail() {
             <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO PORTFOLIO
           </Link>
           <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-white shadow-xl border border-gray-100 flex items-center justify-center text-primary-600">
-              <ShoppingBag size={32} />
-            </div>
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight leading-none">{brand.name}</h1>
@@ -114,7 +111,7 @@ export default function BrandDetail() {
                 </span>
               </div>
               <p className="text-gray-400 font-normal text-xs uppercase tracking-widest mt-1 flex items-center gap-2">
-                <Building2 size={14} className="text-primary-500" /> Agency Tenant: {brand.Client?.name || 'Internal'}
+                Agency Tenant: {brand.Client?.name || 'Internal'}
               </p>
             </div>
           </div>
@@ -125,7 +122,7 @@ export default function BrandDetail() {
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
         <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
           <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
-            <FileText size={16} className="text-primary-600" /> Core Brand Intelligence
+            Brand
           </h2>
           <div className="text-[10px] font-normal text-primary-600 bg-primary-50 px-3 py-1 rounded-full uppercase tracking-widest border border-primary-100">
             {brand.industry}
@@ -163,7 +160,7 @@ export default function BrandDetail() {
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
         <div className="p-6 border-b border-gray-100 bg-gray-50/50">
           <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
-            <Megaphone size={16} className="text-primary-600" /> Creative Parameters
+            Creative
           </h3>
         </div>
         <table className="w-full text-left">
@@ -184,7 +181,7 @@ export default function BrandDetail() {
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
         <div className="p-6 border-b border-gray-100 bg-gray-50/50">
           <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
-            <Percent size={16} className="text-primary-600" /> Commercial Terms
+            Commercial
           </h3>
         </div>
         <table className="w-full text-left">
@@ -207,7 +204,7 @@ export default function BrandDetail() {
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
         <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
           <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
-            <Shield size={16} className="text-primary-600" /> Operational Integrity
+            Operational
           </h2>
         </div>
         <table className="w-full text-left">
