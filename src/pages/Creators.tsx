@@ -12,8 +12,10 @@ import { format } from 'date-fns';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Check, X, Mail } from 'lucide-react';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Creators() {
+  const { user } = useAuth();
   const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -132,7 +134,6 @@ export default function Creators() {
                 <Tr>
                   <Th>Creator Details</Th>
                   <Th>Category</Th>
-                  <Th className="text-center">Followers</Th>
                   <Th className="text-center">Relevance</Th>
                   <Th className="text-center">Readiness</Th>
                   <Th>Status</Th>
@@ -187,9 +188,6 @@ export default function Creators() {
                         ))}
                       </div>
                     </Td>
-                    <Td className="text-center font-normal text-gray-700 text-sm">
-                       {c.followers_count ? (c.followers_count > 1000000 ? (c.followers_count/1000000).toFixed(1) + 'M' : (c.followers_count/1000).toFixed(1) + 'K') : '-'}
-                    </Td>
                     <Td className="text-center">
                       <ScoreBadge score={c.relevance_score || 0} />
                     </Td>
@@ -198,7 +196,7 @@ export default function Creators() {
                     </Td>
                     <Td><StatusBadge status={c.review_status as any || 'pending'} /></Td>
                     <Td className="text-right">
-                      {(c.review_status === 'hold' || !c.review_status || c.review_status === 'pending_review' || c.review_status === 'reviewed') && c.review_status !== 'approved' && c.review_status !== 'rejected' && (
+                      {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (c.review_status === 'hold' || !c.review_status || c.review_status === 'pending_review' || c.review_status === 'reviewed') && c.review_status !== 'approved' && c.review_status !== 'rejected' && (
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => handleReview(c.id, 'approve')}

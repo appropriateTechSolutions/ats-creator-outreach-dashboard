@@ -34,6 +34,7 @@ export function StatusBadge({ status }: { status: StatusType }) {
 
   let label = status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ');
   if (status === 'hold') label = 'Discovered';
+  if (status === 'archived') label = 'Inactive';
 
   return <Badge variant={variant}>{label}</Badge>;
 }

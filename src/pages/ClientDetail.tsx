@@ -31,6 +31,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { LoadingState } from '../components/ui/LoadingState';
+import { StatusBadge } from '../components/ui/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Brand {
@@ -102,6 +103,24 @@ export default function ClientDetail() {
     fetchClientData();
   }, [id]);
 
+  const handleUpdateStatus = async (newStatus: string) => {
+    if (!id) return;
+    
+    // Optimistic UI update
+    if (client) {
+      setClient({ ...client, status: newStatus } as any);
+    }
+    
+    try {
+      await api.updateClient(id, { status: newStatus });
+      fetchClientData(); // Refresh list
+    } catch (err) {
+      console.error(err);
+      alert(`Failed to update client status to ${newStatus}`);
+      fetchClientData(); // Reset on error
+    }
+  };
+
   const handleSubmitInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setInviteLoading(true);
@@ -150,18 +169,32 @@ export default function ClientDetail() {
           <Link to="/clients" className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase">
             <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO DIRECTORY
           </Link>
-          <div className="flex items-center gap-6">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">{client.name}</h1>
-                <span className={`px-3 py-1 rounded text-[10px] font-normal uppercase tracking-widest border ${
-                  client.status === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-amber-50 text-amber-600 border-amber-100'
-                }`}>
-                  {client.status}
+          <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">{client.name}</h1>
+        </div>
+
+        <div className="flex flex-col items-center gap-2 pt-8">
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Tenant Status</span>
+            {['super_admin', 'admin'].includes(currentUser?.role || '') ? (
+              <>
+                <button 
+                  onClick={() => handleUpdateStatus(client.status === 'active' ? 'archived' : 'active')}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${client.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
+                >
+                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${client.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+                <span className={`text-[10px] font-bold uppercase tracking-widest ${client.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
+                  {client.status === 'active' ? 'ON' : 'OFF'}
                 </span>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                 <div className={`w-2 h-2 rounded-full ${client.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
+                 <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{client.status}</span>
               </div>
-            </div>
+            )}
           </div>
+          <StatusBadge status={client.status as any} />
         </div>
       </div>
 
@@ -291,14 +324,16 @@ export default function ClientDetail() {
           <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2">
             Users
           </h3>
-          <Button 
-            size="sm" 
-            onClick={() => setIsInviteModalOpen(true)}
-            icon={<UserPlus size={16} />}
-            className="bg-primary-600 hover:bg-primary-700 shadow-lg shadow-primary-500/20"
-          >
-            Invite Users
-          </Button>
+          {['super_admin', 'admin', 'client_admin'].includes(currentUser?.role || '') && (
+            <Button 
+              size="sm" 
+              onClick={() => setIsInviteModalOpen(true)}
+              icon={<UserPlus size={16} />}
+              className="bg-primary-600 hover:bg-primary-700 shadow-lg shadow-primary-500/20"
+            >
+              Invite Users
+            </Button>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">

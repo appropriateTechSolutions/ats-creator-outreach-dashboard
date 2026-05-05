@@ -20,8 +20,10 @@ import { LoadingState } from '../components/ui/LoadingState';
 import { ArrowLeft, Sparkles, Activity, Users, Mail, Info, Check, X, Edit2, Tag } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CampaignDetail() {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Creator[]>([]);
@@ -45,9 +47,9 @@ export default function CampaignDetail() {
   });
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     if (!id) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const [camp, brandsData] = await Promise.all([
         getCampaignById(id),
@@ -156,7 +158,7 @@ export default function CampaignDetail() {
         discovery_channels: editFormData.discovery_channels
       });
       setIsEditModalOpen(false);
-      fetchData();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert('Failed to update campaign.');
@@ -242,11 +244,18 @@ export default function CampaignDetail() {
 
   const handleUpdateStatus = async (newStatus: string) => {
     if (!id) return;
+    
+    // Optimistically update the status for instant feedback
+    if (campaign) {
+      setCampaign({ ...campaign, status: newStatus } as any);
+    }
+    
     try {
       await updateCampaign(id, { status: newStatus });
-      fetchData();
+      fetchData(true); // Silent refresh in background
     } catch (err) {
       alert(`Failed to update campaign status to ${newStatus}`);
+      fetchData(); // Reset on error
     }
   };
 
@@ -260,50 +269,38 @@ export default function CampaignDetail() {
         <div>
           <h1 className="text-3xl font-normal text-gray-900 mb-2 font-outfit uppercase tracking-tight">{campaign.name}</h1>
           <div className="flex items-center gap-3 text-sm text-gray-600">
-            <StatusBadge status={campaign.status as any} />
-            <span>•</span>
             <span className="capitalize">{campaign.city || 'Global'}</span>
             <span>•</span>
             <span className="capitalize">{campaign.category || 'Any Category'}</span>
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
-          {campaign.status !== 'active' ? (
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col items-center gap-2 pr-6 border-r border-gray-100">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Campaign Status</span>
+              <button 
+                onClick={() => handleUpdateStatus(campaign.status === 'active' ? 'archived' : 'active')}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${campaign.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
+              >
+                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${campaign.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${campaign.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
+                {campaign.status === 'active' ? 'ON' : 'OFF'}
+              </span>
+            </div>
+            <StatusBadge status={campaign.status as any} />
+          </div>
+          {['super_admin', 'admin', 'operator'].includes(user?.role || '') && (
             <Button 
-              variant="outline"
-              onClick={() => handleUpdateStatus('active')}
-              icon={<Check size={16} />}
-              className="border-green-200 text-green-600 hover:bg-green-50"
+              onClick={handleDiscovery} 
+              disabled={discovering}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 border-none"
+              icon={discovering ? <LoadingState mini /> : <Sparkles size={16} />}
             >
-              Activate Campaign
-            </Button>
-          ) : (
-            <Button 
-              variant="outline"
-              onClick={() => handleUpdateStatus('draft')}
-              icon={<X size={16} />}
-              className="border-amber-200 text-amber-600 hover:bg-amber-50"
-            >
-              Deactivate Campaign
+              {discovering ? 'Executing AI...' : 'Run AI Discovery'}
             </Button>
           )}
-          <Button 
-            variant="outline"
-            onClick={() => setIsEditModalOpen(true)}
-            icon={<Edit2 size={16} />}
-            className="border-gray-200 text-gray-600 hover:bg-gray-50"
-          >
-            Edit Parameters
-          </Button>
-          <Button 
-            onClick={handleDiscovery} 
-            disabled={discovering}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 border-none"
-            icon={discovering ? <LoadingState mini /> : <Sparkles size={16} />}
-          >
-            {discovering ? 'Executing AI...' : 'Run AI Discovery'}
-          </Button>
         </div>
       </div>
 
@@ -351,7 +348,7 @@ export default function CampaignDetail() {
                     <Td><ScoreBadge score={lead.outreach_readiness_score || 0} /></Td>
                     <Td><StatusBadge status={lead.review_status as any || 'pending'} /></Td>
                     <Td className="text-right">
-                      {(lead.review_status === 'hold' || !lead.review_status || lead.review_status === 'pending_review' || lead.review_status === 'reviewed' || lead.review_status === 'pending') && lead.review_status !== 'approved' && lead.review_status !== 'rejected' && (
+                      {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (lead.review_status === 'hold' || !lead.review_status || lead.review_status === 'pending_review' || lead.review_status === 'reviewed' || lead.review_status === 'pending') && lead.review_status !== 'approved' && lead.review_status !== 'rejected' && (
                         <div className="flex items-center justify-end gap-2">
                           <button 
                             className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors" 
@@ -454,14 +451,16 @@ export default function CampaignDetail() {
                  </div>
               </div>
 
-              <Button 
-                onClick={handleSaveTemplate}
-                disabled={savingTemplate}
-                className="w-full bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-500/20"
-                icon={savingTemplate ? <LoadingState mini /> : <Check size={16} />}
-              >
-                {savingTemplate ? 'Saving...' : 'Save Campaign Template'}
-              </Button>
+              {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
+                <Button 
+                  onClick={handleSaveTemplate}
+                  disabled={savingTemplate}
+                  className="w-full bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-500/20"
+                  icon={savingTemplate ? <LoadingState mini /> : <Check size={16} />}
+                >
+                  {savingTemplate ? 'Saving...' : 'Save Campaign Template'}
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -624,6 +623,17 @@ export default function CampaignDetail() {
           </div>
         </form>
       </Modal>
+      
+      {/* Floating Edit Button */}
+      {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
+        <button 
+          onClick={() => setIsEditModalOpen(true)}
+          className="fixed bottom-8 right-8 w-14 h-14 bg-white text-primary-600 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-[60] group"
+          title="Edit Campaign Parameters"
+        >
+          <Edit2 size={24} className="group-hover:rotate-12 transition-transform" />
+        </button>
+      )}
     </div>
   );
 }

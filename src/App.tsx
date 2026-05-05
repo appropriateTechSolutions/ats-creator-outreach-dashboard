@@ -19,6 +19,8 @@ import Clients from './pages/Clients';
 import ClientDetail from './pages/ClientDetail';
 import Brands from './pages/Brands';
 import BrandDetail from './pages/BrandDetail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 // Temporary placeholders for missing pages
 const Placeholder = ({ title }: { title: string }) => (
@@ -44,6 +46,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/accept-invite" element={<AcceptInvite />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           
           <Route element={<ProtectedLayout />}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

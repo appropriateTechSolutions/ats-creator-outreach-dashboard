@@ -46,6 +46,7 @@ interface Client {
 }
 
 export default function Brands() {
+  const { user } = useAuth();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,8 +72,6 @@ export default function Brands() {
     status: 'active',
     notes: ''
   });
-
-  const { user } = useAuth();
 
   const fetchData = async () => {
     setLoading(true);
@@ -150,13 +149,15 @@ export default function Brands() {
             Managed brand identities and campaign grouping.
           </p>
         </div>
-        <Button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
-          icon={<Plus size={20} />}
-        >
-          Register New Brand
-        </Button>
+        {['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
+          <Button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
+            icon={<Plus size={20} />}
+          >
+            Register New Brand
+          </Button>
+        )}
       </div>
 
       {/* Filter Bar */}

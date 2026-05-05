@@ -36,6 +36,12 @@ export const login = async (email: string, password: string): Promise<{ user: Au
   return res as any;
 };
 
+export const forgotPassword = (email: string): Promise<{ success: boolean; message: string }> => 
+  api.post('/auth/forgot-password', { email });
+
+export const resetPassword = (data: { token: string, newPassword: string }): Promise<{ success: boolean; message: string }> => 
+  api.post('/auth/reset-password', data);
+
 export const getMe = (): Promise<AuthUser> => api.get('/auth/me');
 
 export const logout = async (): Promise<void> => {
@@ -62,6 +68,7 @@ export const disableUser = (id: string): Promise<any> => api.post(`/users/${id}/
 export const getClients = (): Promise<any[]> => api.get('/clients');
 export const getClientById = (id: string): Promise<any> => api.get(`/clients/${id}`);
 export const createClient = (data: any): Promise<any> => api.post('/clients', data);
+export const updateClient = (id: string, data: any): Promise<any> => api.put(`/clients/${id}`, data);
 
 // Brands
 export const getBrands = (clientId?: string): Promise<any[]> => api.get('/brands', { params: { client_id: clientId } });

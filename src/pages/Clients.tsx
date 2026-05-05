@@ -23,6 +23,8 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { LoadingState } from '../components/ui/LoadingState';
+import { StatusBadge } from '../components/ui/StatusBadge';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Client {
   id: string;
@@ -36,6 +38,7 @@ interface Client {
 }
 
 export default function Clients() {
+  const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -107,13 +110,15 @@ export default function Clients() {
           <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Client Hub</h1>
           <p className="text-gray-500 font-normal">Manage agency tenants and ecosystem isolation.</p>
         </div>
-        <Button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
-          icon={<Plus size={20} />}
-        >
-          Register New Client
-        </Button>
+        {['super_admin', 'admin'].includes(user?.role || '') && (
+          <Button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
+            icon={<Plus size={20} />}
+          >
+            Register New Client
+          </Button>
+        )}
       </div>
 
       <Card className="overflow-hidden border-none shadow-2xl bg-white/80 backdrop-blur-md">
@@ -170,12 +175,8 @@ export default function Clients() {
                           <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-0.5">{client.industry || 'General Sector'}</div>
                         </div>
                     </td>
-                    <td className="px-6 py-5 text-center">
-                      <span className={`px-3 py-1 rounded text-[10px] font-normal uppercase tracking-wider border ${
-                        client.status === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-amber-50 text-amber-600 border-amber-100'
-                      }`}>
-                        {client.status}
-                      </span>
+                    <td className="px-6 py-5 text-center flex items-center justify-center">
+                      <StatusBadge status={client.status as any} />
                     </td>
                     <td className="px-6 py-5 text-center">
                       <span className="px-3 py-1 rounded bg-primary-50 text-primary-600 border border-primary-100 text-[10px] font-normal uppercase tracking-wider">

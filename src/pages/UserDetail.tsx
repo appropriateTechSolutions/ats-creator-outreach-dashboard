@@ -37,10 +37,14 @@ interface UserDetailData {
   };
 }
 
+import { useAuth } from '../contexts/AuthContext';
+
 export default function UserDetail() {
   const { id } = useParams<{ id: string }>();
+  const { user: currentUser } = useAuth();
   const [userData, setUserData] = useState<UserDetailData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -56,6 +60,44 @@ export default function UserDetail() {
     };
     fetchUser();
   }, [id]);
+  
+  const fetchUser = async () => {
+    if (!id) return;
+    try {
+      const data = await api.getUserById(id);
+      setUserData(data);
+    } catch (err) {
+      console.error('Failed to fetch user intelligence', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async () => {
+    if (!id || !userData) return;
+    setActionLoading(true);
+    try {
+      await api.disableUser(id);
+      await fetchUser();
+    } catch (err: any) {
+      alert(err || 'Failed to update user status.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResendInvite = async () => {
+    if (!id) return;
+    setActionLoading(true);
+    try {
+      await api.resendInvite(id);
+      alert('Invitation resent successfully!');
+    } catch (err: any) {
+      alert(err || 'Failed to resend invitation.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -102,6 +144,33 @@ export default function UserDetail() {
             </div>
           </div>
         </div>
+
+        {['super_admin', 'admin', 'client_admin'].includes(currentUser?.role || '') && (
+          <div className="flex gap-3">
+            {userData.status === 'invited' ? (
+              <Button 
+                variant="outline" 
+                onClick={handleResendInvite}
+                disabled={actionLoading}
+                className="flex items-center gap-2"
+              >
+                {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw size={16} />}
+                Resend Invite
+              </Button>
+            ) : (
+              <Button 
+                variant={userData.status === 'active' ? 'outline' : 'default'}
+                onClick={handleToggleStatus}
+                disabled={actionLoading}
+                className="flex items-center gap-2"
+              >
+                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                 (userData.status === 'active' ? <UserX size={16} /> : <UserCheck size={16} />)}
+                {userData.status === 'active' ? 'Disable Account' : 'Enable Account'}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 1. Profile Intelligence Table */}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Activity } from 'lucide-react';
@@ -78,6 +78,11 @@ export default function Login() {
                 className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-all"
                 placeholder="••••••••"
               />
+              <div className="mt-2 text-right">
+                <Link to="/forgot-password" title="Reset your password" className="text-sm font-normal text-primary-600 hover:text-primary-500 transition-colors">
+                  Forgot password?
+                </Link>
+              </div>
             </div>
 
             <Button 

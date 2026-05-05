@@ -5,8 +5,10 @@ import { Settings, Activity } from 'lucide-react';
 import { CheckCircle, AlertCircle, History, MessageSquare, ExternalLink } from 'lucide-react';
 import { getCampaigns, getAllCreators, getOutreachLogs } from '../lib/api';
 import type { Campaign, Creator } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Outreach() {
+  const { user } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [creators, setCreators] = useState<Creator[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
@@ -120,47 +122,48 @@ export default function Outreach() {
         </div>
 
         {/* Right Column: Recent Activity Log */}
-        <div className="space-y-6">
-          <h2 className="text-xs font-normal text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-             <History size={14} /> Live Activity Feed
-          </h2>
+        {['super_admin', 'admin', 'operator', 'analyst'].includes(user?.role || '') && (
+          <div className="space-y-6">
+            <h2 className="text-xs font-normal text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+               <History size={14} /> Live Activity Feed
+            </h2>
 
-          <div className="bg-white border border-gray-100 rounded-2xl p-2 shadow-sm space-y-1">
-            {logs.length > 0 ? logs.map((log, i) => (
-              <div key={log.id} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors border-b border-gray-50 last:border-0 group">
-                <div className={`mt-1 p-1.5 rounded-lg ${log.delivery_status === 'sent' ? 'bg-success-50 text-success-600' : 'bg-red-50 text-red-600'}`}>
-                  {log.delivery_status === 'sent' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center mb-0.5">
-                     <p className="text-sm font-normal text-gray-900 truncate">@{log.Creator?.handle}</p>
-                     <span className="text-[10px] text-gray-400 font-normal">
-                      {(log.created_at || log.createdAt) ? new Date(log.created_at || log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}
-                    </span>
+            <div className="bg-white border border-gray-100 rounded-2xl p-2 shadow-sm space-y-1">
+              {logs.length > 0 ? logs.map((log, i) => (
+                <div key={log.id} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors border-b border-gray-50 last:border-0 group">
+                  <div className={`mt-1 p-1.5 rounded-lg ${log.delivery_status === 'sent' ? 'bg-success-50 text-success-600' : 'bg-red-50 text-red-600'}`}>
+                    {log.delivery_status === 'sent' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
                   </div>
-                  <p className="text-[11px] text-gray-500 truncate mb-1">{log.subject_line}</p>
-                  <div className="flex items-center gap-2">
-                      <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-normal uppercase tracking-widest">{log.channel}</span>
-                     {log.delivery_status === 'sent' && (
-                        <span className="text-[9px] text-success-600 font-normal flex items-center gap-0.5 uppercase tracking-widest">
-                         <div className="w-1 h-1 bg-success-600 rounded-full" /> Inbox
-                       </span>
-                     )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-center mb-0.5">
+                       <p className="text-sm font-normal text-gray-900 truncate">@{log.Creator?.handle}</p>
+                       <span className="text-[10px] text-gray-400 font-normal">
+                        {(log.created_at || log.createdAt) ? new Date(log.created_at || log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 truncate mb-1">{log.subject_line}</p>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-normal uppercase tracking-widest">{log.channel}</span>
+                       {log.delivery_status === 'sent' && (
+                          <span className="text-[9px] text-success-600 font-normal flex items-center gap-0.5 uppercase tracking-widest">
+                           <div className="w-1 h-1 bg-success-600 rounded-full" /> Inbox
+                         </span>
+                       )}
+                    </div>
                   </div>
+                  <button className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-primary-600 transition-all">
+                    <ExternalLink size={12} />
+                  </button>
                 </div>
-                <button className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-primary-600 transition-all">
-                  <ExternalLink size={12} />
-                </button>
-              </div>
-            )) : (
-              <div className="py-12 text-center">
-                 <MessageSquare size={32} className="mx-auto text-gray-200 mb-2" />
-                  <p className="text-xs text-gray-400 font-normal">No recent outreach activity.</p>
-              </div>
-            )}
+              )) : (
+                <div className="py-12 text-center">
+                   <MessageSquare size={32} className="mx-auto text-gray-200 mb-2" />
+                    <p className="text-xs text-gray-400 font-normal">No recent outreach activity.</p>
+                </div>
+              )}
+            </div>
           </div>
-          
-        </div>
+        )}
 
       </div>
     </div>

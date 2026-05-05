@@ -12,8 +12,10 @@ import { format } from 'date-fns';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { LoadingState } from '../components/ui/LoadingState';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Campaigns() {
+  const { user } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,7 +161,9 @@ export default function Campaigns() {
           <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaigns</h1>
           <p className="text-sm text-gray-500">Manage your outreach campaigns and segments.</p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} icon={<Plus size={16} />}>Create Campaign</Button>
+        {['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
+          <Button onClick={() => setIsModalOpen(true)} icon={<Plus size={16} />}>Create Campaign</Button>
+        )}
       </div>
 
       <Card>

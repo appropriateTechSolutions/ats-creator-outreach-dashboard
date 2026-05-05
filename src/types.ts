@@ -17,6 +17,8 @@ export interface Campaign {
   lead_count?: number
   approved_count?: number
   delivered_count?: number
+  Brand?: { id: string, name: string }
+  Client?: { id: string, name: string }
   created_at: string
   updated_at: string
 }

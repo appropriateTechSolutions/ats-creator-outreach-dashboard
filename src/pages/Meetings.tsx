@@ -8,8 +8,10 @@ import { getMeetings, approvePartner, getAllCreators, bookMeeting } from '../lib
 import { format } from 'date-fns';
 import { Modal } from '../components/ui/Modal';
 import { LoadingState } from '../components/ui/LoadingState';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Meetings() {
+  const { user } = useAuth();
   const [meetings, setMeetings] = useState<any[]>([]);
   const [creators, setCreators] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,13 +137,15 @@ export default function Meetings() {
           <p className="text-gray-500 font-normal">Track your influencer discovery calls and partner onboarding pipeline.</p>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <Button 
-            onClick={() => setIsInviteModalOpen(true)}
-            icon={<Plus size={16} />}
-            className="whitespace-nowrap"
-          >
-            Invite Creator
-          </Button>
+          {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
+            <Button 
+              onClick={() => setIsInviteModalOpen(true)}
+              icon={<Plus size={16} />}
+              className="whitespace-nowrap"
+            >
+              Invite Creator
+            </Button>
+          )}
           <div className="relative w-full md:w-64">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search size={16} className="text-gray-400" />
@@ -303,13 +307,15 @@ export default function Meetings() {
                           </Button>
                         )}
                         {m.outcome === 'pending' && m.status !== 'completed' ? (
-                          <Button 
-                            size="sm"
-                            onClick={() => handleApprove(m.id)}
-                            className="shadow-sm"
-                          >
-                            Finalize
-                          </Button>
+                          ['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') ? (
+                            <Button 
+                              size="sm"
+                              onClick={() => handleApprove(m.id)}
+                              className="shadow-sm"
+                            >
+                              Finalize
+                            </Button>
+                          ) : null
                         ) : (
                           <Button 
                             variant="outline" 

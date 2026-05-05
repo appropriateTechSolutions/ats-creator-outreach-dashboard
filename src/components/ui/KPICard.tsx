@@ -16,10 +16,12 @@ export function KPICard({ title, value, icon, trend, colorClass = 'text-primary-
   return (
     <Card className="p-5 flex flex-col justify-between h-full">
       <div className="mb-2">
-        <h3 className="text-xs font-normal text-gray-500 uppercase tracking-[0.2em] truncate">{title}</h3>
+        <h3 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest whitespace-nowrap">{title}</h3>
       </div>
-      <div>
-        <div className="text-2xl font-normal text-gray-900 font-outfit uppercase tracking-tight">{value}</div>
+      <div className="flex-1 flex items-center min-h-[48px]">
+        <div className={`font-normal text-gray-900 font-outfit uppercase tracking-tight leading-tight ${typeof value === 'string' && value.length > 10 ? 'text-sm' : 'text-2xl'}`}>
+          {value}
+        </div>
       </div>
     </Card>
   );

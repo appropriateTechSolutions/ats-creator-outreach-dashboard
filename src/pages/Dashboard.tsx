@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { KPICard } from '../components/ui/KPICard';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
@@ -9,8 +10,10 @@ import { Users, Mail, MessageSquare, Target, CheckCircle, Activity, AlertCircle,
 import { LoadingState } from '../components/ui/LoadingState';
 import { getCampaigns, getAllCreators, getDashboardStats } from '../lib/api';
 import type { Campaign, Creator } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [creators, setCreators] = useState<Creator[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -105,23 +108,51 @@ export default function Dashboard() {
       ) : (
         <>
           {/* Single KPI Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             <KPICard 
               title="Creators" 
               value={stats.kpis.totalCreators.value} 
               icon={<Users size={16} />} 
               trend={stats.kpis.totalCreators.trend ? { value: stats.kpis.totalCreators.trend, isPositive: stats.kpis.totalCreators.trend >= 0 } : undefined} 
             />
-            <KPICard 
-              title="Campaigns" 
-              value={stats.kpis.totalCampaigns.value} 
-              icon={<Target size={16} />} 
-            />
-            <KPICard 
-              title="Clients" 
-              value={stats.kpis.totalClients.value} 
-              icon={<Activity size={16} />} 
-            />
+            
+            {selectedCampaignId ? (
+              <>
+                <KPICard 
+                  title="Brand" 
+                  value={campaigns.find(c => c.id === selectedCampaignId)?.Brand?.name || 'N/A'} 
+                  icon={<Target size={16} />} 
+                />
+                <KPICard 
+                  title="Client" 
+                  value={campaigns.find(c => c.id === selectedCampaignId)?.Client?.name || 'N/A'} 
+                  icon={<Activity size={16} />} 
+                />
+              </>
+            ) : (
+              ['super_admin', 'admin', 'operator', 'analyst'].includes(user?.role || '') ? (
+                <>
+                  <KPICard 
+                    title="Campaigns" 
+                    value={stats.kpis.totalCampaigns.value} 
+                    icon={<Target size={16} />} 
+                  />
+                  <KPICard 
+                    title="Clients" 
+                    value={stats.kpis.totalClients.value} 
+                    icon={<Activity size={16} />} 
+                  />
+                </>
+              ) : (
+                <>
+                   <KPICard 
+                    title="Campaigns" 
+                    value={campaigns.filter(c => c.status === 'active').length} 
+                    icon={<Target size={16} />} 
+                  />
+                </>
+              )
+            )}
             <KPICard 
               title="Sent" 
               value={stats.kpis.contacted.value} 
@@ -216,9 +247,11 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <Button className="w-full mt-2" variant="outline" disabled={stats.funnel.replied === 0}>
-                  Process Follow-ups ({stats.funnel.replied})
-                </Button>
+                {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
+                  <Button className="w-full mt-2" variant="outline" disabled={stats.funnel.replied === 0}>
+                    Process Follow-ups ({stats.funnel.replied})
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -247,11 +280,12 @@ export default function Dashboard() {
                         <Td>
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-xs uppercase">
-                              {c.handle?.charAt(0)}
+                              {(c.full_name || c.handle)?.charAt(0)}
                             </div>
                             <div>
-                               <div className="font-normal text-gray-900 font-outfit uppercase tracking-tight">@{c.handle}</div>
-                              <div className="text-xs text-gray-500 truncate max-w-[120px]">{c.full_name || c.category}</div>
+                               <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 font-outfit uppercase tracking-tight hover:text-primary-600 transition-colors leading-none">
+                                 {c.full_name || `@${c.handle}`}
+                               </Link>
                             </div>
                           </div>
                         </Td>
