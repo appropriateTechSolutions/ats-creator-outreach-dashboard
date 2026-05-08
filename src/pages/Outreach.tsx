@@ -63,7 +63,6 @@ export default function Outreach() {
       <div className="flex justify-between items-end mb-2">
         <div>
           <h1 className="text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Outreach Dashboard</h1>
-          <p className="text-gray-500 font-normal tracking-tight">Real-time monitoring of automated campaign sequences.</p>
         </div>
       </div>
 
@@ -71,9 +70,6 @@ export default function Outreach() {
         
         {/* Left Column: Campaign Progress */}
         <div className="lg:col-span-2 space-y-6">
-          <h2 className="text-xs font-normal text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-             <Activity size={14} /> Active Sequence Progress
-          </h2>
           
           <div className="grid grid-cols-1 gap-4">
             {campaignMetrics.map(camp => (
@@ -124,9 +120,6 @@ export default function Outreach() {
         {/* Right Column: Recent Activity Log */}
         {['super_admin', 'admin', 'operator', 'analyst'].includes(user?.role || '') && (
           <div className="space-y-6">
-            <h2 className="text-xs font-normal text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-               <History size={14} /> Live Activity Feed
-            </h2>
 
             <div className="bg-white border border-gray-100 rounded-2xl p-2 shadow-sm space-y-1">
               {logs.length > 0 ? logs.map((log, i) => (

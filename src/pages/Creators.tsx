@@ -86,7 +86,6 @@ export default function Creators() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Global Creator Directory</h1>
-          <p className="text-gray-500 font-normal">View and filter all discovered leads across all campaigns.</p>
         </div>
       </div>
 

@@ -19,6 +19,7 @@ export default function Users() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -89,32 +90,40 @@ export default function Users() {
     }
   };
 
+  const filteredUsers = users.filter(u => 
+    (u.full_name || '').toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-[fadeIn_0.3s_ease] max-w-7xl mx-auto pb-12">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">User Management</h1>
-          <p className="text-gray-500 font-normal">Manage internal team members and client accounts.</p>
+          <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">User Management</h1>
         </div>
         <Button 
           onClick={() => setIsModalOpen(true)} 
-          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 font-normal uppercase tracking-widest text-[10px]"
+          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 font-normal uppercase tracking-widest text-[10px] h-11"
         >
-          <UserPlus size={14} /> Invite New User
+          <UserPlus size={16} /> Invite New User
         </Button>
       </div>
 
       {/* User Table */}
-      <Card className="overflow-hidden border-none shadow-2xl bg-white">
+      <Card className="overflow-hidden border-none shadow-2xl bg-white/80 backdrop-blur-md">
         <div className="p-6 border-b border-gray-100 flex items-center justify-between gap-4 bg-gray-50/30">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-3 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
             <input 
               type="text" 
-              placeholder="Search users by name, email or role..." 
+              placeholder="Filter by name..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
             />
+          </div>
+          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-white px-3 py-1.5 rounded-lg border border-gray-100">
+            {filteredUsers.length} Registered Identities
           </div>
         </div>
 
@@ -125,6 +134,7 @@ export default function Users() {
                 <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest">User Profile</th>
                 <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest text-center">Identity Type</th>
                 <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest">Administrative Role</th>
+                <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest">Client</th>
                 <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest text-center">Status</th>
                 <th className="px-8 py-5 text-[10px] font-normal text-gray-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
@@ -132,49 +142,54 @@ export default function Users() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-20">
+                  <td colSpan={6} className="py-20">
                     <LoadingState message="Retrieving User Access..." />
                   </td>
                 </tr>
-              ) : users.length === 0 ? (
+              ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-20 text-center text-gray-400 font-normal uppercase tracking-widest text-[10px]">
-                    No users found in current scope.
+                  <td colSpan={6} className="px-8 py-20 text-center text-gray-400 font-normal uppercase tracking-widest text-[10px]">
+                    No users found matching your search.
                   </td>
                 </tr>
               ) : (
-                users.map((u) => (
+                filteredUsers.map((u) => (
                   <tr 
                     key={u.id} 
                     onClick={() => navigate(`/users/${u.id}`)}
                     className="hover:bg-primary-50/30 transition-all cursor-pointer group"
                   >
-                    <td className="px-8 py-5">
+                    <td className="px-8 py-6">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-normal text-lg shadow-sm group-hover:scale-110 transition-transform">
+                        <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-normal text-lg shadow-sm group-hover:scale-110 transition-transform font-outfit">
                           {u.full_name?.charAt(0) || 'U'}
                         </div>
                         <div>
                           <p className="font-normal text-gray-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight text-base leading-tight font-outfit">{u.full_name}</p>
-                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-wider mt-0.5">{u.email}</p>
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-wider mt-1">{u.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-5 text-center">
-                      <span className={`px-3 py-1 rounded text-[10px] font-normal uppercase tracking-widest border ${
+                    <td className="px-8 py-6 text-center">
+                      <span className={`px-3 py-1 rounded-full text-[9px] font-normal uppercase tracking-widest border ${
                         u.user_type === 'internal' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-amber-50 text-amber-600 border-amber-100'
                       }`}>
                         {u.user_type}
                       </span>
                     </td>
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-2 text-sm font-normal text-gray-600 uppercase tracking-tight">
-                        <Shield className="w-4 h-4 text-primary-400" />
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-2 text-xs font-normal text-gray-600 uppercase tracking-tight font-outfit">
+                        <Shield className="w-3.5 h-3.5 text-primary-400" />
                         {u.role.replace('_', ' ')}
                       </div>
                     </td>
-                    <td className="px-8 py-5 text-center">
-                      <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-normal uppercase tracking-widest border ${
+                    <td className="px-8 py-6">
+                      <div className="text-xs font-normal text-gray-600 uppercase tracking-tight font-outfit">
+                        {u.Client?.name || (u.user_type === 'internal' ? 'Internal Team' : '---')}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-normal uppercase tracking-widest border ${
                         u.status === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-amber-50 text-amber-600 border-amber-100'
                       }`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${
@@ -183,14 +198,14 @@ export default function Users() {
                         {u.status}
                       </span>
                     </td>
-                    <td className="px-8 py-5 text-right">
+                    <td className="px-8 py-6 text-right">
                       {u.status === 'invited' && (
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={(e) => handleResendInvite(e, u.id)}
                           disabled={actionLoading === u.id}
-                          className="text-primary-600 hover:text-primary-700 hover:bg-primary-50 p-2 rounded-lg"
+                          className="text-primary-600 hover:text-primary-700 hover:bg-primary-50 p-2 rounded-lg transition-all"
                           title="Resend Invitation"
                         >
                           {actionLoading === u.id ? (
@@ -212,7 +227,7 @@ export default function Users() {
       {/* Invite Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-md p-4">
-          <Card className="w-full max-w-md border-none shadow-3xl animate-in zoom-in-95 duration-200 bg-white">
+          <Card className="w-full max-w-md border-none shadow-3xl animate-in zoom-in-95 duration-200 bg-white rounded-2xl">
             <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/30 rounded-t-2xl">
               <h2 className="text-xl font-normal uppercase tracking-tight flex items-center gap-2 text-gray-900 font-outfit">
                 <UserPlus className="text-primary-600" size={24} /> Invite New User
@@ -257,7 +272,7 @@ export default function Users() {
                   <label className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">User Type</label>
                   {['super_admin', 'admin'].includes(user?.role || '') ? (
                     <select 
-                      className="w-full rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none"
+                      className="w-full rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all"
                       value={formData.user_type}
                       onChange={(e) => setFormData({ ...formData, user_type: e.target.value, role: e.target.value === 'internal' ? 'operator' : 'client_admin' })}
                     >
@@ -274,7 +289,7 @@ export default function Users() {
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Role</label>
                   <select 
-                    className="w-full rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none"
+                    className="w-full rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all"
                     value={formData.role}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   >
@@ -317,7 +332,7 @@ export default function Users() {
                       type="button" 
                       variant="ghost" 
                       onClick={generateUUID}
-                      className="h-12 w-12 p-0 border border-primary-100 bg-white flex items-center justify-center rounded-xl"
+                      className="h-12 w-12 p-0 border border-primary-100 bg-white flex items-center justify-center rounded-xl hover:bg-white"
                     >
                       <Wand2 size={18} className="text-primary-600" />
                     </Button>
@@ -351,7 +366,7 @@ export default function Users() {
                 </Button>
                 <Button 
                   type="submit" 
-                  className="flex-[2] bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 font-normal uppercase text-[10px] tracking-widest" 
+                  className="flex-[2] bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 font-normal uppercase text-[10px] tracking-widest h-11" 
                   disabled={inviteLoading}
                 >
                   {inviteLoading ? <LoadingState mini /> : 'Send Invitation'}

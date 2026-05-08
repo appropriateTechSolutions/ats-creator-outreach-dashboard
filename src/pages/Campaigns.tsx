@@ -4,15 +4,29 @@ import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
 import { Drawer } from '../components/ui/Drawer';
-import { Search, Plus, Filter } from 'lucide-react';
+import { Search, Plus, Filter, Target, Megaphone } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCampaigns, createCampaign, getBrands } from '../lib/api';
-import type { Campaign } from '../types';
 import { format } from 'date-fns';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { LoadingState } from '../components/ui/LoadingState';
 import { useAuth } from '../contexts/AuthContext';
+
+interface Campaign {
+  id: string;
+  name: string;
+  status: string;
+  city: string;
+  category: string;
+  created_at: string;
+  Brand?: {
+    name: string;
+  };
+  Client?: {
+    name: string;
+  };
+}
 
 export default function Campaigns() {
   const { user } = useAuth();
@@ -21,9 +35,10 @@ export default function Campaigns() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [customCat, setCustomCat] = useState('');
+  const [search, setSearch] = useState('');
   const navigate = useNavigate();
 
-  // Form State matching PRD Hierarchy
+  // Form State
   const [formData, setFormData] = useState({
     name: '',
     brand_id: '',
@@ -63,13 +78,12 @@ export default function Campaigns() {
     }
     setIsSubmitting(true);
     try {
-      // Find client_id from selected brand
       const selectedBrand = brands.find(b => b.id === formData.brand_id);
       
       await createCampaign({
         name: formData.name,
         brand_id: formData.brand_id,
-        client_id: selectedBrand?.client_id, // Hierarchy Link
+        client_id: selectedBrand?.client_id,
         category: formData.category.join(','),
         city: formData.city,
         keywords: formData.keywords.split(',').map(k => k.trim()).filter(Boolean),
@@ -154,85 +168,125 @@ export default function Campaigns() {
     }
   ];
 
+  const filteredCampaigns = campaigns.filter(c => {
+    const searchLower = search.toLowerCase();
+    return (
+      c.name.toLowerCase().includes(searchLower) ||
+      (c.Brand?.name || '').toLowerCase().includes(searchLower) ||
+      (c.Client?.name || '').toLowerCase().includes(searchLower) ||
+      (c.city || '').toLowerCase().includes(searchLower)
+    );
+  });
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      <div className="flex justify-between items-center">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaigns</h1>
-          <p className="text-sm text-gray-500">Manage your outreach campaigns and segments.</p>
+          <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaigns</h1>
         </div>
         {['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
-          <Button onClick={() => setIsModalOpen(true)} icon={<Plus size={16} />}>Create Campaign</Button>
+          <Button 
+            onClick={() => setIsModalOpen(true)} 
+            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
+            icon={<Plus size={20} />}
+          >
+            Launch Campaign
+          </Button>
         )}
       </div>
 
-      <Card>
-        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-4 items-center justify-between bg-white rounded-t-[12px]">
-          <div className="flex gap-3 items-center flex-1 max-w-2xl">
-            <div className="relative w-full max-w-xs">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search size={16} className="text-gray-400" />
-              </div>
-              <input 
-                type="text" 
-                placeholder="Search campaigns..." 
-                className="block w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
+      <Card className="border-none shadow-2xl bg-white/80 backdrop-blur-md overflow-hidden">
+        <div className="p-5 flex items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Filter by campaign, brand, client, city..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-100 rounded-xl py-2.5 pl-10 pr-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+            />
+          </div>
+          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-gray-100 px-3 py-1.5 rounded-lg">
+            {filteredCampaigns.length} Initiatives Active
           </div>
         </div>
 
         {loading ? (
           <div className="py-20">
-            <LoadingState message="Loading Outreach Campaigns..." />
+            <LoadingState message="Synchronizing Outreach Data..." />
           </div>
         ) : (
-          <Table>
-            <Thead>
-              <Tr>
-                <Th>Campaign Name</Th>
-                <Th>City</Th>
-                <Th>Target Categories</Th>
-                <Th>Status</Th>
-                <Th>Created Date</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {campaigns.map(c => (
-                <Tr key={c.id}>
-                  <Td>
-                    <Link to={`/campaigns/${c.id}`} className="font-semibold text-gray-900 hover:text-primary-600">
-                      {c.name}
-                    </Link>
-                  </Td>
-                  <Td className="text-gray-500 capitalize">{c.city || 'Global'}</Td>
-                  <Td>
-                    <div className="flex gap-1 flex-wrap">
-                      {c.category?.split(',').map(cat => cat.trim()).filter(Boolean).map(cat => (
-                        <span key={cat} className="px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600 break-keep capitalize">{cat}</span>
-                      ))}
-                    </div>
-                  </Td>
-                  <Td><StatusBadge status={c.status as any} /></Td>
-                  <Td className="text-gray-500 text-xs">
-                    {(c.created_at || (c as any).createdAt) ? format(new Date(c.created_at || (c as any).createdAt), 'MMM d, yyyy') : 'Recently'}
-                  </Td>
-                </Tr>
-              ))}
-              {campaigns.length === 0 && (
-                <Tr>
-                  <Td colSpan={5} className="text-center py-8 text-gray-500">No campaigns found.</Td>
-                </Tr>
-              )}
-            </Tbody>
-          </Table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
+                  <th className="px-8 py-5">Campaign Identity</th>
+                  <th className="px-8 py-5">Brand</th>
+                  <th className="px-8 py-5">Client</th>
+                  <th className="px-8 py-5 text-center">City</th>
+                  <th className="px-8 py-5 text-center">Status</th>
+                  <th className="px-8 py-5 text-right">Launch Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filteredCampaigns.map(c => (
+                  <tr key={c.id} 
+                    onClick={() => navigate(`/campaigns/${c.id}`)}
+                    className="hover:bg-primary-50/30 transition-all group cursor-pointer"
+                  >
+                    <td className="px-8 py-6 align-top">
+                      <div className="text-sm font-normal text-gray-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight font-outfit">
+                        {c.name}
+                      </div>
+                      <div className="flex gap-1 mt-2 flex-wrap">
+                        {c.category?.split(',').map(cat => cat.trim()).filter(Boolean).map(cat => (
+                          <span key={cat} className="px-2 py-0.5 rounded text-[9px] font-normal uppercase tracking-widest bg-gray-100 text-gray-600 border border-gray-200">
+                            {cat}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 align-top">
+                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                        {c.Brand?.name || '---'}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 align-top">
+                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                        {c.Client?.name || '---'}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-center align-top">
+                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                        {c.city || 'Global'}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-center align-top">
+                      <StatusBadge status={c.status as any} />
+                    </td>
+                    <td className="px-8 py-6 text-right align-top">
+                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
+                        {(c.created_at || (c as any).createdAt) ? format(new Date(c.created_at || (c as any).createdAt), 'MMM d, yyyy') : '---'}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredCampaigns.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-20 text-gray-400 italic">No outreach initiatives mapped.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        title="Create New Campaign"
+        title="Launch New Campaign"
       >
         <form onSubmit={handleCreate} className="space-y-6">
           

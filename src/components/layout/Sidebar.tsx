@@ -35,6 +35,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { name: 'Outreach', path: '/outreach', icon: <Send size={20} /> },
     { name: 'Conversations', path: '/conversations', icon: <MessageSquare size={20} /> },
     { name: 'Meetings', path: '/meetings', icon: <Calendar size={20} /> },
+    { name: 'Affiliate Performance', path: '/affiliate', icon: <Activity size={20} /> },
     { name: 'Users', path: '/users', icon: <Users size={20} />, adminOnly: true },
   ];
 
@@ -82,9 +83,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-primary-600 flex items-center justify-center flex-shrink-0">
-              <Activity size={16} className="text-white" />
-            </div>
             <span className="font-normal text-gray-900 tracking-tight text-sm font-outfit uppercase">
               ATS Outreach
             </span>

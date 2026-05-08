@@ -68,18 +68,19 @@ export const disableUser = (id: string): Promise<any> => api.post(`/users/${id}/
 export const getClients = (): Promise<any[]> => api.get('/clients');
 export const getClientById = (id: string): Promise<any> => api.get(`/clients/${id}`);
 export const createClient = (data: any): Promise<any> => api.post('/clients', data);
-export const updateClient = (id: string, data: any): Promise<any> => api.put(`/clients/${id}`, data);
+export const updateClient = (id: string, data: any): Promise<any> => api.patch(`/clients/${id}`, data);
 
 // Brands
 export const getBrands = (clientId?: string): Promise<any[]> => api.get('/brands', { params: { client_id: clientId } });
 export const getBrandById = (id: string): Promise<any> => api.get(`/brands/${id}`);
 export const createBrand = (data: any): Promise<any> => api.post('/brands', data);
+export const updateBrand = (id: string, data: any): Promise<any> => api.patch(`/brands/${id}`, data);
 
 // ─── Campaigns ────────────────────────────────────────
 export const getCampaigns = (): Promise<Campaign[]> => api.get('/campaigns');
 export const getCampaignById = (id: string): Promise<Campaign> => api.get(`/campaigns/${id}`);
 export const createCampaign = (data: Partial<Campaign>): Promise<Campaign> => api.post('/campaigns', data);
-export const updateCampaign = (id: string, data: Partial<Campaign>): Promise<Campaign> => api.put(`/campaigns/${id}`, data);
+export const updateCampaign = (id: string, data: Partial<Campaign>): Promise<Campaign> => api.patch(`/campaigns/${id}`, data);
 export const getCampaignTemplate = (id: string): Promise<any> => api.get(`/campaigns/${id}`).then(res => (res as any).template);
 export const updateCampaignTemplate = (id: string, data: any): Promise<any> => api.patch(`/campaigns/${id}/template`, data);
 
@@ -98,6 +99,9 @@ export const getDashboardStats = (campaignId?: string): Promise<any> =>
 // ─── AI Discovery ─────────────────────────────────────
 export const triggerDiscovery = (categories: string[], city: string, campaignId: string, keywords: string[] = []): Promise<unknown> => 
   api.post('/creators/ai-discovery', { categories, city, campaign_id: campaignId, keywords });
+
+export const findSimilarCreators = (creatorId: string, campaignId: string): Promise<any> => 
+  api.post(`/creators/${creatorId}/similar?campaignId=${campaignId}`);
 
 export const bookMeeting = (creatorId: string, campaignId: string, date: string, notes: string): Promise<unknown> => 
   api.post('/conversions/book-meeting', { creator_id: creatorId, campaign_id: campaignId, date, notes });
@@ -127,3 +131,13 @@ export const getOutreachLogs = (): Promise<any[]> => api.get('/outreach/logs');
 export const getConversations = (): Promise<Creator[]> => api.get('/conversations');
 export const syncConversations = (): Promise<{ synced: number }> => api.post('/conversations/sync');
 export const getConversationThread = (id: string): Promise<any[]> => api.get(`/conversations/${id}`);
+
+// ─── Affiliate Tracking ───────────────────────────────
+export const getAffiliatePerformance = (campaign_id?: string): Promise<any[]> => 
+  api.get('/affiliates/performance', { params: { campaign_id } });
+
+export const linkAffiliate = (data: { campaign_id: string; creator_id: string; affiliate_code?: string; affiliate_link?: string }): Promise<any> =>
+  api.post('/affiliates/link', data);
+
+export const updateAffiliateStatus = (id: string, status: string): Promise<any> =>
+  api.patch(`/affiliates/${id}/status`, { status });

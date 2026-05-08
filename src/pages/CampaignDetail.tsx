@@ -276,7 +276,7 @@ export default function CampaignDetail() {
         </div>
         
         <div className="flex items-center gap-6">
-          <div className="flex flex-col items-center gap-2 pr-6 border-r border-gray-100">
+          <div className="flex flex-col items-end gap-2 pr-6 border-r border-gray-100">
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Campaign Status</span>
               <button 

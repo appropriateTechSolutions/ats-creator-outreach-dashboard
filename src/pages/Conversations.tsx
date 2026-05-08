@@ -114,7 +114,6 @@ export default function Conversations() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Inbox & Conversations</h1>
-          <p className="text-gray-500 font-normal">Manage replies and negotiate with leads.</p>
         </div>
         <Button 
           onClick={handleSync} 

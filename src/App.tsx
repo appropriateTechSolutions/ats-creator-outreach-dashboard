@@ -12,6 +12,7 @@ import Outreach from './pages/Outreach';
 import Conversations from './pages/Conversations';
 import Meetings from './pages/Meetings';
 import Login from './pages/Login';
+import AffiliatePerformance from './pages/AffiliatePerformance';
 import AcceptInvite from './pages/AcceptInvite';
 import Users from './pages/Users';
 import UserDetail from './pages/UserDetail';
@@ -66,6 +67,7 @@ export default function App() {
             <Route path="/clients/:id" element={<ClientDetail />} />
             <Route path="/brands" element={<Brands />} />
             <Route path="/brands/:id" element={<BrandDetail />} />
+            <Route path="/affiliate" element={<AffiliatePerformance />} />
             <Route path="/analytics" element={<Placeholder title="Analytics" />} />
           </Route>
           

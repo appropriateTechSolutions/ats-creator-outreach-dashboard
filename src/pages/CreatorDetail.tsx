@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, getConversationThread } from '../lib/api';
+import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, getConversationThread, linkAffiliate, findSimilarCreators } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock } from 'lucide-react';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CreatorDetail() {
+  const { user: currentUser } = useAuth();
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [creator, setCreator] = useState<Creator | null>(null);
@@ -22,6 +24,14 @@ export default function CreatorDetail() {
   const [outreachModalOpen, setOutreachModalOpen] = useState(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [matchExpanded, setMatchExpanded] = useState(false);
+  const [findingSimilar, setFindingSimilar] = useState(false);
+
+  // Affiliate Form State
+  const [isAffiliateModalOpen, setIsAffiliateModalOpen] = useState(false);
+  const [affiliateFormData, setAffiliateFormData] = useState({
+    code: '',
+    link: ''
+  });
 
   const togglePlatform = (key: string) => {
     setExpandedPlatforms(prev => ({ ...prev, [key]: !prev[key] }));
@@ -133,6 +143,42 @@ export default function CreatorDetail() {
     }
   };
 
+  const handleFindSimilar = async () => {
+    if (!creator || !creator.campaign_id) {
+      alert("This creator must be part of a campaign to find similar influencers.");
+      return;
+    }
+    
+    setFindingSimilar(true);
+    try {
+      const res: any = await findSimilarCreators(creator.id, creator.campaign_id);
+      alert(`✅ Success: ${res.message || '10 similar influencers found and added to this campaign!'}`);
+    } catch (err: any) {
+      alert(err || "Failed to find similar influencers.");
+    } finally {
+      setFindingSimilar(false);
+    }
+  };
+
+  const handleLinkAffiliate = async () => {
+    if (!creator || !creator.campaign_id) return;
+    setActionLoading(true);
+    try {
+      await linkAffiliate({
+        creator_id: creator.id,
+        campaign_id: creator.campaign_id,
+        affiliate_code: affiliateFormData.code,
+        affiliate_link: affiliateFormData.link
+      });
+      setIsAffiliateModalOpen(false);
+      loadData();
+    } catch (err) {
+      alert('Failed to link affiliate info: ' + err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-20">
@@ -173,12 +219,15 @@ export default function CreatorDetail() {
       <Card>
         <div className="bg-gradient-to-r from-gray-50 to-white px-8 py-8 border-b border-gray-100 flex items-start justify-between rounded-t-[12px]">
           <div className="flex items-center gap-6">
-             <div className="w-20 h-20 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-4xl uppercase shadow-lg shadow-primary-500/30 ring-4 ring-white">
+             <div className="w-20 h-20 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-4xl uppercase shadow-lg shadow-primary-500/30 ring-4 ring-white font-outfit">
               {creator.handle?.charAt(0)}
             </div>
             <div>
-               <h1 className="text-3xl font-normal text-gray-900 flex items-center gap-2 font-outfit uppercase tracking-tight">
-                <a 
+               <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
+                 {creator.full_name || 'No full name provided'}
+               </h1>
+               <div className="mt-1">
+                 <a 
                   href={
                     (() => {
                       const igProfile = creator.profiles?.find(p => p.platform.toLowerCase() === 'instagram');
@@ -191,11 +240,10 @@ export default function CreatorDetail() {
                   rel="noopener noreferrer"
                   className="hover:text-primary-600 transition-colors flex items-center gap-2 group"
                 >
-                  @{creator.handle?.replace(/^@/, '')}
+                  <span className="text-gray-500 font-medium text-lg">@{creator.handle?.replace(/^@/, '')}</span>
                   <ExternalLink size={18} className="text-gray-300 group-hover:text-primary-400 transition-colors" />
                 </a>
-              </h1>
-              <p className="text-gray-500 font-medium text-lg mt-1">{creator.full_name || 'No full name provided'}</p>
+               </div>
               <div className="flex gap-4 mt-3">
                 {creator.has_instagram && (
                   <a 
@@ -240,23 +288,34 @@ export default function CreatorDetail() {
             </div>
           </div>
           <div className="flex flex-col items-end gap-3">
-            <div className="flex gap-2 mb-2">
-            </div>
             <StatusBadge status={creator.review_status as any || 'pending'} />
             <div className="flex items-center gap-2 mt-2">
                <span className="text-xs font-normal text-gray-400 uppercase">Master Readiness:</span>
                <ScoreBadge score={creator.outreach_readiness_score || 0} />
             </div>
             
-            {/* Direct Send Button */}
-            <Button 
-              className="mt-4 w-full bg-primary-600 hover:bg-primary-700 shadow-md flex items-center justify-center gap-2"
-              onClick={handleSendOutreach}
-              disabled={sendingEmail || creator.review_status === 'rejected'}
-            >
-              {sendingEmail ? <LoadingState mini /> : <Send size={16} />}
-              {creator.outreach_logs?.length > 0 ? 'Resend Outreach' : 'Send Outreach Now'}
-            </Button>
+            {/* Action Buttons */}
+            {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
+              <div className="flex items-center gap-3 mt-4 w-full max-w-sm">
+                <Button 
+                  variant="outline"
+                  className="flex-1 border-primary-100 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal"
+                  onClick={handleFindSimilar}
+                  disabled={findingSimilar}
+                >
+                  {findingSimilar ? <RefreshCw size={16} className="animate-spin text-primary-600" /> : <Users size={16} className="text-primary-600" />} 
+                  {findingSimilar ? 'Searching...' : 'Find Similar'}
+                </Button>
+                <Button 
+                  className="flex-1 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal"
+                  onClick={handleSendOutreach}
+                  disabled={sendingEmail || creator.review_status === 'rejected'}
+                >
+                  {sendingEmail ? <LoadingState mini /> : <Send size={16} />} 
+                  {creator.outreach_logs?.length > 0 ? 'Resend Outreach' : 'Send Outreach Now'}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -266,10 +325,8 @@ export default function CreatorDetail() {
               <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
                 <Sparkles size={12} className="text-primary-600" /> SUMMARY
               </h4>
-              <p className="text-sm text-gray-700 leading-relaxed italic border-l-2 border-primary-200 pl-4">
-                {creator.full_name} is a high-impact creator in the <span className="font-normal text-gray-900">{creator.category}</span> space. 
-                With a strong base in <span className="font-normal text-gray-900">{creator.city}</span>, they align perfectly with your campaign's target demographics. 
-                Their outreach readiness score of <span className="font-normal text-primary-600">{creator.outreach_readiness_score}</span> suggests a highly professional digital presence and high probability of collaboration success.
+              <p className="text-sm text-gray-700 leading-relaxed italic border-l-2 border-primary-200 pl-4 whitespace-pre-wrap">
+                {creator.notes || "AI is analyzing this creator's profile and generating a professional summary..."}
               </p>
            </div>
 
@@ -520,7 +577,200 @@ export default function CreatorDetail() {
         </CardContent>
       </Card>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+        {/* Meeting Option */}
+        <Card className="p-6 flex flex-col">
+          <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-1 flex items-center gap-2">
+            <Clock size={16} className="text-primary-600" /> Meeting Options
+          </h3>
+          <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-4">
+            Schedule a call with {creator.full_name?.split(' ')[0]}
+          </p>
+          <div className="flex-1 flex flex-col justify-between gap-3">
+            <div className="flex-1 flex items-center justify-center bg-primary-50/40 rounded-xl border border-primary-100/60 py-6 flex-col gap-2">
+              <div className="w-12 h-12 rounded-full bg-white shadow-sm border border-primary-100 flex items-center justify-center">
+                <Calendar size={22} className="text-primary-500" />
+              </div>
+              <p className="text-[9px] text-primary-400 uppercase tracking-widest font-normal">No meeting scheduled</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => alert('Meeting Scheduler Integration Coming Soon')}
+              className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 shadow-sm text-[10px] uppercase tracking-widest rounded-xl py-2.5 transition-colors font-normal"
+            >
+              <Calendar size={14} className="text-primary-600" />
+              <span>Schedule Meeting</span>
+            </button>
+          </div>
+        </Card>
 
+        {/* Affiliate Activation */}
+        <Card className="p-6 flex flex-col">
+          <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-1 flex items-center gap-2">
+            <LinkIcon size={16} className="text-primary-600" /> Affiliate Activation
+          </h3>
+          <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-4">
+            Manage tracking code &amp; affiliate link
+          </p>
+          <div className="flex-1 flex flex-col justify-between gap-3">
+            {(creator as any).affiliate_code || (creator as any).affiliate_link ? (
+              <>
+                <div className="flex-1 flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
+                  <div>
+                    <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Tracking Code</p>
+                    <p className="text-sm font-normal text-gray-900 font-outfit uppercase">{(creator as any).affiliate_code || '---'}</p>
+                  </div>
+                  <button className="text-primary-500 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors">
+                    <Copy size={14} />
+                  </button>
+                </div>
+                {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') ? (
+                  <Button
+                    variant="outline"
+                    className="w-full text-[10px] uppercase tracking-widest"
+                    onClick={() => {
+                      setAffiliateFormData({
+                        code: (creator as any).affiliate_code || '',
+                        link: (creator as any).affiliate_link || ''
+                      });
+                      setIsAffiliateModalOpen(true);
+                    }}
+                  >
+                    Manage Assets
+                  </Button>
+                ) : (
+                  <p className="text-[9px] text-gray-400 italic text-center mt-2">Read-only access for this section</p>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 rounded-xl border border-dashed border-gray-200 py-5 gap-1">
+                  <LinkIcon size={24} className="text-gray-300" />
+                  <p className="text-[10px] text-gray-400 uppercase tracking-widest">No assets linked</p>
+                </div>
+                {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') ? (
+                  <Button
+                    className="w-full bg-primary-600 hover:bg-primary-700 shadow-md text-[10px] uppercase tracking-widest"
+                    onClick={() => setIsAffiliateModalOpen(true)}
+                  >
+                    Link Assets
+                  </Button>
+                ) : (
+                  <p className="text-[9px] text-gray-400 italic text-center mt-2">Read-only access for this section</p>
+                )}
+              </>
+            )}
+          </div>
+        </Card>
+      </div>
+
+
+      {/* ROI Performance Metrics at the bottom */}
+      <Card className="p-8 bg-gradient-to-br from-white to-gray-50 border-none shadow-xl">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2">
+              <TrendingUp size={18} className="text-primary-600" /> Affiliate ROI Performance
+            </h3>
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Real-time tracking for {creator.full_name}</p>
+          </div>
+          <div className={`px-3 py-1 rounded-full text-[10px] font-normal uppercase tracking-widest border ${
+            (creator as any).affiliate_status === 'paid' ? 'bg-green-50 text-green-600 border-green-100' :
+            (creator as any).affiliate_status === 'approved' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+            'bg-amber-50 text-amber-600 border-amber-100'
+          }`}>
+            {(creator as any).affiliate_status || 'Pending'}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+              <MousePointer2 size={10} /> Total Clicks
+            </p>
+            <p className="text-2xl font-normal text-gray-900 font-outfit">{(creator as any).AffiliateTracking?.clicks || 0}</p>
+          </div>
+          <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+              <ShoppingCart size={10} /> Conversions
+            </p>
+            <p className="text-2xl font-normal text-gray-900 font-outfit">{(creator as any).AffiliateTracking?.conversions || 0}</p>
+          </div>
+          <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+              <DollarSign size={10} /> Gross Revenue
+            </p>
+            <p className="text-2xl font-normal text-emerald-600 font-outfit">
+              ${Number((creator as any).AffiliateTracking?.revenue_generated || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+              <ArrowUpRight size={10} /> Net Payable
+            </p>
+            <p className="text-2xl font-normal text-primary-600 font-outfit">
+              ${Number((creator as any).AffiliateTracking?.commission_owed || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Affiliate Modal */}
+      {isAffiliateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-md p-4">
+          <Card className="w-full max-w-md border-none shadow-3xl animate-in zoom-in-95 duration-200 bg-white rounded-2xl">
+            <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/30 rounded-t-2xl">
+              <h2 className="text-xl font-normal uppercase tracking-tight flex items-center gap-2 text-gray-900 font-outfit">
+                <LinkIcon className="text-primary-600" size={24} /> Link Affiliate Assets
+              </h2>
+              <button onClick={() => setIsAffiliateModalOpen(false)} className="text-gray-400 hover:text-gray-900 p-1 transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Affiliate Tracking Code</label>
+                <div className="relative">
+                  <Tag className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+                  <input
+                    placeholder="e.g. SAVE20"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm font-outfit uppercase"
+                    value={affiliateFormData.code}
+                    onChange={(e) => setAffiliateFormData({ ...affiliateFormData, code: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Tracking Link (URL)</label>
+                <div className="relative">
+                  <LinkIcon className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+                  <input
+                    placeholder="https://..."
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
+                    value={affiliateFormData.link}
+                    onChange={(e) => setAffiliateFormData({ ...affiliateFormData, link: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4 border-t border-gray-50">
+                <Button type="button" variant="ghost" className="flex-1 font-normal uppercase text-[10px] tracking-widest" onClick={() => setIsAffiliateModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleLinkAffiliate}
+                  className="flex-[2] bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 font-normal uppercase text-[10px] tracking-widest h-11" 
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? <LoadingState mini /> : 'Save Affiliate Assets'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
       
       <OutreachPreviewModal
         creatorId={creator?.id || ''}
