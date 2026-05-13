@@ -6,14 +6,16 @@ import { LoadingState } from './LoadingState';
 interface OutreachPreviewModalProps {
   creatorId: string;
   campaignId?: string;
+  messageType?: string;
   isOpen: boolean;
   onClose: () => void;
-  onSend: (customSubject?: string, customBody?: string) => Promise<void>;
+  onSend: (customSubject?: string, customBody?: string, messageType?: string) => Promise<void>;
 }
 
 export function OutreachPreviewModal({
   creatorId,
   campaignId,
+  messageType,
   isOpen,
   onClose,
   onSend,
@@ -26,7 +28,7 @@ export function OutreachPreviewModal({
   useEffect(() => {
     if (isOpen && creatorId) {
       setLoading(true);
-      previewOutreach(creatorId, campaignId)
+      previewOutreach(creatorId, campaignId, messageType)
         .then((data) => {
           setSubject(data.subject || '');
           setBody(data.body || '');
@@ -38,14 +40,14 @@ export function OutreachPreviewModal({
           setLoading(false);
         });
     }
-  }, [isOpen, creatorId, campaignId]);
+  }, [isOpen, creatorId, campaignId, messageType]);
 
   if (!isOpen) return null;
 
   const handleSend = async () => {
     setSending(true);
     try {
-      await onSend(subject, body);
+      await onSend(subject, body, messageType);
       onClose();
     } catch (error) {
       console.error(error);

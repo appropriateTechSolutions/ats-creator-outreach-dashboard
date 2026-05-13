@@ -14,8 +14,13 @@ import {
   UserCheck,
   UserX,
   History,
-  Activity
+  Activity,
+  Trash2,
+  Loader2,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -41,6 +46,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function UserDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [userData, setUserData] = useState<UserDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,6 +105,21 @@ export default function UserDetail() {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!id || !userData) return;
+    if (!window.confirm(`Are you sure you want to delete?`)) return;
+    
+    setActionLoading(true);
+    try {
+      await api.deleteUser(id);
+      navigate('/users');
+    } catch (err: any) {
+      alert(err || 'Failed to delete user.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-20">
@@ -119,34 +140,45 @@ export default function UserDetail() {
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
+      {/* Header with responsive stacking */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="space-y-4">
           <Link to="/users" className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase">
             <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO DIRECTORY
           </Link>
-          <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-primary-100 text-primary-700 shadow-xl border border-primary-50 flex items-center justify-center font-normal text-2xl font-outfit uppercase">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            <div className="w-16 h-16 rounded-2xl bg-primary-100 text-primary-700 shadow-xl border border-primary-50 flex items-center justify-center font-normal text-2xl font-outfit uppercase shrink-0">
               {userData.full_name?.charAt(0) || 'U'}
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight leading-none">{userData.full_name}</h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight leading-tight">{userData.full_name}</h1>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-normal uppercase tracking-widest border ${
-                  userData.status === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                  userData.status === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 
+                  userData.status === 'inactive' ? 'bg-gray-100 text-gray-600 border-gray-200' :
+                  'bg-amber-50 text-amber-600 border-amber-100'
                 }`}>
-                  {userData.status}
+                  {userData.status === 'inactive' ? 'deactive' : userData.status}
                 </span>
               </div>
-              <p className="text-gray-400 font-normal text-xs uppercase tracking-widest mt-1 flex items-center gap-2">
-                <Shield size={14} className="text-primary-500" /> Administrative Identity: {userData.role.replace('_', ' ')}
-              </p>
             </div>
           </div>
         </div>
+ 
+         {['super_admin', 'admin', 'client_admin'].includes(currentUser?.role || '') && (
+           <div className="flex flex-wrap gap-6 items-center">
+            {!['invited', 'deleted'].includes(userData.status) && (
+              <Button 
+                variant="outline"
+                onClick={handleDeleteUser}
+                disabled={actionLoading}
+                className="flex items-center gap-2 border-red-100 text-red-600 hover:bg-red-50 px-4 py-2 rounded-xl transition-all font-normal uppercase tracking-widest text-[10px] font-outfit h-[40px]"
+              >
+                 <Trash2 size={16} />
+                 Delete User
+              </Button>
+            )}
 
-        {['super_admin', 'admin', 'client_admin'].includes(currentUser?.role || '') && (
-          <div className="flex gap-3">
             {userData.status === 'invited' ? (
               <Button 
                 variant="outline" 
@@ -158,16 +190,23 @@ export default function UserDetail() {
                 Resend Invite
               </Button>
             ) : (
-              <Button 
-                variant={userData.status === 'active' ? 'outline' : 'default'}
-                onClick={handleToggleStatus}
-                disabled={actionLoading}
-                className="flex items-center gap-2"
-              >
-                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 
-                 (userData.status === 'active' ? <UserX size={16} /> : <UserCheck size={16} />)}
-                {userData.status === 'active' ? 'Disable Account' : 'Enable Account'}
-              </Button>
+              <div className="flex flex-col items-start sm:items-end gap-2 sm:pl-6 sm:border-l border-gray-100">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Account Status</span>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={handleToggleStatus}
+                      disabled={actionLoading}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${userData.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
+                    >
+                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${userData.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${userData.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
+                      {userData.status === 'active' ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -240,9 +279,15 @@ export default function UserDetail() {
               <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Identity Status</td>
               <td className="px-8 py-5">
                 <div className="flex items-center gap-2">
-                  {userData.status === 'active' ? <UserCheck className="text-green-500" size={16} /> : <UserX className="text-amber-500" size={16} />}
-                  <span className={`text-sm font-normal uppercase tracking-widest ${userData.status === 'active' ? 'text-green-600' : 'text-amber-600'}`}>
-                    {userData.status}
+                  {userData.status === 'active' ? <UserCheck className="text-green-500" size={16} /> : 
+                   userData.status === 'inactive' ? <AlertCircle className="text-gray-400" size={16} /> :
+                   <UserX className="text-amber-500" size={16} />}
+                  <span className={`text-sm font-normal uppercase tracking-widest ${
+                    userData.status === 'active' ? 'text-green-600' : 
+                    userData.status === 'inactive' ? 'text-gray-600' :
+                    'text-amber-600'
+                  }`}>
+                    {userData.status === 'inactive' ? 'deactive' : userData.status}
                   </span>
                 </div>
               </td>

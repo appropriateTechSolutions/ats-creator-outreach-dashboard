@@ -29,7 +29,8 @@ import {
   Info,
   Target,
   Megaphone,
-  Percent
+  Percent,
+  Trash2
 } from 'lucide-react';
 import * as api from '../lib/api';
 import { Card } from '../components/ui/Card';
@@ -153,6 +154,21 @@ export default function ClientDetail() {
     }
   };
 
+  const handleDeleteClient = async () => {
+    if (!id || !client) return;
+    if (!window.confirm(`Are you sure you want to delete?`)) return;
+    
+    setUpdateLoading(true);
+    try {
+      await api.deleteClient(id);
+      navigate('/clients');
+    } catch (err: any) {
+      alert(err || 'Failed to delete client.');
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
+
   const handleSubmitInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setInviteLoading(true);
@@ -241,47 +257,63 @@ export default function ClientDetail() {
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
         <div className="space-y-4">
           <Link to="/clients" className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase">
             <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO DIRECTORY
           </Link>
-          <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">{client.name}</h1>
+          <h1 className="text-3xl sm:text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight leading-tight">{client.name}</h1>
         </div>
 
-        <div className="flex flex-col items-end gap-2 pt-8">
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Tenant Status</span>
-            {['super_admin', 'admin'].includes(currentUser?.role || '') ? (
-              <>
-                <button 
-                  onClick={() => handleUpdateStatus(client.status === 'active' ? 'archived' : 'active')}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${client.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
-                >
-                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${client.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
-                <span className={`text-[10px] font-bold uppercase tracking-widest ${client.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
-                  {client.status === 'active' ? 'ON' : 'OFF'}
-                </span>
-              </>
-            ) : (
-              <div className="flex items-center gap-2">
-                 <div className={`w-2 h-2 rounded-full ${client.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
-                 <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{client.status}</span>
-              </div>
+        <div className="flex flex-col items-start lg:items-end gap-3 lg:pt-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+            {['super_admin', 'admin'].includes(currentUser?.role || '') && (
+              <Button 
+                variant="outline"
+                onClick={handleDeleteClient}
+                loading={updateLoading}
+                className="flex items-center gap-2 border-red-100 text-red-600 hover:bg-red-50 px-4 py-2 rounded-xl transition-all font-normal uppercase tracking-widest text-[10px] font-outfit h-[40px]"
+              >
+                 <Trash2 size={16} />
+                 Delete Client
+              </Button>
             )}
+
+            <div className="flex flex-col items-start sm:items-end gap-2 sm:pl-6 sm:border-l border-gray-100">
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Tenant Status</span>
+                {['super_admin', 'admin'].includes(currentUser?.role || '') ? (
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleUpdateStatus(client.status === 'active' ? 'inactive' : 'active')}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${client.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
+                    >
+                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${client.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${client.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
+                      {client.status === 'active' ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                     <div className={`w-2 h-2 rounded-full ${client.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
+                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{client.status}</span>
+                  </div>
+                )}
+              </div>
+              <StatusBadge status={client.status as any} />
+            </div>
           </div>
-          <StatusBadge status={client.status as any} />
         </div>
       </div>
 
       {/* 1. Client Intelligence Profile */}
       <Card className="border-none shadow-2xl bg-white overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
+        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/30">
           <h2 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2">
-            Client
+            Client Profile
           </h2>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
              <span className="px-3 py-1 rounded bg-primary-50 text-primary-600 text-[10px] font-normal uppercase tracking-widest border border-primary-100">
                {client.plan_type} PLAN
              </span>
@@ -291,8 +323,8 @@ export default function ClientDetail() {
           </div>
         </div>
         
-        <div className="p-8 grid grid-cols-3 gap-8 divide-x divide-gray-50">
-          <div className="space-y-6">
+        <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+          <div className="space-y-6 pb-6 md:pb-0">
             <div>
               <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1.5">Legal Identity</h4>
               <p className="text-gray-900 font-normal text-lg">{client.legal_name || 'Not provided'}</p>
@@ -306,27 +338,27 @@ export default function ClientDetail() {
             </div>
           </div>
 
-          <div className="pl-8 space-y-6">
+          <div className="md:pl-8 space-y-6 py-6 md:py-0">
             <div>
               <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1.5">Primary Website</h4>
-              <a href={client.website} target="_blank" rel="noreferrer" className="text-primary-600 font-normal flex items-center gap-2 hover:underline">
-                <Globe size={16} />
-                {client.website ? client.website.replace(/^https?:\/\//, '') : 'No website'}
-                <ExternalLink size={12} />
+              <a href={client.website} target="_blank" rel="noreferrer" className="text-primary-600 font-normal flex items-center gap-2 hover:underline truncate">
+                <Globe size={16} className="shrink-0" />
+                <span className="truncate">{client.website ? client.website.replace(/^https?:\/\//, '') : 'No website'}</span>
+                <ExternalLink size={12} className="shrink-0" />
               </a>
             </div>
           </div>
 
-          <div className="pl-8 space-y-6">
+          <div className="lg:pl-8 space-y-6 pt-6 lg:pt-0">
             <div>
                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1.5">Key Account Contact</h4>
                <p className="text-gray-900 font-normal">{client.primary_contact_name || 'Unassigned'}</p>
-               <div className="space-y-1 mt-2">
+               <div className="space-y-2 mt-3">
                   <div className="flex items-center gap-2 text-xs text-gray-500 font-normal">
-                    <Mail size={14} className="text-primary-400" /> {client.primary_contact_email || 'No email'}
+                    <Mail size={14} className="text-primary-400 shrink-0" /> <span className="truncate">{client.primary_contact_email || 'No email'}</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-500 font-normal">
-                    <Phone size={14} className="text-primary-400" /> {client.primary_contact_phone || 'No phone'}
+                    <Phone size={14} className="text-primary-400 shrink-0" /> {client.primary_contact_phone || 'No phone'}
                   </div>
                </div>
             </div>

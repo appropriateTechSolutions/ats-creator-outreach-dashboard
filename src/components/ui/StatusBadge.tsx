@@ -1,7 +1,7 @@
 import React from 'react';
 import { Badge } from './Badge';
 
-export type StatusType = 'active' | 'pending' | 'failed' | 'draft' | 'approved' | 'rejected' | 'contacted' | 'replied' | 'converted';
+export type StatusType = 'active' | 'pending' | 'failed' | 'draft' | 'approved' | 'rejected' | 'contacted' | 'replied' | 'converted' | 'inactive' | 'not_respond' | string;
 
 export function StatusBadge({ status }: { status: StatusType }) {
   let variant: React.ComponentProps<typeof Badge>['variant'] = 'gray';
@@ -24,17 +24,22 @@ export function StatusBadge({ status }: { status: StatusType }) {
     case 'contacted':
       variant = 'primary';
       break;
-    case 'hold':
-      variant = 'gray';
+    case 'not_respond':
+      variant = 'warning';
       break;
+    case 'inactive':
+    case 'archived':
+    case 'hold':
     case 'draft':
     default:
       variant = 'gray';
-  }
+    }
 
-  let label = status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ');
+  let label = status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
   if (status === 'hold') label = 'Discovered';
   if (status === 'archived') label = 'Inactive';
+  if (status === 'not_respond') label = 'Not Responsive';
+  if (status === 'inactive') label = 'Inactive';
 
   return <Badge variant={variant}>{label}</Badge>;
 }

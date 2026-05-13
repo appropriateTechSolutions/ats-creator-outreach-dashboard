@@ -180,14 +180,14 @@ export default function Campaigns() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaigns</h1>
         </div>
         {['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
           <Button 
             onClick={() => setIsModalOpen(true)} 
-            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
+            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
             icon={<Plus size={20} />}
           >
             Launch Campaign
@@ -195,20 +195,20 @@ export default function Campaigns() {
         )}
       </div>
 
-      <Card className="border-none shadow-2xl bg-white/80 backdrop-blur-md overflow-hidden">
-        <div className="p-5 flex items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+      <Card className="overflow-hidden border-none shadow-2xl bg-white/80 backdrop-blur-md">
+        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gray-50/30">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
             <input 
               type="text" 
-              placeholder="Filter by campaign, brand, client, city..." 
+              placeholder="Filter by campaign name..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-100 rounded-xl py-2.5 pl-10 pr-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
             />
           </div>
-          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-gray-100 px-3 py-1.5 rounded-lg">
-            {filteredCampaigns.length} Initiatives Active
+          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-white px-3 py-1.5 rounded-lg border border-gray-100 whitespace-nowrap">
+            {filteredCampaigns.length} Active Initiatives
           </div>
         </div>
 

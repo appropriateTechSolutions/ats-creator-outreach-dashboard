@@ -33,6 +33,7 @@ export default function CampaignDetail() {
   const [templateBody, setTemplateBody] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
+  const [outreachModalMessageType, setOutreachModalMessageType] = useState<string>('initial');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [brands, setBrands] = useState<any[]>([]);
   const [customCat, setCustomCat] = useState('');
@@ -102,11 +103,16 @@ export default function CampaignDetail() {
   };
 
   const handleReview = async (creatorId: string, action: 'approve' | 'reject') => {
-    const lead = campaign?.leads?.find((l: any) => l.creator?.id === creatorId)?.creator;
-    if (action === 'approve' && (lead?.review_status === 'pending_review' || lead?.review_status === 'reviewed')) {
-      setOutreachModalCreatorId(creatorId);
-      return;
+    const lead = leads.find(l => l.id === creatorId);
+    
+    if (action === 'approve') {
+      if (lead?.review_status === 'pending_review' || lead?.review_status === 'reviewed') {
+        setOutreachModalMessageType('initial');
+        setOutreachModalCreatorId(creatorId);
+        return;
+      }
     }
+    
     try {
       await reviewLead(creatorId, action);
       fetchData(); // Reload leads to reflect status change
@@ -115,10 +121,10 @@ export default function CampaignDetail() {
     }
   };
 
-  const handleConfirmApprove = async (customSubject?: string, customBody?: string) => {
+  const handleConfirmApprove = async (customSubject?: string, customBody?: string, messageType?: string) => {
     if (!outreachModalCreatorId) return;
     try {
-      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody);
+      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody, messageType);
       fetchData();
     } catch (err) {
       alert('Failed to review lead: ' + err);
@@ -142,6 +148,8 @@ export default function CampaignDetail() {
       setSavingTemplate(false);
     }
   };
+
+
 
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -259,15 +267,17 @@ export default function CampaignDetail() {
     }
   };
 
+  const filteredLeads = leads;
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
       <Link to="/campaigns" className="inline-flex items-center text-sm font-normal text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-widest">
         <ArrowLeft size={16} className="mr-1" /> Back to Campaigns
       </Link>
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-normal text-gray-900 mb-2 font-outfit uppercase tracking-tight">{campaign.name}</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 mb-2 font-outfit uppercase tracking-tight leading-tight">{campaign.name}</h1>
           <div className="flex items-center gap-3 text-sm text-gray-600">
             <span className="capitalize">{campaign.city || 'Global'}</span>
             <span>•</span>
@@ -275,19 +285,28 @@ export default function CampaignDetail() {
           </div>
         </div>
         
-        <div className="flex items-center gap-6">
-          <div className="flex flex-col items-end gap-2 pr-6 border-r border-gray-100">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+          <div className="flex flex-col items-start sm:items-end gap-2 sm:pl-6 border-gray-100">
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Campaign Status</span>
-              <button 
-                onClick={() => handleUpdateStatus(campaign.status === 'active' ? 'archived' : 'active')}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${campaign.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
-              >
-                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${campaign.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
-              </button>
-              <span className={`text-[10px] font-bold uppercase tracking-widest ${campaign.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
-                {campaign.status === 'active' ? 'ON' : 'OFF'}
-              </span>
+              {['super_admin', 'admin', 'operator'].includes(user?.role || '') ? (
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => handleUpdateStatus(campaign.status === 'active' ? 'inactive' : 'active')}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${campaign.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${campaign.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                  <span className={`text-[10px] font-bold uppercase tracking-widest ${campaign.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
+                    {campaign.status === 'active' ? 'ON' : 'OFF'}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                   <div className={`w-2 h-2 rounded-full ${campaign.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
+                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{campaign.status}</span>
+                </div>
+              )}
             </div>
             <StatusBadge status={campaign.status as any} />
           </div>
@@ -295,7 +314,7 @@ export default function CampaignDetail() {
             <Button 
               onClick={handleDiscovery} 
               disabled={discovering}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 border-none"
+              className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 border-none h-11 px-6 font-normal uppercase tracking-widest text-[10px]"
               icon={discovering ? <LoadingState mini /> : <Sparkles size={16} />}
             >
               {discovering ? 'Executing AI...' : 'Run AI Discovery'}
@@ -307,9 +326,9 @@ export default function CampaignDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
         <Card className="lg:col-span-2">
           <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-[12px]">
-            <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaign Leads ({leads.length})</h2>
+            <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaign Leads ({filteredLeads.length})</h2>
           </div>
-          {leads.length === 0 ? (
+          {filteredLeads.length === 0 ? (
             <div className="p-16 text-center">
               <div className="w-16 h-16 bg-primary-50 text-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Sparkles size={32} />
@@ -329,7 +348,7 @@ export default function CampaignDetail() {
                 </Tr>
               </Thead>
               <Tbody>
-                {leads.map(lead => (
+                {filteredLeads.map(lead => (
                   <Tr key={lead.id}>
                     <Td>
                       <div className="flex items-center gap-3">
@@ -346,24 +365,30 @@ export default function CampaignDetail() {
                     </Td>
                     <Td><ScoreBadge score={lead.relevance_score || 0} /></Td>
                     <Td><ScoreBadge score={lead.outreach_readiness_score || 0} /></Td>
-                    <Td><StatusBadge status={lead.review_status as any || 'pending'} /></Td>
+                    <Td><StatusBadge status={['not_respond'].includes(lead.lifecycle_status) ? lead.lifecycle_status : (lead.review_status as any || 'pending')} /></Td>
                     <Td className="text-right">
-                      {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (lead.review_status === 'hold' || !lead.review_status || lead.review_status === 'pending_review' || lead.review_status === 'reviewed' || lead.review_status === 'pending') && lead.review_status !== 'approved' && lead.review_status !== 'rejected' && (
+                      {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                         <div className="flex items-center justify-end gap-2">
-                          <button 
-                            className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors" 
-                            onClick={() => handleReview(lead.id, 'approve')}
-                            title="Shortlist / Approve"
-                          >
-                            <Check size={16} />
-                          </button>
-                          <button 
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors" 
-                            onClick={() => handleReview(lead.id, 'reject')}
-                            title="Reject"
-                          >
-                            <X size={16} />
-                          </button>
+
+                          
+                          {(lead.review_status === 'hold' || !lead.review_status || lead.review_status === 'pending_review' || lead.review_status === 'reviewed' || lead.review_status === 'pending') && lead.review_status !== 'approved' && lead.review_status !== 'rejected' && lead.lifecycle_status !== 'not_respond' && (
+                            <>
+                              <button 
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors" 
+                                onClick={() => handleReview(lead.id, 'approve')}
+                                title="Shortlist / Approve"
+                              >
+                                <Check size={16} />
+                              </button>
+                              <button 
+                                className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors" 
+                                onClick={() => handleReview(lead.id, 'reject')}
+                                title="Reject"
+                              >
+                                <X size={16} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </Td>
@@ -394,15 +419,15 @@ export default function CampaignDetail() {
                 <p className="text-xs font-normal text-gray-500 uppercase tracking-widest mb-4">Metrics Intelligence</p>
                 <div className="flex justify-between items-center text-sm mb-1">
                   <span className="text-gray-600">Pending Review</span>
-                  <span className="font-normal text-gray-900">{leads.filter(l => l.review_status === 'pending').length}</span>
+                  <span className="font-normal text-gray-900">{filteredLeads.filter(l => l.review_status === 'pending').length}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm mb-1">
                   <span className="text-gray-600">Approved</span>
-                  <span className="font-normal text-success-600">{leads.filter(l => l.review_status === 'approved').length}</span>
+                  <span className="font-normal text-success-600">{filteredLeads.filter(l => l.review_status === 'approved').length}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">Rejected</span>
-                  <span className="font-normal text-error-600">{leads.filter(l => l.review_status === 'rejected').length}</span>
+                  <span className="font-normal text-error-600">{filteredLeads.filter(l => l.review_status === 'rejected').length}</span>
                 </div>
               </div>
             </CardContent>
@@ -469,6 +494,7 @@ export default function CampaignDetail() {
       <OutreachPreviewModal
         creatorId={outreachModalCreatorId || ''}
         campaignId={id}
+        messageType={outreachModalMessageType}
         isOpen={!!outreachModalCreatorId}
         onClose={() => setOutreachModalCreatorId(null)}
         onSend={handleConfirmApprove}

@@ -10,8 +10,7 @@ import { getAllCreators, reviewLead, sendSingleOutreach } from '../lib/api';
 import type { Creator } from '../types';
 import { format } from 'date-fns';
 import { LoadingState } from '../components/ui/LoadingState';
-import { Check, X, Mail } from 'lucide-react';
-import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
+import { Check, X, Instagram, Youtube, Activity } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Creators() {
@@ -20,7 +19,6 @@ export default function Creators() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
 
   const fetchCreators = () => {
@@ -36,11 +34,6 @@ export default function Creators() {
   }, []);
 
   const handleReview = async (id: string, action: 'approve' | 'reject') => {
-    const creator = creators.find(c => c.id === id);
-    if (action === 'approve' && (creator?.review_status === 'pending_review' || creator?.review_status === 'reviewed')) {
-      setOutreachModalCreatorId(id);
-      return;
-    }
     setActionLoading(id);
     try {
       await reviewLead(id, action);
@@ -52,68 +45,63 @@ export default function Creators() {
     }
   };
 
-  const handleConfirmApprove = async (customSubject?: string, customBody?: string) => {
-    if (!outreachModalCreatorId) return;
-    setActionLoading(outreachModalCreatorId);
-    try {
-      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody);
-      fetchCreators();
-    } catch (err) {
-      alert('Failed to update creator: ' + err);
-      throw err; // throw so modal doesn't close on error
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   const filteredCreators = creators.filter(c => {
     const matchesSearch = 
       c.handle?.toLowerCase().includes(search.toLowerCase()) || 
       c.full_name?.toLowerCase().includes(search.toLowerCase()) ||
       c.category?.toLowerCase().includes(search.toLowerCase());
-    
-    if (!statusFilter) return matchesSearch;
-    
-    if (statusFilter === 'pending') {
-      return matchesSearch && (c.review_status === 'pending' || c.review_status === 'pending_review' || c.review_status === 'hold' || c.review_status === 'reviewed' || !c.review_status);
+
+    // Handle specific status filters
+    if (statusFilter === 'hold') {
+      return matchesSearch && (c.review_status === 'hold' || !c.review_status || c.review_status === 'pending') && c.lifecycle_status !== 'not_respond';
     }
+
+    if (statusFilter === 'pending') {
+      return matchesSearch && c.review_status === 'pending_review' && c.lifecycle_status !== 'not_respond';
+    }
+
+    if (statusFilter === 'not_respond') {
+      return matchesSearch && c.lifecycle_status === 'not_respond';
+    }
+
+    // Default: If a status filter is selected, match it. If not, show all that match search.
+    if (!statusFilter) return matchesSearch;
     
     return matchesSearch && c.review_status === statusFilter;
   });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Global Creator Directory</h1>
         </div>
       </div>
 
       <Card>
-        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-4 items-center justify-between bg-white rounded-t-[12px]">
-          <div className="flex gap-3 items-center flex-1 max-w-2xl">
-            <div className="relative w-full max-w-sm">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search size={16} className="text-gray-400" />
-              </div>
-              <input 
-                type="text" 
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search by handle, name, or category..." 
-                className="block w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-            
+        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gray-50/30">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Search global identities..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
+            />
+          </div>
+          <div className="flex items-center gap-4 w-full sm:w-auto">
             <select 
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[140px]"
+              className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[140px]"
             >
               <option value="">Any Status</option>
-              <option value="pending">Pending</option>
+              <option value="hold">Discovered</option>
+              <option value="pending">Pending Review</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
+              <option value="not_respond">Not Responsive</option>
             </select>
 
           </div>
@@ -148,34 +136,43 @@ export default function Creators() {
                           {(c.full_name || c.handle)?.charAt(0)}
                         </div>
                         <div>
-                          <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 block leading-tight font-outfit uppercase tracking-tight">
+                          <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit">
                             {c.full_name || `@${c.handle}`}
                           </Link>
                           <div className="flex gap-2 mt-1.5">
-                            <a 
-                              href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              className="text-[#E1306C] hover:scale-110 transition-transform"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
-                            </a>
-                            <a 
-                              href={c.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${c.handle?.replace(/^@/, '')}`} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              className="text-[#FF0000] hover:scale-110 transition-transform"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 2-2h15a2 2 0 0 1 2 2 24.12 24.12 0 0 1 0 10 2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2Z"/><path d="m10 15 5-3-5-3z"/></svg>
-                            </a>
-                            <a 
-                              href={c.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              className="text-gray-900 hover:scale-110 transition-transform"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
-                            </a>
+                            {c.has_instagram && (
+                              <a 
+                                href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-[#E1306C] hover:scale-110 transition-transform"
+                                title="Instagram"
+                              >
+                                <Instagram size={14} />
+                              </a>
+                            )}
+                            {c.has_youtube && (
+                              <a 
+                                href={c.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${c.handle?.replace(/^@/, '')}`} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-[#FF0000] hover:scale-110 transition-transform"
+                                title="YouTube"
+                              >
+                                <Youtube size={14} />
+                              </a>
+                            )}
+                            {c.has_tiktok && (
+                              <a 
+                                href={c.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-gray-900 hover:scale-110 transition-transform"
+                                title="TikTok"
+                              >
+                                <Activity size={14} />
+                              </a>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -193,26 +190,30 @@ export default function Creators() {
                     <Td className="text-center">
                       <ScoreBadge score={c.outreach_readiness_score || 0} />
                     </Td>
-                    <Td><StatusBadge status={c.review_status as any || 'pending'} /></Td>
+                    <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status) ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
                     <Td className="text-right">
-                      {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (c.review_status === 'hold' || !c.review_status || c.review_status === 'pending_review' || c.review_status === 'reviewed') && c.review_status !== 'approved' && c.review_status !== 'rejected' && (
+                      {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                         <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => handleReview(c.id, 'approve')}
-                            disabled={!!actionLoading}
-                            className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                            title={c.review_status === 'hold' || !c.review_status ? 'Shortlist → Move to Review Queue' : 'Approve → Send outreach email'}
-                          >
-                            <Check size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleReview(c.id, 'reject')}
-                            disabled={!!actionLoading}
-                            className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                            title="Reject"
-                          >
-                            <X size={16} />
-                          </button>
+                          {(c.review_status === 'hold' || !c.review_status || c.review_status === 'pending_review' || c.review_status === 'reviewed') && c.review_status !== 'approved' && c.review_status !== 'rejected' && c.lifecycle_status !== 'not_respond' && (
+                            <>
+                              <button
+                                onClick={() => handleReview(c.id, 'approve')}
+                                disabled={!!actionLoading}
+                                className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                title={c.review_status === 'hold' || !c.review_status ? 'Shortlist → Move to Review Queue' : 'Approve → Send outreach email'}
+                              >
+                                <Check size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleReview(c.id, 'reject')}
+                                disabled={!!actionLoading}
+                                className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                title="Reject"
+                              >
+                                <X size={16} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </Td>
@@ -233,13 +234,6 @@ export default function Creators() {
           </div>
         )}
       </Card>
-      
-      <OutreachPreviewModal
-        creatorId={outreachModalCreatorId || ''}
-        isOpen={!!outreachModalCreatorId}
-        onClose={() => setOutreachModalCreatorId(null)}
-        onSend={handleConfirmApprove}
-      />
     </div>
   );
 }

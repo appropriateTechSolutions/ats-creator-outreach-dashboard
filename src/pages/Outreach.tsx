@@ -60,7 +60,7 @@ export default function Outreach() {
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
-      <div className="flex justify-between items-end mb-2">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-2">
         <div>
           <h1 className="text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Outreach Dashboard</h1>
         </div>

@@ -18,7 +18,7 @@ export default function ReviewQueue() {
     try {
       const data = await getAllCreators();
       // Filter for pending items
-      const pending = data.filter(c => !c.review_status || c.review_status === 'pending_review' || c.review_status === 'pending');
+      const pending = data.filter(c => (!c.review_status || c.review_status === 'pending_review' || c.review_status === 'pending') && c.lifecycle_status !== 'not_respond' && c.lifecycle_status !== 'contacted');
       // Sort by relevance score descending
       pending.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0));
       setQueue(pending);

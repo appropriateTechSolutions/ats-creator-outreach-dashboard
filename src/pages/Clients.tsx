@@ -25,6 +25,7 @@ import { Button } from '../components/ui/Button';
 import { LoadingState } from '../components/ui/LoadingState';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
+import { format } from 'date-fns';
 
 interface Client {
   id: string;
@@ -117,14 +118,14 @@ export default function Clients() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Clients</h1>
         </div>
         {['super_admin', 'admin'].includes(user?.role || '') && (
           <Button 
             onClick={() => setIsModalOpen(true)}
-            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
+            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
             icon={<Plus size={20} />}
           >
             Register New Client
@@ -133,18 +134,18 @@ export default function Clients() {
       </div>
 
       <Card className="overflow-hidden border-none shadow-2xl bg-white/80 backdrop-blur-md">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gray-50/30">
+          <div className="relative w-full sm:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
               placeholder="Filter by client..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-100 rounded-xl py-2.5 pl-10 pr-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+              className="w-full bg-white border border-gray-100 rounded-xl py-2.5 pl-10 pr-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
             />
           </div>
-          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-gray-100 px-3 py-1.5 rounded-lg">
+          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-white px-3 py-1.5 rounded-lg border border-gray-100 whitespace-nowrap">
             {filteredClients.length} Active Tenants
           </div>
         </div>
@@ -182,8 +183,8 @@ export default function Clients() {
                   >
                     <td className="px-8 py-6">
                         <div>
-                          <div className="font-normal text-gray-900 text-lg leading-tight uppercase tracking-tight font-outfit group-hover:text-primary-600 transition-colors">{client.name}</div>
-                          <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-0.5">{client.industry || 'General Sector'}</div>
+                          <div className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit group-hover:text-primary-600 transition-colors">{client.name}</div>
+                          <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1">{client.industry || 'General Sector'}</div>
                         </div>
                     </td>
                     <td className="px-8 py-6 text-center">
@@ -212,11 +213,11 @@ export default function Clients() {
                           </div>
                        </div>
                     </td>
-                    <td className="px-8 py-6 text-right">
-                       <div className="text-sm font-normal text-gray-900 uppercase tracking-tight whitespace-nowrap">
-                         {client.created_at || (client as any).createdAt ? new Date(client.created_at || (client as any).createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '---'}
-                       </div>
-                    </td>
+                     <td className="px-8 py-6 text-right">
+                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
+                          {client.created_at || (client as any).createdAt ? format(new Date(client.created_at || (client as any).createdAt), 'MMM d, yyyy') : '---'}
+                        </div>
+                     </td>
                   </tr>
                 ))
               )}

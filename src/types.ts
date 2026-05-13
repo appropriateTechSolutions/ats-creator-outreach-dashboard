@@ -32,6 +32,19 @@ export interface OutreachTemplate {
   is_active: boolean
 }
 
+export interface OutreachLog {
+  id: string;
+  campaign_id: string;
+  creator_id: string;
+  channel: string;
+  message_type: string;
+  follow_up_count: number;
+  next_followup_at: string | null;
+  is_dismissed: boolean;
+  response_received: boolean;
+  sent_at: string;
+}
+
 export interface Creator {
   id: string
   handle: string
@@ -45,8 +58,10 @@ export interface Creator {
   has_email: boolean
   has_instagram: boolean
   has_youtube?: boolean
-  has_tiktok?: boolean
-  profile_url?: string | null
+  has_tiktok?: boolean;
+  primary_platform?: string | null;
+  profile_url?: string | null;
+  latest_outreach?: OutreachLog | null;
   outreach_readiness_score: number | null
   relevance_score: number | null
   scoring_notes: {

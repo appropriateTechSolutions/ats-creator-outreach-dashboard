@@ -97,13 +97,13 @@ export default function Users() {
   return (
     <div className="space-y-6 animate-[fadeIn_0.3s_ease] max-w-7xl mx-auto pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">User Management</h1>
         </div>
         <Button 
           onClick={() => setIsModalOpen(true)} 
-          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 font-normal uppercase tracking-widest text-[10px] h-11"
+          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 font-normal uppercase tracking-widest text-[10px] h-11 whitespace-nowrap"
         >
           <UserPlus size={16} /> Invite New User
         </Button>
@@ -111,8 +111,8 @@ export default function Users() {
 
       {/* User Table */}
       <Card className="overflow-hidden border-none shadow-2xl bg-white/80 backdrop-blur-md">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between gap-4 bg-gray-50/30">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gray-50/30">
+          <div className="relative w-full sm:max-w-md">
             <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
             <input 
               type="text" 
@@ -122,7 +122,7 @@ export default function Users() {
               className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
             />
           </div>
-          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-white px-3 py-1.5 rounded-lg border border-gray-100">
+          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-white px-3 py-1.5 rounded-lg border border-gray-100 whitespace-nowrap">
             {filteredUsers.length} Registered Identities
           </div>
         </div>
@@ -165,53 +165,56 @@ export default function Users() {
                           {u.full_name?.charAt(0) || 'U'}
                         </div>
                         <div>
-                          <p className="font-normal text-gray-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight text-base leading-tight font-outfit">{u.full_name}</p>
-                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-wider mt-1">{u.email}</p>
+                          <p className="font-normal text-gray-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight text-sm leading-tight font-outfit">{u.full_name}</p>
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mt-1 font-outfit">{u.email}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <span className={`px-3 py-1 rounded-full text-[9px] font-normal uppercase tracking-widest border ${
+                      <span className={`px-3 py-1 rounded-full text-[9px] font-normal uppercase tracking-widest border font-outfit ${
                         u.user_type === 'internal' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-amber-50 text-amber-600 border-amber-100'
                       }`}>
                         {u.user_type}
                       </span>
                     </td>
                     <td className="px-8 py-6">
-                      <div className="flex items-center gap-2 text-xs font-normal text-gray-600 uppercase tracking-tight font-outfit">
+                      <div className="flex items-center gap-2 text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
                         <Shield className="w-3.5 h-3.5 text-primary-400" />
                         {u.role.replace('_', ' ')}
                       </div>
                     </td>
                     <td className="px-8 py-6">
-                      <div className="text-xs font-normal text-gray-600 uppercase tracking-tight font-outfit">
+                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
                         {u.Client?.name || (u.user_type === 'internal' ? 'Internal Team' : '---')}
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
                       <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-normal uppercase tracking-widest border ${
-                        u.status === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                        u.status === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 
+                        u.status === 'inactive' ? 'bg-gray-100 text-gray-600 border-gray-200' :
+                        'bg-amber-50 text-amber-600 border-amber-100'
                       }`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${
-                          u.status === 'active' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-amber-500 animate-pulse'
+                          u.status === 'active' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 
+                          u.status === 'inactive' ? 'bg-gray-400' :
+                          'bg-amber-500 animate-pulse'
                         }`} />
-                        {u.status}
+                        {u.status === 'inactive' ? 'deactive' : u.status}
                       </span>
                     </td>
                     <td className="px-8 py-6 text-right">
                       {u.status === 'invited' && (
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={(e) => handleResendInvite(e, u.id)}
                           disabled={actionLoading === u.id}
-                          className="text-primary-600 hover:text-primary-700 hover:bg-primary-50 p-2 rounded-lg transition-all"
-                          title="Resend Invitation"
+                          className="text-primary-600 border-primary-100 hover:bg-primary-50 px-3 py-1.5 rounded-lg transition-all font-normal uppercase tracking-widest text-[9px]"
                         >
                           {actionLoading === u.id ? (
                             <LoadingState mini />
                           ) : (
-                            <RefreshCw className="w-4 h-4" />
+                            "Resend Invite"
                           )}
                         </Button>
                       )}

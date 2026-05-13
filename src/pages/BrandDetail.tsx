@@ -143,54 +143,58 @@ export default function BrandDetail() {
   }
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
         <div className="space-y-4">
           <Link to="/brands" className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase">
             <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO PORTFOLIO
           </Link>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight leading-none">{brand.name}</h1>
+              <h1 className="text-3xl sm:text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight leading-tight">{brand.name}</h1>
             </div>
-            <p className="text-gray-400 font-normal text-xs uppercase tracking-widest mt-2">
+            <p className="text-gray-400 font-normal text-[10px] sm:text-xs uppercase tracking-widest mt-2">
               Agency Tenant: {brand.Client?.name || 'Internal'}
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col items-center gap-2 pt-8">
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Brand Status</span>
-            {['super_admin', 'admin'].includes(currentUser?.role || '') ? (
-              <>
-                <button 
-                  onClick={() => handleUpdateStatus(brand.status === 'active' ? 'archived' : 'active')}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${brand.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
-                >
-                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${brand.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
-                <span className={`text-[10px] font-bold uppercase tracking-widest ${brand.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
-                  {brand.status === 'active' ? 'ON' : 'OFF'}
-                </span>
-              </>
-            ) : (
-              <div className="flex items-center gap-2">
-                 <div className={`w-2 h-2 rounded-full ${brand.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
-                 <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{brand.status}</span>
+        <div className="flex flex-col items-start lg:items-end gap-3 lg:pt-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+            <div className="flex flex-col items-start sm:items-end gap-2 sm:pl-6 border-gray-100">
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Brand Status</span>
+                {['super_admin', 'admin'].includes(currentUser?.role || '') ? (
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleUpdateStatus(brand.status === 'active' ? 'inactive' : 'active')}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${brand.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
+                    >
+                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${brand.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${brand.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
+                      {brand.status === 'active' ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                     <div className={`w-2 h-2 rounded-full ${brand.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
+                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{brand.status}</span>
+                  </div>
+                )}
               </div>
-            )}
+              <StatusBadge status={brand.status as any} />
+            </div>
           </div>
-          <StatusBadge status={brand.status as any} />
         </div>
       </div>
 
       {/* 1. Brand Intelligence Table */}
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
-        <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+        <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
-            Brand
+            Brand Intelligence
           </h2>
           <div className="text-[10px] font-normal text-primary-600 bg-primary-50 px-3 py-1 rounded-full uppercase tracking-widest border border-primary-100">
             {brand.industry}
@@ -200,24 +204,24 @@ export default function BrandDetail() {
           <table className="w-full text-left">
             <tbody className="divide-y divide-gray-50">
               <tr>
-                <td className="px-8 py-5 w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Product Category</td>
-                <td className="px-8 py-5 text-sm font-normal text-gray-900 uppercase tracking-tight">{brand.product_category || 'N/A'}</td>
+                <td className="px-6 sm:px-8 py-5 w-40 sm:w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Product Category</td>
+                <td className="px-6 sm:px-8 py-5 text-sm font-normal text-gray-900 uppercase tracking-tight">{brand.product_category || 'N/A'}</td>
               </tr>
               <tr>
-                <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Official Website</td>
-                <td className="px-8 py-5">
-                  <a href={brand.website} target="_blank" rel="noreferrer" className="text-primary-600 font-normal text-sm flex items-center gap-2 hover:underline">
-                    <Globe size={14} /> {brand.website || 'No URL Provided'}
+                <td className="px-6 sm:px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Official Website</td>
+                <td className="px-6 sm:px-8 py-5">
+                  <a href={brand.website} target="_blank" rel="noreferrer" className="text-primary-600 font-normal text-sm flex items-center gap-2 hover:underline truncate max-w-[200px] sm:max-w-none inline-flex">
+                    <Globe size={14} className="shrink-0" /> <span className="truncate">{brand.website || 'No URL Provided'}</span>
                   </a>
                 </td>
               </tr>
               <tr>
-                <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Market Description</td>
-                <td className="px-8 py-5 text-sm font-normal text-gray-600 leading-relaxed">{brand.brand_description || 'No description provided.'}</td>
+                <td className="px-6 sm:px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Market Description</td>
+                <td className="px-6 sm:px-8 py-5 text-sm font-normal text-gray-600 leading-relaxed">{brand.brand_description || 'No description provided.'}</td>
               </tr>
               <tr>
-                <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Target Demographic</td>
-                <td className="px-8 py-5 text-sm font-normal text-gray-600">{brand.target_audience || 'Not specified.'}</td>
+                <td className="px-6 sm:px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Target Demographic</td>
+                <td className="px-6 sm:px-8 py-5 text-sm font-normal text-gray-600">{brand.target_audience || 'Not specified.'}</td>
               </tr>
             </tbody>
           </table>

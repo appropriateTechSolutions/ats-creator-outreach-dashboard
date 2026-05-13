@@ -22,6 +22,7 @@ export default function CreatorDetail() {
   const [messages, setMessages] = useState<any[]>([]);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [outreachModalOpen, setOutreachModalOpen] = useState(false);
+  const [outreachModalMessageType, setOutreachModalMessageType] = useState<string>('initial');
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [matchExpanded, setMatchExpanded] = useState(false);
   const [findingSimilar, setFindingSimilar] = useState(false);
@@ -125,14 +126,22 @@ export default function CreatorDetail() {
 
   const handleSendOutreach = () => {
     if (!creator) return;
+    
+    let type = 'initial';
+    if (isFollowUpDue()) {
+      const followUpNumber = (creator.latest_outreach?.follow_up_count || 0) + 1;
+      type = followUpNumber >= 3 ? 'final_ping' : `followup_${followUpNumber}`;
+    }
+    
+    setOutreachModalMessageType(type);
     setOutreachModalOpen(true);
   };
 
-  const handleConfirmSendOutreach = async (customSubject?: string, customBody?: string) => {
+  const handleConfirmSendOutreach = async (customSubject?: string, customBody?: string, messageType?: string) => {
     if (!creator) return;
     setSendingEmail(true);
     try {
-      await sendSingleOutreach(creator.id, creator.campaign_id, customSubject, customBody);
+      await sendSingleOutreach(creator.id, creator.campaign_id, customSubject, customBody, messageType);
       alert('Outreach email sent successfully!');
       loadData();
     } catch (err) {
@@ -141,6 +150,22 @@ export default function CreatorDetail() {
     } finally {
       setSendingEmail(false);
     }
+  };
+
+  const isFollowUpDue = () => {
+    const latest = creator?.latest_outreach;
+    if (!latest) return false;
+    if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
+    if (latest.follow_up_count >= 3) return false; // Never suggest a 4th follow-up
+    return new Date(latest.next_followup_at) < new Date();
+  };
+
+  const isWaitingForFollowUp = () => {
+    const latest = creator?.latest_outreach;
+    if (!latest) return false;
+    if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
+    if (latest.follow_up_count >= 3) return false;
+    return new Date(latest.next_followup_at) >= new Date();
   };
 
   const handleFindSimilar = async () => {
@@ -211,19 +236,19 @@ export default function CreatorDetail() {
   ];
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
       <Link to="/creators" className="inline-flex items-center text-sm font-normal text-gray-500 hover:text-gray-900 transition-colors mb-4">
         <ArrowLeft size={16} className="mr-1" /> Back to Directory
       </Link>
 
       <Card>
-        <div className="bg-gradient-to-r from-gray-50 to-white px-8 py-8 border-b border-gray-100 flex items-start justify-between rounded-t-[12px]">
-          <div className="flex items-center gap-6">
-             <div className="w-20 h-20 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-4xl uppercase shadow-lg shadow-primary-500/30 ring-4 ring-white font-outfit">
-              {creator.handle?.charAt(0)}
-            </div>
-            <div>
-               <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
+        <div className="bg-gradient-to-r from-gray-50 to-white px-6 sm:px-8 py-8 border-b border-gray-100 flex flex-col lg:flex-row items-start justify-between gap-8 rounded-t-[12px]">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+             <div className="w-20 h-20 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-4xl uppercase shadow-lg shadow-primary-500/30 ring-4 ring-white font-outfit shrink-0">
+               {creator.handle?.charAt(0)}
+             </div>
+            <div className="min-w-0">
+               <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight truncate leading-tight">
                  {creator.full_name || 'No full name provided'}
                </h1>
                <div className="mt-1">
@@ -240,11 +265,11 @@ export default function CreatorDetail() {
                   rel="noopener noreferrer"
                   className="hover:text-primary-600 transition-colors flex items-center gap-2 group"
                 >
-                  <span className="text-gray-500 font-medium text-lg">@{creator.handle?.replace(/^@/, '')}</span>
-                  <ExternalLink size={18} className="text-gray-300 group-hover:text-primary-400 transition-colors" />
+                  <span className="text-gray-500 font-medium text-lg truncate">@{creator.handle?.replace(/^@/, '')}</span>
+                  <ExternalLink size={18} className="text-gray-300 group-hover:text-primary-400 transition-colors shrink-0" />
                 </a>
                </div>
-              <div className="flex gap-4 mt-3">
+              <div className="flex flex-wrap gap-4 mt-3">
                 {creator.has_instagram && (
                   <a 
                     href={creator.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${creator.handle?.replace(/^@/, '')}`} 
@@ -280,26 +305,26 @@ export default function CreatorDetail() {
                 )}
               </div>
               
-              <div className="flex gap-2 mt-3">
+              <div className="flex flex-wrap gap-2 mt-3">
                 {creator.category?.split(',').map(c => (
                    <span key={c} className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded text-xs font-normal uppercase tracking-wider">{c.trim()}</span>
                 ))}
               </div>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-3">
-            <StatusBadge status={creator.review_status as any || 'pending'} />
+          <div className="flex flex-col items-start lg:items-end gap-3 w-full lg:w-auto">
+            <StatusBadge status={['not_respond'].includes(creator.lifecycle_status) ? creator.lifecycle_status : (creator.review_status as any || 'pending')} />
             <div className="flex items-center gap-2 mt-2">
-               <span className="text-xs font-normal text-gray-400 uppercase">Master Readiness:</span>
+               <span className="text-xs font-normal text-gray-400 uppercase">Readiness:</span>
                <ScoreBadge score={creator.outreach_readiness_score || 0} />
             </div>
             
             {/* Action Buttons */}
             {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
-              <div className="flex items-center gap-3 mt-4 w-full max-w-sm">
+              <div className="flex flex-col sm:flex-row items-center gap-3 mt-4 w-full lg:max-w-sm">
                 <Button 
                   variant="outline"
-                  className="flex-1 border-primary-100 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal"
+                  className="w-full sm:flex-1 border-primary-100 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal"
                   onClick={handleFindSimilar}
                   disabled={findingSimilar}
                 >
@@ -307,12 +332,22 @@ export default function CreatorDetail() {
                   {findingSimilar ? 'Searching...' : 'Find Similar'}
                 </Button>
                 <Button 
-                  className="flex-1 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal"
+                  className={`w-full sm:flex-1 ${
+                    isFollowUpDue() 
+                      ? 'bg-amber-600 hover:bg-amber-700 shadow-lg shadow-amber-500/40 animate-pulse' 
+                      : isWaitingForFollowUp()
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed shadow-none border border-gray-300'
+                        : 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/20 text-white'
+                  } shadow-xl flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all`}
                   onClick={handleSendOutreach}
-                  disabled={sendingEmail || creator.review_status === 'rejected'}
+                  disabled={sendingEmail || creator.review_status === 'rejected' || isWaitingForFollowUp()}
                 >
-                  {sendingEmail ? <LoadingState mini /> : <Send size={16} />} 
-                  {creator.outreach_logs?.length > 0 ? 'Resend Outreach' : 'Send Outreach Now'}
+                  {sendingEmail ? <LoadingState mini /> : (isFollowUpDue() ? <Clock size={16} /> : isWaitingForFollowUp() ? <Clock size={16} className="text-gray-400" /> : <Send size={16} />)} 
+                  {isFollowUpDue() 
+                    ? `Send Follow-up #${(creator.latest_outreach?.follow_up_count || 0) + 1}` 
+                    : isWaitingForFollowUp()
+                      ? 'Waiting for Reply...'
+                      : (creator.latest_outreach ? 'Resend Outreach' : 'Send Outreach')}
                 </Button>
               </div>
             )}
@@ -539,38 +574,63 @@ export default function CreatorDetail() {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Show initial outreach attempts from logs */}
-                {creator.OutreachLogs?.map((log: any, idx: number) => (
-                  <div key={`outreach-${idx}`} className="flex flex-col items-end max-w-[80%] ml-auto">
-                    <div className="bg-primary-600 text-white p-4 rounded-2xl rounded-tr-none shadow-sm text-sm">
-                      <p className="font-bold mb-1 flex items-center gap-1 opacity-80 text-[10px] uppercase">
-                        <Mail size={10} /> Outreach Sent ({log.channel})
-                      </p>
-                      {log.subject_line && <p className="font-bold border-b border-white/20 pb-2 mb-2">Sub: {log.subject_line}</p>}
-                      <p className="whitespace-pre-wrap leading-relaxed opacity-95">{log.message_content || 'Initial outreach triggered by system.'}</p>
-                    </div>
-                    <span className="text-[10px] text-gray-400 mt-1 font-medium">{new Date(log.sent_at || log.sentAt || log.created_at || log.createdAt || Date.now()).toLocaleString()}</span>
-                  </div>
-                ))}
+                {(() => {
+                  const combined = [
+                    ...(creator.OutreachLogs || []).map((log: any) => {
+                      const logTime = log.sent_at || log.sentAt || log.created_at || log.createdAt || Date.now();
+                      return {
+                        id: log.id,
+                        type: 'outreach',
+                        direction: 'outbound',
+                        channel: log.channel,
+                        subject: log.subject_line,
+                        text: log.message_content,
+                        time: new Date(logTime).getTime()
+                      };
+                    }),
+                    ...messages.map((msg: any) => ({
+                      id: msg.id,
+                      type: 'message',
+                      direction: msg.direction,
+                      channel: msg.channel,
+                      text: msg.message_text,
+                      time: new Date(msg.message_time || msg.messageTime || Date.now()).getTime()
+                    }))
+                  ].sort((a, b) => a.time - b.time);
 
-                {/* Show actual conversation thread */}
-                {messages.map((msg, idx) => (
-                  <div key={idx} className={`flex flex-col ${msg.direction === 'inbound' ? 'items-start mr-auto' : 'items-end ml-auto'} max-w-[85%]`}>
-                    <div className={`p-4 rounded-2xl shadow-sm text-sm ${
-                      msg.direction === 'inbound' 
-                        ? 'bg-white text-gray-800 rounded-tl-none border border-gray-100' 
-                        : 'bg-primary-600 text-white rounded-tr-none'
-                    }`}>
-                      <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">
-                        {msg.direction === 'inbound' ? `Influencer (${msg.channel})` : 'You (ATS Agent)'}
-                      </p>
-                      <p className="whitespace-pre-wrap leading-relaxed">{cleanMessageText(msg.message_text)}</p>
+                  return combined.map((item, idx) => (
+                    <div key={idx} className={`flex flex-col ${item.direction === 'inbound' ? 'items-start mr-auto' : 'items-end ml-auto'} max-w-[85%]`}>
+                      <div className={`p-4 rounded-2xl shadow-md text-sm ${
+                        item.direction === 'inbound' 
+                          ? 'bg-gray-100 text-gray-900 rounded-tl-none border border-gray-200' 
+                          : 'bg-indigo-600 text-white rounded-tr-none'
+                      }`}>
+                        <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 flex items-center gap-1 ${
+                          item.direction === 'inbound' ? 'text-gray-500' : 'text-indigo-100'
+                        }`}>
+                          {item.direction === 'inbound' ? (
+                            <>
+                              {creator.full_name || creator.handle} ({item.channel})
+                            </>
+                          ) : (
+                            <>
+                              <Mail size={10} /> {item.type === 'outreach' ? `Outreach Sent (${item.channel})` : 'You (ATS Agent)'}
+                            </>
+                          )}
+                        </p>
+                        {item.subject && <p className={`font-bold border-b pb-2 mb-2 ${
+                          item.direction === 'inbound' ? 'border-gray-200' : 'border-white/20'
+                        }`}>Sub: {item.subject}</p>}
+                        <p className="whitespace-pre-wrap leading-relaxed font-medium">
+                          {item.type === 'message' ? cleanMessageText(item.text) : (item.text || 'Initial outreach triggered by system.')}
+                        </p>
+                      </div>
+                      <span className="text-[10px] text-gray-500 mt-1.5 font-semibold">
+                        {new Date(item.time).toLocaleString()}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-gray-400 mt-1 font-medium">
-                      {new Date(msg.message_time).toLocaleString()}
-                    </span>
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
             )}
           </div>
@@ -775,6 +835,7 @@ export default function CreatorDetail() {
       <OutreachPreviewModal
         creatorId={creator?.id || ''}
         campaignId={creator?.campaign_id}
+        messageType={outreachModalMessageType}
         isOpen={outreachModalOpen}
         onClose={() => setOutreachModalOpen(false)}
         onSend={handleConfirmSendOutreach}

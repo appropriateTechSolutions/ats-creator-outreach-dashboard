@@ -26,6 +26,7 @@ import { Input } from '../components/ui/Input';
 import { LoadingState } from '../components/ui/LoadingState';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
+import { format } from 'date-fns';
 
 interface Brand {
   id: string;
@@ -146,14 +147,14 @@ export default function Brands() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Brands</h1>
         </div>
         {['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
           <Button 
             onClick={() => setIsModalOpen(true)}
-            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
+            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
             icon={<Plus size={20} />}
           >
             Register New Brand
@@ -162,36 +163,40 @@ export default function Brands() {
       </div>
 
       {/* Filter Bar */}
-      <Card className="border-none shadow-2xl bg-white/80 backdrop-blur-md overflow-hidden">
-        <div className="p-5 flex items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="text"
-              placeholder="Filter brands..."
+      <Card className="overflow-hidden border-none shadow-2xl bg-white/80 backdrop-blur-md">
+        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gray-50/30">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Filter by brand name..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-100 rounded-xl py-2.5 pl-10 pr-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
             />
           </div>
-          <div className="flex items-center gap-3">
-             {/* Client Selection (Internal Only) */}
-             {user?.user_type === 'internal' && (
-               <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
-                  <Filter size={16} className="text-gray-400" />
-                  <select 
-                    value={selectedClientId}
-                    onChange={(e) => setSelectedClientId(e.target.value)}
-                    className="bg-transparent text-sm font-normal text-gray-600 focus:outline-none cursor-pointer"
-                  >
-                    <option value="all">All Clients</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-               </div>
-             )}
-             <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-gray-100 px-3 py-1.5 rounded-lg">
-                {filteredBrands.length} Brands
-             </div>
+          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-white px-3 py-1.5 rounded-lg border border-gray-100 whitespace-nowrap">
+            {filteredBrands.length} Active Portfolios
+          </div>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 px-6 py-4 bg-white border-b border-gray-50">
+          {/* Client Selection (Internal Only) */}
+          {user?.user_type === 'internal' && (
+            <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 w-full sm:w-auto">
+              <Filter size={16} className="text-gray-400" />
+              <select 
+                value={selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                className="bg-transparent text-sm font-normal text-gray-600 focus:outline-none cursor-pointer w-full sm:w-auto"
+              >
+                <option value="all">All Clients</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200">
+            {filteredBrands.length} Brands
           </div>
         </div>
 
@@ -216,37 +221,42 @@ export default function Brands() {
                 </tr>
               ) : filteredBrands.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-20 text-center text-gray-400 italic">No brand identities found.</td>
+                  <td colSpan={5} className="px-8 py-20 text-center text-gray-400 italic">
+                    No brands found matching your criteria.
+                  </td>
                 </tr>
               ) : (
                 filteredBrands.map((brand) => (
                   <tr 
                     key={brand.id} 
                     onClick={() => navigate(`/brands/${brand.id}`)}
-                    className="hover:bg-primary-50/30 transition-all group cursor-pointer"
+                    className="hover:bg-primary-50/30 transition-colors group cursor-pointer"
                   >
                     <td className="px-8 py-6">
+                      <div className="flex items-center gap-4">
                         <div>
-                          <div className="text-sm font-normal text-gray-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight font-outfit">{brand.name}</div>
-                          <div className="text-[10px] text-gray-400 font-normal uppercase tracking-widest">{brand.industry || 'General Sector'}</div>
+                          <div className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit group-hover:text-primary-600 transition-colors">{brand.name}</div>
+                          <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1">{brand.product_category || 'General Category'}</div>
                         </div>
+                      </div>
                     </td>
                     <td className="px-8 py-6">
-                        <span className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
-                          {brand.Client?.name || 'Internal'}
-                        </span>
+                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">{brand.Client?.name || 'Internal'}</div>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <StatusBadge status={brand.status as any} />
+                      <div className="flex justify-center">
+                        <StatusBadge status={brand.status as any} />
+                      </div>
                     </td>
                     <td className="px-8 py-6 text-center">
-                       <div className="text-lg font-normal text-gray-900">{brand.campaigns?.length || 0}</div>
-                       <div className="text-[9px] font-normal text-gray-400 uppercase tracking-tighter">Active Campaigns</div>
+                      <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        {brand.campaigns?.length || 0}
+                      </span>
                     </td>
                     <td className="px-8 py-6 text-right">
-                       <div className="text-sm font-normal text-gray-900 uppercase tracking-tighter whitespace-nowrap">
-                         {brand.created_at || (brand as any).createdAt ? new Date(brand.created_at || (brand as any).createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '---'}
-                       </div>
+                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
+                        {(brand.created_at || (brand as any).createdAt) ? format(new Date(brand.created_at || (brand as any).createdAt), 'MMM d, yyyy') : '---'}
+                      </div>
                     </td>
                   </tr>
                 ))

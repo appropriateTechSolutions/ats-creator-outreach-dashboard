@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { KPICard } from '../components/ui/KPICard';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
@@ -13,6 +13,7 @@ import type { Campaign, Creator } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [creators, setCreators] = useState<Creator[]>([]);
@@ -60,8 +61,9 @@ export default function Dashboard() {
     .slice(0, 10);
 
   const getPercentLength = (val: number, max: number) => {
-    if (max === 0) return '0%';
-    return `${Math.max(5, Math.min(100, (val / max) * 100))}%`;
+    if (max === 0 || val === 0) return '0%';
+    // For non-zero values, ensure at least 3% visibility so the color is seen
+    return `${Math.max(3, Math.min(100, (val / max) * 100))}%`;
   };
 
   const getRelativeTime = (timestamp: any) => {
@@ -89,7 +91,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Dashboard</h1>
         <select 
           value={selectedCampaignId}
@@ -108,12 +110,13 @@ export default function Dashboard() {
       ) : (
         <>
           {/* Single KPI Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             <KPICard 
               title="Creators" 
               value={stats.kpis.totalCreators.value} 
               icon={<Users size={16} />} 
               trend={stats.kpis.totalCreators.trend ? { value: stats.kpis.totalCreators.trend, isPositive: stats.kpis.totalCreators.trend >= 0 } : undefined} 
+              onClick={() => navigate('/creators')}
             />
             
             {selectedCampaignId ? (
@@ -122,11 +125,13 @@ export default function Dashboard() {
                   title="Brand" 
                   value={campaigns.find(c => c.id === selectedCampaignId)?.Brand?.name || 'N/A'} 
                   icon={<Target size={16} />} 
+                  onClick={() => navigate('/brands')}
                 />
                 <KPICard 
                   title="Client" 
                   value={campaigns.find(c => c.id === selectedCampaignId)?.Client?.name || 'N/A'} 
                   icon={<Activity size={16} />} 
+                  onClick={() => navigate('/clients')}
                 />
               </>
             ) : (
@@ -136,11 +141,13 @@ export default function Dashboard() {
                     title="Campaigns" 
                     value={stats.kpis.totalCampaigns.value} 
                     icon={<Target size={16} />} 
+                    onClick={() => navigate('/campaigns')}
                   />
                   <KPICard 
                     title="Clients" 
                     value={stats.kpis.totalClients.value} 
                     icon={<Activity size={16} />} 
+                    onClick={() => navigate('/clients')}
                   />
                 </>
               ) : (
@@ -149,6 +156,7 @@ export default function Dashboard() {
                     title="Campaigns" 
                     value={campaigns.filter(c => c.status === 'active').length} 
                     icon={<Target size={16} />} 
+                    onClick={() => navigate('/campaigns')}
                   />
                 </>
               )
@@ -182,41 +190,41 @@ export default function Dashboard() {
                 <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">Pipeline Funnel</h2>
               </CardHeader>
               <CardContent className="h-64 flex flex-col justify-center gap-4">
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-24 text-right text-xs font-normal text-gray-400 uppercase tracking-widest">New</div>
-                    <div className="bg-gray-100 rounded-full h-8 flex-1 overflow-hidden">
-                      <div className="bg-gray-300 h-full transition-all" style={{ width: '100%' }}></div>
+                    <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">New</div>
+                    <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
+                      <div className="bg-gradient-to-r from-slate-400 to-slate-500 h-full transition-all shadow-inner" style={{ width: '100%' }}></div>
                     </div>
-                    <div className="w-12 text-sm font-normal text-gray-700">{stats.kpis.totalCreators.value}</div>
+                    <div className="w-12 text-sm font-bold text-gray-900">{stats.kpis.totalCreators.value}</div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-24 text-right text-xs font-normal text-gray-400 uppercase tracking-widest">Contacted</div>
-                    <div className="bg-gray-100 rounded-full h-8 flex-1 overflow-hidden">
-                      <div className="bg-primary-500 h-full transition-all" style={{ width: getPercentLength(stats.funnel.contacted, stats.kpis.totalCreators.value) }}></div>
+                    <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Contacted</div>
+                    <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
+                      <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all shadow-md" style={{ width: getPercentLength(stats.funnel.contacted, stats.kpis.totalCreators.value) }}></div>
                     </div>
-                    <div className="w-12 text-sm font-normal text-gray-700">{stats.funnel.contacted}</div>
+                    <div className="w-12 text-sm font-bold text-gray-900">{stats.funnel.contacted}</div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-24 text-right text-xs font-normal text-gray-400 uppercase tracking-widest">Replied</div>
-                    <div className="bg-gray-100 rounded-full h-8 flex-1 overflow-hidden">
-                      <div className="bg-primary-700 h-full transition-all" style={{ width: getPercentLength(stats.funnel.replied, stats.kpis.totalCreators.value) }}></div>
+                    <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Replied</div>
+                    <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
+                      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 h-full transition-all shadow-md" style={{ width: getPercentLength(stats.funnel.replied, stats.kpis.totalCreators.value) }}></div>
                     </div>
-                    <div className="w-12 text-sm font-normal text-gray-700">{stats.funnel.replied}</div>
+                    <div className="w-12 text-sm font-bold text-gray-900">{stats.funnel.replied}</div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-24 text-right text-xs font-normal text-gray-400 uppercase tracking-widest">Qualified</div>
-                    <div className="bg-gray-100 rounded-full h-8 flex-1 overflow-hidden">
-                      <div className="bg-success-400 h-full transition-all" style={{ width: getPercentLength(stats.funnel.qualified, stats.kpis.totalCreators.value) }}></div>
+                    <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Qualified</div>
+                    <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
+                      <div className="bg-gradient-to-r from-teal-400 to-emerald-500 h-full transition-all shadow-md" style={{ width: getPercentLength(stats.funnel.qualified, stats.kpis.totalCreators.value) }}></div>
                     </div>
-                    <div className="w-12 text-sm font-normal text-gray-700">{stats.funnel.qualified}</div>
+                    <div className="w-12 text-sm font-bold text-gray-900">{stats.funnel.qualified}</div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-24 text-right text-xs font-normal text-gray-400 uppercase tracking-widest">Converted</div>
-                    <div className="bg-gray-100 rounded-full h-8 flex-1 overflow-hidden">
-                      <div className="bg-success-600 h-full transition-all" style={{ width: getPercentLength(stats.funnel.converted, stats.kpis.totalCreators.value) }}></div>
+                    <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Converted</div>
+                    <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
+                      <div className="bg-gradient-to-r from-emerald-500 to-green-600 h-full transition-all shadow-lg" style={{ width: getPercentLength(stats.funnel.converted, stats.kpis.totalCreators.value) }}></div>
                     </div>
-                    <div className="w-12 text-sm font-normal text-gray-700">{stats.funnel.converted}</div>
+                    <div className="w-12 text-sm font-bold text-gray-900">{stats.funnel.converted}</div>
                   </div>
                 </div>
               </CardContent>
@@ -247,11 +255,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
-                  <Button className="w-full mt-2" variant="outline" disabled={stats.funnel.replied === 0}>
-                    Process Follow-ups ({stats.funnel.replied})
-                  </Button>
-                )}
+
               </CardContent>
             </Card>
           </div>
@@ -296,7 +300,7 @@ export default function Dashboard() {
                         <Td>
                           <ScoreBadge score={c.relevance_score || 0} />
                         </Td>
-                        <Td><StatusBadge status={c.review_status as any || 'pending'} /></Td>
+                        <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status) ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
                       </Tr>
                     ))}
                   </Tbody>

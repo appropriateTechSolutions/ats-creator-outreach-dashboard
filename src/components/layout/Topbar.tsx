@@ -28,15 +28,15 @@ export function Topbar({ onMenuToggle, sidebarOpen }: TopbarProps) {
       </div>
 
       {/* Center: Search bar */}
-      <div className="flex-1 flex justify-center px-4">
+      <div className="flex-1 flex justify-center px-0 sm:px-4">
         <div className="relative w-full max-w-xl">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={16} className="text-gray-400" />
+            <Search size={14} className="text-gray-400 sm:size-[16px]" />
           </div>
           <input
             type="text"
-            placeholder="Search creators, campaigns, or #keywords..."
-            className="block w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-gray-50 transition-all focus:bg-white"
+            placeholder="Search..."
+            className="block w-full pl-8 sm:pl-9 pr-3 py-1.5 sm:py-2 border border-gray-200 rounded-lg text-xs sm:text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-gray-50 transition-all focus:bg-white"
           />
         </div>
       </div>
