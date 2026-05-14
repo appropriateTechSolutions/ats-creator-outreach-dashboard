@@ -133,7 +133,7 @@ export default function UserDetail() {
       <div className="p-20 text-center">
         <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
         <h2 className="text-2xl font-normal text-gray-900 font-outfit uppercase tracking-tight">User Identity Not Found</h2>
-        <Link to="/users" className="text-primary-600 font-normal mt-4 inline-block uppercase tracking-widest text-xs">Back to Directory</Link>
+        <Link to="/users" className="text-primary-600 font-normal mt-4 inline-block uppercase tracking-widest text-xs">Back to Users</Link>
       </div>
     );
   }
@@ -144,7 +144,7 @@ export default function UserDetail() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="space-y-4">
           <Link to="/users" className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase">
-            <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO DIRECTORY
+            <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO USERS
           </Link>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
             <div className="w-16 h-16 rounded-2xl bg-primary-100 text-primary-700 shadow-xl border border-primary-50 flex items-center justify-center font-normal text-2xl font-outfit uppercase shrink-0">

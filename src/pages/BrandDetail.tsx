@@ -127,7 +127,7 @@ export default function BrandDetail() {
   if (loading) {
     return (
       <div className="p-20">
-        <LoadingState message="Accessing Portfolio Intelligence..." />
+        <LoadingState message="Accessing Brands Intelligence..." />
       </div>
     );
   }
@@ -137,7 +137,7 @@ export default function BrandDetail() {
       <div className="p-20 text-center">
         <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
         <h2 className="text-2xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Identity Not Found</h2>
-        <Link to="/brands" className="text-primary-600 font-normal mt-4 inline-block">Back to Portfolio</Link>
+        <Link to="/brands" className="text-primary-600 font-normal mt-4 inline-block">Back to Brands</Link>
       </div>
     );
   }
@@ -148,7 +148,7 @@ export default function BrandDetail() {
       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
         <div className="space-y-4">
           <Link to="/brands" className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase">
-            <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO PORTFOLIO
+            <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO BRANDS
           </Link>
           <div>
             <div className="flex items-center gap-3">
@@ -165,7 +165,7 @@ export default function BrandDetail() {
             <div className="flex flex-col items-start sm:items-end gap-2 sm:pl-6 border-gray-100">
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Brand Status</span>
-                {['super_admin', 'admin'].includes(currentUser?.role || '') ? (
+                {['super_admin', 'admin'].includes(currentUser?.role || '') && (
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={() => handleUpdateStatus(brand.status === 'active' ? 'inactive' : 'active')}
@@ -177,14 +177,14 @@ export default function BrandDetail() {
                       {brand.status === 'active' ? 'ON' : 'OFF'}
                     </span>
                   </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                     <div className={`w-2 h-2 rounded-full ${brand.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
-                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{brand.status}</span>
-                  </div>
+                )}
+                {!['super_admin', 'admin'].includes(currentUser?.role || '') && (
+                  <StatusBadge status={brand.status as any} />
                 )}
               </div>
-              <StatusBadge status={brand.status as any} />
+              {['super_admin', 'admin'].includes(currentUser?.role || '') && (
+                <StatusBadge status={brand.status as any} />
+              )}
             </div>
           </div>
         </div>
@@ -316,7 +316,7 @@ export default function BrandDetail() {
               {brand.campaigns && brand.campaigns.length > 0 ? (
                 brand.campaigns.map(c => (
                   <tr key={c.id} 
-                    onClick={() => navigate(`/campaigns/${c.id}`)}
+                    onClick={() => navigate(`/campaigns/${c.id}`, { state: { fromBrandId: brand.id, fromBrandName: brand.name } })}
                     className="hover:bg-primary-50/30 transition-all group cursor-pointer"
                   >
                     <td className="px-8 py-5">

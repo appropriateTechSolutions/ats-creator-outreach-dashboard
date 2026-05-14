@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, getConversationThread, linkAffiliate, findSimilarCreators } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
@@ -235,11 +235,20 @@ export default function CreatorDetail() {
     { key: 'tiktok', label: 'TikTok', icon: <Activity size={14} className="text-black"/> }
   ];
 
+  const location = useLocation();
+  const fromCampaignId = (location.state as any)?.fromCampaignId;
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
-      <Link to="/creators" className="inline-flex items-center text-sm font-normal text-gray-500 hover:text-gray-900 transition-colors mb-4">
-        <ArrowLeft size={16} className="mr-1" /> Back to Directory
-      </Link>
+      {fromCampaignId ? (
+        <Link to={`/campaigns/${fromCampaignId}`} className="inline-flex items-center text-sm font-normal text-gray-500 hover:text-gray-900 transition-colors mb-4">
+          <ArrowLeft size={16} className="mr-1" /> Back to Campaign
+        </Link>
+      ) : (
+        <Link to="/creators" className="inline-flex items-center text-sm font-normal text-gray-500 hover:text-gray-900 transition-colors mb-4">
+          <ArrowLeft size={16} className="mr-1" /> Back to Directory
+        </Link>
+      )}
 
       <Card>
         <div className="bg-gradient-to-r from-gray-50 to-white px-6 sm:px-8 py-8 border-b border-gray-100 flex flex-col lg:flex-row items-start justify-between gap-8 rounded-t-[12px]">

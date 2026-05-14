@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { 
   getCampaignById, 
   getCampaignLeads, 
@@ -17,14 +17,19 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
-import { ArrowLeft, Sparkles, Activity, Users, Mail, Info, Check, X, Edit2, Tag } from 'lucide-react';
+import { ArrowLeft, Sparkles, Activity, Users, Mail, Info, Check, X, Edit2, Tag, Instagram, Youtube } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../contexts/AuthContext';
 
+import { CreatorPreviewDrawer } from '../components/CreatorPreviewDrawer';
+
 export default function CampaignDetail() {
   const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const fromBrandId = location.state?.fromBrandId;
+  const fromBrandName = location.state?.fromBrandName;
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +40,8 @@ export default function CampaignDetail() {
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [outreachModalMessageType, setOutreachModalMessageType] = useState<string>('initial');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [previewCreator, setPreviewCreator] = useState<Creator | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [brands, setBrands] = useState<any[]>([]);
   const [customCat, setCustomCat] = useState('');
   const [editFormData, setEditFormData] = useState({
@@ -271,8 +278,8 @@ export default function CampaignDetail() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
-      <Link to="/campaigns" className="inline-flex items-center text-sm font-normal text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-widest">
-        <ArrowLeft size={16} className="mr-1" /> Back to Campaigns
+      <Link to={fromBrandId ? `/brands/${fromBrandId}` : "/campaigns"} className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase">
+        <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO {fromBrandId ? 'BRAND' : 'CAMPAIGNS'}
       </Link>
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -287,28 +294,28 @@ export default function CampaignDetail() {
         
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
           <div className="flex flex-col items-start sm:items-end gap-2 sm:pl-6 border-gray-100">
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Campaign Status</span>
-              {['super_admin', 'admin', 'operator'].includes(user?.role || '') ? (
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => handleUpdateStatus(campaign.status === 'active' ? 'inactive' : 'active')}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${campaign.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
-                  >
-                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${campaign.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
-                  </button>
-                  <span className={`text-[10px] font-bold uppercase tracking-widest ${campaign.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
-                    {campaign.status === 'active' ? 'ON' : 'OFF'}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                   <div className={`w-2 h-2 rounded-full ${campaign.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
-                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{campaign.status}</span>
-                </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Campaign Status</span>
+                {['super_admin', 'admin', 'operator'].includes(user?.role || '') && (
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleUpdateStatus(campaign.status === 'active' ? 'inactive' : 'active')}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${campaign.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
+                    >
+                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${campaign.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${campaign.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
+                      {campaign.status === 'active' ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                )}
+                {!['super_admin', 'admin', 'operator'].includes(user?.role || '') && (
+                  <StatusBadge status={campaign.status as any} />
+                )}
+              </div>
+              {['super_admin', 'admin', 'operator'].includes(user?.role || '') && (
+                <StatusBadge status={campaign.status as any} />
               )}
-            </div>
-            <StatusBadge status={campaign.status as any} />
           </div>
           {['super_admin', 'admin', 'operator'].includes(user?.role || '') && (
             <Button 
@@ -326,7 +333,7 @@ export default function CampaignDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
         <Card className="lg:col-span-2">
           <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-[12px]">
-            <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaign Leads ({filteredLeads.length})</h2>
+            <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Creators Leads ({filteredLeads.length})</h2>
           </div>
           {filteredLeads.length === 0 ? (
             <div className="p-16 text-center">
@@ -356,10 +363,36 @@ export default function CampaignDetail() {
                           {(lead.full_name || lead.handle)?.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <Link to={`/creators/${lead.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors">
+                          <button 
+                            onClick={() => {
+                              setPreviewCreator(lead);
+                              setIsPreviewOpen(true);
+                            }}
+                            className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-left"
+                          >
                             {lead.full_name || `@${lead.handle}`}
-                          </Link>
-                          <div className="text-xs text-gray-500">{lead.platform}</div>
+                          </button>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            {((lead.platform || lead.primary_platform)?.toLowerCase() === 'instagram' || lead.has_instagram) && (
+                              <span className="text-[#E1306C]" title="Instagram">
+                                <Instagram size={14} />
+                              </span>
+                            )}
+                            {((lead.platform || lead.primary_platform)?.toLowerCase() === 'youtube' || lead.has_youtube) && (
+                              <span className="text-[#FF0000]" title="YouTube">
+                                <Youtube size={14} />
+                              </span>
+                            )}
+                            {((lead.platform || lead.primary_platform)?.toLowerCase() === 'tiktok' || lead.has_tiktok) && (
+                              <span className="text-gray-900" title="TikTok">
+                                <Activity size={14} />
+                              </span>
+                            )}
+                            {/* Fallback if no icon matches but platform info exists */}
+                            {!(lead.platform || lead.primary_platform || lead.has_instagram || lead.has_youtube || lead.has_tiktok) && lead.platform && (
+                              <span className="text-[10px] text-gray-400 uppercase tracking-widest">{lead.platform}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </Td>
@@ -660,6 +693,12 @@ export default function CampaignDetail() {
           <Edit2 size={24} className="group-hover:rotate-12 transition-transform" />
         </button>
       )}
+      <CreatorPreviewDrawer 
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        creator={previewCreator}
+        campaignId={id || ''}
+      />
     </div>
   );
 }
