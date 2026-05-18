@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   BarChart3, 
@@ -24,6 +24,20 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user } = useAuth();
+  const [clientName, setClientName] = useState<string>('ATS Outreach');
+
+  useEffect(() => {
+    if (user?.user_type === 'client' && user?.client_id) {
+      import('../../lib/api').then((api) => {
+        api.getBrands().then((brandsData) => {
+          if (brandsData && brandsData.length > 0) {
+            const name = brandsData[0]?.Client?.name || 'ATS Outreach';
+            setClientName(name);
+          }
+        }).catch((err) => console.error('Failed to load client name in sidebar', err));
+      });
+    }
+  }, [user]);
   
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: <BarChart3 size={20} /> },
@@ -84,7 +98,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </button>
           <div className="flex items-center gap-2">
             <span className="font-normal text-gray-900 tracking-tight text-sm font-outfit uppercase">
-              ATS Outreach
+              {clientName}
             </span>
           </div>
         </div>

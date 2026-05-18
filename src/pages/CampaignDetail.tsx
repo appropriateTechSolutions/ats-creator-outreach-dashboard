@@ -30,6 +30,7 @@ export default function CampaignDetail() {
   const location = useLocation();
   const fromBrandId = location.state?.fromBrandId;
   const fromBrandName = location.state?.fromBrandName;
+  const fromBrandsList = location.state?.fromBrandsList;
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,6 +79,10 @@ export default function CampaignDetail() {
       });
       const campLeads = await getCampaignLeads(id);
       setLeads(campLeads);
+      setPreviewCreator(prev => {
+        if (!prev) return null;
+        return campLeads.find(c => c.id === prev.id) || prev;
+      });
     } catch (err) {
       console.error(err);
     } finally {
@@ -278,8 +283,11 @@ export default function CampaignDetail() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
-      <Link to={fromBrandId ? `/brands/${fromBrandId}` : "/campaigns"} className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase">
-        <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO {fromBrandId ? 'BRAND' : 'CAMPAIGNS'}
+      <Link 
+        to={fromBrandsList ? "/brands" : (fromBrandId ? `/brands/${fromBrandId}` : "/campaigns")} 
+        className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase"
+      >
+        <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO {fromBrandsList ? 'BRANDS' : (fromBrandId ? 'BRAND' : 'CAMPAIGNS')}
       </Link>
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -317,7 +325,7 @@ export default function CampaignDetail() {
                 <StatusBadge status={campaign.status as any} />
               )}
           </div>
-          {['super_admin', 'admin', 'operator'].includes(user?.role || '') && (
+          {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
             <Button 
               onClick={handleDiscovery} 
               disabled={discovering}
@@ -374,19 +382,37 @@ export default function CampaignDetail() {
                           </button>
                           <div className="flex items-center gap-2 mt-1.5">
                             {((lead.platform || lead.primary_platform)?.toLowerCase() === 'instagram' || lead.has_instagram) && (
-                              <span className="text-[#E1306C]" title="Instagram">
+                              <a 
+                                href={lead.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${lead.handle?.replace(/^@/, '')}`} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-[#E1306C] hover:scale-110 transition-transform"
+                                title="Instagram"
+                              >
                                 <Instagram size={14} />
-                              </span>
+                              </a>
                             )}
                             {((lead.platform || lead.primary_platform)?.toLowerCase() === 'youtube' || lead.has_youtube) && (
-                              <span className="text-[#FF0000]" title="YouTube">
+                              <a 
+                                href={lead.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${lead.handle?.replace(/^@/, '')}`} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-[#FF0000] hover:scale-110 transition-transform"
+                                title="YouTube"
+                              >
                                 <Youtube size={14} />
-                              </span>
+                              </a>
                             )}
                             {((lead.platform || lead.primary_platform)?.toLowerCase() === 'tiktok' || lead.has_tiktok) && (
-                              <span className="text-gray-900" title="TikTok">
+                              <a 
+                                href={lead.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${lead.handle?.replace(/^@/, '')}`} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-gray-900 hover:scale-110 transition-transform"
+                                title="TikTok"
+                              >
                                 <Activity size={14} />
-                              </span>
+                              </a>
                             )}
                             {/* Fallback if no icon matches but platform info exists */}
                             {!(lead.platform || lead.primary_platform || lead.has_instagram || lead.has_youtube || lead.has_tiktok) && lead.platform && (
@@ -698,6 +724,7 @@ export default function CampaignDetail() {
         onClose={() => setIsPreviewOpen(false)}
         creator={previewCreator}
         campaignId={id || ''}
+        onActionComplete={() => fetchData(true)}
       />
     </div>
   );

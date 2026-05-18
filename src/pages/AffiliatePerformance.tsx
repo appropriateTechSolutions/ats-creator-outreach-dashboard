@@ -89,7 +89,7 @@ export default function AffiliatePerformance() {
     <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Affiliate Performance</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Affiliate Performance</h1>
         </div>
         <div className="flex gap-3">
           <select 

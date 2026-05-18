@@ -19,7 +19,7 @@ import {
   Percent
 } from 'lucide-react';
 import * as api from '../lib/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -49,6 +49,7 @@ interface Client {
 
 export default function Brands() {
   const { user } = useAuth();
+  const location = useLocation();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +93,17 @@ export default function Brands() {
       ]);
       
       setBrands(brandsData);
-      setClients(clientsData);
+      
+      if (user?.user_type === 'internal') {
+        setClients(clientsData);
+      } else if (user?.user_type === 'client' && user.client_id) {
+        const clientName = brandsData.find(b => b.Client?.id === user.client_id)?.Client?.name 
+          || brandsData[0]?.Client?.name 
+          || 'Quantum Peak Agencyy';
+        setClients([{ id: user.client_id, name: clientName }]);
+        // Pre-select the client_id for the form
+        setFormData(prev => ({ ...prev, client_id: user.client_id }));
+      }
     } catch (err) {
       console.error('Failed to fetch brands/clients', err);
     } finally {
@@ -102,7 +113,12 @@ export default function Brands() {
 
   useEffect(() => {
     fetchData();
-  }, [selectedClientId, user]);
+    if (location.state?.openCreateModal) {
+      setIsModalOpen(true);
+      // Clear location state to prevent modal reopening on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [selectedClientId, user, location.state]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,7 +165,7 @@ export default function Brands() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Brands</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Brands</h1>
         </div>
         {['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
           <Button 
@@ -206,22 +222,22 @@ export default function Brands() {
             <thead>
               <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
                 <th className="px-8 py-5">Brand</th>
-                <th className="px-8 py-5">Client</th>
-                <th className="px-8 py-5 text-center">Status</th>
+                {user?.user_type === 'internal' && <th className="px-8 py-5">Client</th>}
                 <th className="px-8 py-5 text-center">Campaigns</th>
+                <th className="px-8 py-5 text-center">Status</th>
                 <th className="px-8 py-5 text-right">Registration</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-20">
+                  <td colSpan={user?.user_type === 'internal' ? 5 : 4} className="py-20">
                     <LoadingState message="Retrieving Brand Portfolio..." />
                   </td>
                 </tr>
               ) : filteredBrands.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-20 text-center text-gray-400 italic">
+                  <td colSpan={user?.user_type === 'internal' ? 5 : 4} className="px-8 py-20 text-center text-gray-400 italic">
                     No brands found matching your criteria.
                   </td>
                 </tr>
@@ -240,18 +256,37 @@ export default function Brands() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-6">
-                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">{brand.Client?.name || 'Internal'}</div>
+                    {user?.user_type === 'internal' && (
+                      <td className="px-8 py-6">
+                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">{brand.Client?.name || 'Internal'}</div>
+                      </td>
+                    )}
+                    <td className="px-8 py-6 text-center">
+                      <span 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const campaignList = brand.campaigns || [];
+                          if (campaignList.length === 0) return;
+                          
+                          if (campaignList.length === 1) {
+                            navigate(`/campaigns/${campaignList[0].id}`, { state: { fromBrandsList: true } });
+                          } else {
+                            navigate('/campaigns', { state: { initialSearch: brand.name } });
+                          }
+                        }}
+                        className={`text-xs font-normal px-2.5 py-1 rounded transition-all select-none border ${
+                          brand.campaigns?.length 
+                            ? 'bg-primary-50 text-primary-700 hover:bg-primary-100/80 border-primary-200/50 cursor-pointer hover:scale-105 active:scale-95' 
+                            : 'bg-gray-100 text-gray-400 border-gray-200/50 cursor-not-allowed'
+                        }`}
+                      >
+                        {brand.campaigns?.length || 0}
+                      </span>
                     </td>
                     <td className="px-8 py-6 text-center">
                       <div className="flex justify-center">
                         <StatusBadge status={brand.status as any} />
                       </div>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                        {brand.campaigns?.length || 0}
-                      </span>
                     </td>
                     <td className="px-8 py-6 text-right">
                       <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">

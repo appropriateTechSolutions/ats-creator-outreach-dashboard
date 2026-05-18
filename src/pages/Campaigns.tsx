@@ -5,7 +5,7 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
 import { Drawer } from '../components/ui/Drawer';
 import { Search, Plus, Filter, Target, Megaphone } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { getCampaigns, createCampaign, getBrands } from '../lib/api';
 import { format } from 'date-fns';
 import { Modal } from '../components/ui/Modal';
@@ -30,6 +30,7 @@ interface Campaign {
 
 export default function Campaigns() {
   const { user } = useAuth();
+  const location = useLocation();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +70,13 @@ export default function Campaigns() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Capture brand filter from Brands page click
+  useEffect(() => {
+    if (location.state?.initialSearch) {
+      setSearch(location.state.initialSearch);
+    }
+  }, [location.state]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,7 +190,7 @@ export default function Campaigns() {
     <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaigns</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaigns</h1>
         </div>
         {['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
           <Button 
@@ -223,7 +231,7 @@ export default function Campaigns() {
                 <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
                   <th className="px-8 py-5">Campaign Identity</th>
                   <th className="px-8 py-5">Brand</th>
-                  <th className="px-8 py-5">Client</th>
+                  {user?.user_type === 'internal' && <th className="px-8 py-5">Client</th>}
                   <th className="px-8 py-5 text-center">City</th>
                   <th className="px-8 py-5 text-center">Status</th>
                   <th className="px-8 py-5 text-right">Launch Date</th>
@@ -252,11 +260,13 @@ export default function Campaigns() {
                         {c.Brand?.name || '---'}
                       </div>
                     </td>
-                    <td className="px-8 py-6 align-top">
-                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
-                        {c.Client?.name || '---'}
-                      </div>
-                    </td>
+                    {user?.user_type === 'internal' && (
+                      <td className="px-8 py-6 align-top">
+                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                          {c.Client?.name || '---'}
+                        </div>
+                      </td>
+                    )}
                     <td className="px-8 py-6 text-center align-top">
                       <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
                         {c.city || 'Global'}
@@ -274,7 +284,7 @@ export default function Campaigns() {
                 ))}
                 {filteredCampaigns.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center py-20 text-gray-400 italic">No outreach initiatives mapped.</td>
+                    <td colSpan={user?.user_type === 'internal' ? 6 : 5} className="text-center py-20 text-gray-400 italic">No outreach initiatives mapped.</td>
                   </tr>
                 )}
               </tbody>
@@ -305,13 +315,22 @@ export default function Campaigns() {
               <select
                 required
                 value={formData.brand_id}
-                onChange={e => setFormData({ ...formData, brand_id: e.target.value })}
+                onChange={e => {
+                  if (e.target.value === 'create_new_brand') {
+                    navigate('/brands', { state: { openCreateModal: true } });
+                  } else {
+                    setFormData({ ...formData, brand_id: e.target.value });
+                  }
+                }}
                 className="w-full h-11 px-4 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
               >
                 <option value="">Select Brand</option>
                 {brands.map(b => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
+                {['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
+                  <option value="create_new_brand" className="font-semibold text-primary-600">+ Create Brand</option>
+                )}
               </select>
             </div>
           </div>

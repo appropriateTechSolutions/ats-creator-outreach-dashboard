@@ -113,7 +113,7 @@ export default function Conversations() {
     <div className="space-y-6 max-w-7xl mx-auto h-[calc(100vh-100px)] flex flex-col pb-6 animate-[fadeIn_0.3s_ease]">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Inbox & Conversations</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Inbox & Conversations</h1>
         </div>
         <Button 
           onClick={handleSync} 

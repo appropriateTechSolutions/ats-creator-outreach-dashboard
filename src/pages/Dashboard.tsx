@@ -6,7 +6,7 @@ import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { Users, Mail, MessageSquare, Target, CheckCircle, Activity, AlertCircle, Clock, Sparkles } from 'lucide-react';
+import { Users, Mail, MessageSquare, Target, CheckCircle, Activity, AlertCircle, Clock, Sparkles, Instagram, Youtube } from 'lucide-react';
 import { LoadingState } from '../components/ui/LoadingState';
 import { getCampaigns, getAllCreators, getDashboardStats } from '../lib/api';
 import type { Campaign, Creator } from '../types';
@@ -20,6 +20,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
 
   const fetchStats = (campaignId?: string) => {
     setLoading(true);
@@ -48,6 +49,23 @@ export default function Dashboard() {
     fetchStats(val || undefined);
   };
 
+  // Filter creators based on selectedCampaignId first
+  const filteredCreatorsForStats = creators.filter(c => {
+    if (selectedCampaignId) {
+      const cIds = c.campaign_ids || [c.campaign_id];
+      return cIds.includes(selectedCampaignId);
+    }
+    return true;
+  });
+
+  const approvedCount = filteredCreatorsForStats.filter(c => c.review_status === 'approved').length;
+  const pendingReviewCount = filteredCreatorsForStats.filter(c => c.review_status === 'pending_review').length;
+  const notResponsiveCount = filteredCreatorsForStats.filter(c => c.lifecycle_status === 'not_respond').length;
+  const discoveredCount = filteredCreatorsForStats.filter(c => c.review_status === 'hold' || c.review_status === 'pending' || !c.review_status).length;
+  
+  const sentCount = filteredCreatorsForStats.filter(c => c.lifecycle_status === 'contacted' || c.latest_outreach?.delivery_status === 'sent').length;
+  const failedCount = filteredCreatorsForStats.filter(c => c.lifecycle_status === 'failed' || c.latest_outreach?.delivery_status === 'failed').length;
+
   const topCreators = [...creators]
     .filter(c => {
       // If filtering by campaign, check if this campaign is in the creator's list
@@ -59,6 +77,18 @@ export default function Dashboard() {
     })
     .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
     .slice(0, 10);
+
+  const handleQueueClick = (status: string) => {
+    let targetFilter = '';
+    if (status === 'discovered') targetFilter = 'hold';
+    else if (status === 'pending_review') targetFilter = 'pending';
+    else if (status === 'approved') targetFilter = 'approved';
+    else if (status === 'contacted') targetFilter = 'contacted';
+    else if (status === 'failed') targetFilter = 'failed';
+    else if (status === 'not_respond') targetFilter = 'not_respond';
+    
+    navigate('/creators', { state: { initialStatusFilter: targetFilter } });
+  };
 
   const getPercentLength = (val: number, max: number) => {
     if (max === 0 || val === 0) return '0%';
@@ -92,7 +122,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Dashboard</h1>
         <select 
           value={selectedCampaignId}
           onChange={handleCampaignChange}
@@ -230,56 +260,107 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* Outreach Status */}
-            <Card>
-              <CardHeader>
-                <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">Outreach Queue</h2>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 bg-warning-50 border border-warning-100 rounded-xl flex justify-between items-center">
-                  <div>
-                    <div className="text-xs font-normal text-warning-800 uppercase tracking-widest mb-1">Approved · Pending Send</div>
-                    <div className="text-2xl font-normal text-warning-900">{stats.outreachQueue.pending}</div>
-                  </div>
-                  <div className="w-10 h-10 bg-warning-200 rounded-full flex items-center justify-center text-warning-700"><Mail size={18}/></div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 text-center">
-                    <div className="text-xs font-normal text-gray-400 uppercase tracking-widest mb-1">Total Sent</div>
-                    <div className="text-xl font-normal text-gray-900">{stats.outreachQueue.sent}</div>
-                  </div>
-                  <div className="p-4 bg-error-50 border border-error-100 rounded-xl text-center">
-                    <div className="text-xs font-normal text-error-700 uppercase tracking-widest mb-1">Failed</div>
-                    <div className="text-xl font-normal text-error-600">{stats.outreachQueue.failed}</div>
-                  </div>
-                </div>
-
-
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">Top Discovery Leads</h2>
-              </CardHeader>
-              {topCreators.length === 0 ? (
-                <div className="p-12 text-center text-gray-500">No pending leads. Trigger AI discovery inside a Campaign!</div>
-              ) : (
-                <Table>
-                  <Thead>
-                    <Tr>
-                      <Th>Creator</Th>
-                      <Th>City</Th>
-                      <Th className="text-center">V2 Score</Th>
-                      <Th className="text-center">Relevance</Th>
-                      <Th>Status</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {topCreators.map(c => (
+             {/* Outreach Status */}
+             <Card>
+               <CardHeader className="flex flex-row justify-between items-center pb-2">
+                 <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">Outreach Queue</h2>
+               </CardHeader>
+               <CardContent className="grid grid-cols-2 gap-2">
+                 {/* 1. Discovered (Preview) */}
+                 <div 
+                   onClick={() => handleQueueClick('discovered')}
+                   className="cursor-pointer transition-all border p-3 rounded-xl flex flex-col justify-between bg-gray-50 border-gray-100 hover:bg-gray-100/70 hover:scale-[1.01]"
+                 >
+                   <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-1 text-left">Discovered</p>
+                   <div className="flex justify-between items-end">
+                     <span className="text-lg font-normal text-gray-900 font-outfit">{discoveredCount}</span>
+                     <span className="text-[8px] uppercase tracking-wider bg-gray-200/50 text-gray-600 px-1 py-0.5 rounded font-bold">Preview</span>
+                   </div>
+                 </div>
+ 
+                 {/* 2. Pending Review */}
+                 <div 
+                   onClick={() => handleQueueClick('pending_review')}
+                   className="cursor-pointer transition-all border p-3 rounded-xl flex flex-col justify-between bg-blue-50/20 border-blue-100/50 hover:bg-blue-50/50 hover:scale-[1.01]"
+                 >
+                   <p className="text-[9px] font-normal text-blue-400 uppercase tracking-widest mb-1 text-left">In Review</p>
+                   <div className="flex justify-between items-end">
+                     <span className="text-lg font-normal text-blue-900 font-outfit">{pendingReviewCount}</span>
+                     <span className="text-[8px] uppercase tracking-wider bg-blue-100/50 text-blue-700 px-1 py-0.5 rounded font-bold">Review</span>
+                   </div>
+                 </div>
+ 
+                 {/* 3. Approved */}
+                 <div 
+                   onClick={() => handleQueueClick('approved')}
+                   className="cursor-pointer transition-all border p-3 rounded-xl flex flex-col justify-between bg-amber-50/20 border-amber-100/50 hover:bg-amber-50/50 hover:scale-[1.01]"
+                 >
+                   <p className="text-[9px] font-normal text-amber-500 uppercase tracking-widest mb-1 text-left">Approved</p>
+                   <div className="flex justify-between items-end">
+                     <span className="text-lg font-normal text-amber-900 font-outfit">{approvedCount}</span>
+                     <span className="text-[8px] uppercase tracking-wider bg-amber-100 text-amber-800 px-1 py-0.5 rounded font-bold">Approved</span>
+                   </div>
+                 </div>
+ 
+                 {/* 4. Total Sent */}
+                 <div 
+                   onClick={() => handleQueueClick('contacted')}
+                   className="cursor-pointer transition-all border p-3 rounded-xl flex flex-col justify-between bg-purple-50/20 border-purple-100/50 hover:bg-purple-50/50 hover:scale-[1.01]"
+                 >
+                   <p className="text-[9px] font-normal text-purple-500 uppercase tracking-widest mb-1 text-left">Total Sent</p>
+                   <div className="flex justify-between items-end">
+                     <span className="text-lg font-normal text-purple-900 font-outfit">{sentCount}</span>
+                     <span className="text-[8px] uppercase tracking-wider bg-purple-100 text-purple-800 px-1 py-0.5 rounded font-bold">Sent</span>
+                   </div>
+                 </div>
+ 
+                 {/* 5. Failed */}
+                 <div 
+                   onClick={() => handleQueueClick('failed')}
+                   className="cursor-pointer transition-all border p-3 rounded-xl flex flex-col justify-between bg-rose-50/20 border-rose-100/50 hover:bg-rose-50/50 hover:scale-[1.01]"
+                 >
+                   <p className="text-[9px] font-normal text-rose-500 uppercase tracking-widest mb-1 text-left">Failed</p>
+                   <div className="flex justify-between items-end">
+                     <span className="text-lg font-normal text-rose-950 font-outfit">{failedCount}</span>
+                     <span className="text-[8px] uppercase tracking-wider bg-rose-100 text-rose-800 px-1 py-0.5 rounded font-bold">Failed</span>
+                   </div>
+                 </div>
+ 
+                 {/* 6. Not Responsive */}
+                 <div 
+                   onClick={() => handleQueueClick('not_respond')}
+                   className="cursor-pointer transition-all border p-3 rounded-xl flex flex-col justify-between bg-slate-50 border-slate-100 hover:bg-slate-100/70 hover:scale-[1.01]"
+                 >
+                   <p className="text-[9px] font-normal text-slate-500 uppercase tracking-widest mb-1 text-left">No Response</p>
+                   <div className="flex justify-between items-end">
+                     <span className="text-lg font-normal text-slate-900 font-outfit">{notResponsiveCount}</span>
+                     <span className="text-[8px] uppercase tracking-wider bg-slate-200 text-slate-700 px-1 py-0.5 rounded font-bold">No Ans</span>
+                   </div>
+                 </div>
+               </CardContent>
+             </Card>
+           </div>
+ 
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+             <Card className="lg:col-span-2">
+               <CardHeader>
+                 <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">Top Discovery Leads</h2>
+               </CardHeader>
+               {topCreators.length === 0 ? (
+                 <div className="p-12 text-center text-gray-500">No pending leads. Trigger AI discovery inside a Campaign!</div>
+               ) : (
+                 <Table>
+                   <Thead>
+                     <Tr>
+                       <Th>Creator</Th>
+                       <Th>City</Th>
+                       <Th className="text-center">V2 Score</Th>
+                       <Th className="text-center">Relevance</Th>
+                       <Th>Status</Th>
+                     </Tr>
+                   </Thead>
+                   <Tbody>
+                     {topCreators.map(c => (
                       <Tr key={c.id}>
                         <Td>
                           <div className="flex items-center gap-3">
@@ -290,6 +371,41 @@ export default function Dashboard() {
                                <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 font-outfit uppercase tracking-tight hover:text-primary-600 transition-colors leading-none">
                                  {c.full_name || `@${c.handle}`}
                                </Link>
+                               <div className="flex items-center gap-2 mt-1.5">
+                                 {c.has_instagram && (
+                                   <a 
+                                     href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`} 
+                                     target="_blank" 
+                                     rel="noreferrer" 
+                                     className="text-[#E1306C] hover:scale-110 transition-transform"
+                                     title="Instagram"
+                                   >
+                                     <Instagram size={14} />
+                                   </a>
+                                 )}
+                                 {c.has_youtube && (
+                                   <a 
+                                     href={c.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${c.handle?.replace(/^@/, '')}`} 
+                                     target="_blank" 
+                                     rel="noreferrer" 
+                                     className="text-[#FF0000] hover:scale-110 transition-transform"
+                                     title="YouTube"
+                                   >
+                                     <Youtube size={14} />
+                                   </a>
+                                 )}
+                                 {c.has_tiktok && (
+                                   <a 
+                                     href={c.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`} 
+                                     target="_blank" 
+                                     rel="noreferrer" 
+                                     className="text-gray-900 hover:scale-110 transition-transform"
+                                     title="TikTok"
+                                   >
+                                     <Activity size={14} />
+                                   </a>
+                                 )}
+                               </div>
                             </div>
                           </div>
                         </Td>

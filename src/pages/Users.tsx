@@ -99,7 +99,7 @@ export default function Users() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">User Management</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">User Management</h1>
         </div>
         <Button 
           onClick={() => setIsModalOpen(true)} 

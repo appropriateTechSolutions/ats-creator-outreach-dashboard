@@ -4,8 +4,8 @@ import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { Button } from '../components/ui/Button';
-import { Search, Filter, Download } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, Filter, Download, ArrowLeft } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { getAllCreators, reviewLead, sendSingleOutreach } from '../lib/api';
 import type { Creator } from '../types';
 import { format } from 'date-fns';
@@ -15,6 +15,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function Creators() {
   const { user } = useAuth();
+  const location = useLocation();
   const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -32,6 +33,13 @@ export default function Creators() {
   useEffect(() => {
     fetchCreators();
   }, []);
+
+  // Sync passed location filters from dashboard
+  useEffect(() => {
+    if (location.state?.initialStatusFilter) {
+      setStatusFilter(location.state.initialStatusFilter);
+    }
+  }, [location.state]);
 
   const handleReview = async (id: string, action: 'approve' | 'reject') => {
     setActionLoading(id);
@@ -64,6 +72,14 @@ export default function Creators() {
       return matchesSearch && c.lifecycle_status === 'not_respond';
     }
 
+    if (statusFilter === 'contacted') {
+      return matchesSearch && (c.lifecycle_status === 'contacted' || c.latest_outreach?.delivery_status === 'sent');
+    }
+
+    if (statusFilter === 'failed') {
+      return matchesSearch && (c.lifecycle_status === 'failed' || c.latest_outreach?.delivery_status === 'failed');
+    }
+
     // Default: If a status filter is selected, match it. If not, show all that match search.
     if (!statusFilter) return matchesSearch;
     
@@ -72,9 +88,15 @@ export default function Creators() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
+      {location.state?.initialStatusFilter && (
+        <Link to="/dashboard" className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
+          <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO DASHBOARD
+        </Link>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Global Creator Directory</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Global Creator Directory</h1>
         </div>
       </div>
 
@@ -100,6 +122,8 @@ export default function Creators() {
               <option value="hold">Discovered</option>
               <option value="pending">Pending Review</option>
               <option value="approved">Approved</option>
+              <option value="contacted">Sent (Contacted)</option>
+              <option value="failed">Failed Outreach</option>
               <option value="rejected">Rejected</option>
               <option value="not_respond">Not Responsive</option>
             </select>

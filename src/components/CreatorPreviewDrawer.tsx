@@ -1,10 +1,48 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Drawer } from './ui/Drawer';
 import { Button } from './ui/Button';
 import { StatusBadge } from './ui/StatusBadge';
 import { ScoreBadge } from './ui/ScoreBadge';
-import { Instagram, Youtube, Activity, MapPin, Sparkles, ExternalLink, ArrowRight } from 'lucide-react';
+import { OutreachPreviewModal } from './ui/OutreachPreviewModal';
+import { Modal } from './ui/Modal';
+import { Input } from './ui/Input';
+import { useAuth } from '../contexts/AuthContext';
+import { 
+  getCreatorById,
+  sendSingleOutreach, 
+  linkAffiliate, 
+  findSimilarCreators 
+} from '../lib/api';
+import { 
+  Instagram, 
+  Youtube, 
+  Activity, 
+  MapPin, 
+  Sparkles, 
+  ExternalLink, 
+  ArrowRight,
+  Check, 
+  X, 
+  Mail, 
+  FileText, 
+  Users, 
+  MessageCircle, 
+  ChevronDown, 
+  ChevronUp, 
+  Link as LinkIcon, 
+  Copy, 
+  Calendar, 
+  TrendingUp, 
+  MousePointer2, 
+  ShoppingCart, 
+  DollarSign, 
+  ArrowUpRight, 
+  Clock, 
+  UserCheck,
+  Send,
+  RefreshCw
+} from 'lucide-react';
 import type { Creator } from '../types';
 
 interface CreatorPreviewDrawerProps {
@@ -12,115 +50,759 @@ interface CreatorPreviewDrawerProps {
   onClose: () => void;
   creator: Creator | null;
   campaignId: string;
+  onActionComplete?: () => void;
 }
 
-export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId }: CreatorPreviewDrawerProps) {
+export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onActionComplete }: CreatorPreviewDrawerProps) {
+  const { user: currentUser } = useAuth();
+  const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
+  const [matchExpanded, setMatchExpanded] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [findingSimilar, setFindingSimilar] = useState(false);
+  const [outreachModalOpen, setOutreachModalOpen] = useState(false);
+  const [outreachModalMessageType, setOutreachModalMessageType] = useState<string>('initial');
+  
+  // Full Creator State for Conversation & Outreach logs
+  const [loadingFull, setLoadingFull] = useState(false);
+  const [fullCreator, setFullCreator] = useState<Creator | null>(null);
+
+  // Affiliate Form State
+  const [isAffiliateModalOpen, setIsAffiliateModalOpen] = useState(false);
+  const [affiliateFormData, setAffiliateFormData] = useState({
+    code: '',
+    link: ''
+  });
+
+  // Load full details dynamically when drawer opens
+  useEffect(() => {
+    if (isOpen && creator?.id) {
+      setLoadingFull(true);
+      getCreatorById(creator.id)
+        .then(data => {
+          setFullCreator(data);
+        })
+        .catch(err => {
+          console.error("Error loading full creator details for preview drawer:", err);
+          setFullCreator(null);
+        })
+        .finally(() => {
+          setLoadingFull(false);
+        });
+    } else {
+      setFullCreator(null);
+    }
+  }, [isOpen, creator?.id]);
+
   if (!creator) return null;
 
-  return (
-    <Drawer 
-      isOpen={isOpen} 
-      onClose={onClose} 
-      title="Creator Preview"
-      footer={
-        <Link 
-          to={`/creators/${creator.id}`} 
-          state={{ fromCampaignId: campaignId }}
-          className="block"
-        >
-          <Button className="w-full h-12 uppercase tracking-widest text-[11px] font-normal" icon={<ArrowRight size={16} />}>
-            Open Full Profile
-          </Button>
-        </Link>
+  const activeCreator = fullCreator || creator;
+
+  const refreshFullCreator = () => {
+    if (!creator.id) return;
+    setLoadingFull(true);
+    getCreatorById(creator.id)
+      .then(data => {
+        setFullCreator(data);
+      })
+      .catch(err => {
+        console.error("Error refreshing creator details:", err);
+      })
+      .finally(() => {
+        setLoadingFull(false);
+      });
+  };
+
+  const togglePlatform = (key: string) => {
+    setExpandedPlatforms(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Helper to clean up email signatures and quoted replies
+  const cleanMessageText = (text: string) => {
+    if (!text) return '';
+    const normalizedText = text.replace(/\r/g, '');
+    const lines = normalizedText.split('\n');
+    const cleanedLines = [];
+    
+    for (let line of lines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine && cleanedLines.length === 0) continue; 
+
+      if (
+        /^\s*(On|From|Sent|To|Subject):/i.test(trimmedLine) || 
+        /wrote:$/i.test(trimmedLine) ||
+        trimmedLine.includes('Original Message') ||
+        trimmedLine.startsWith('---') ||
+        trimmedLine.startsWith('___')
+      ) {
+        break;
       }
-    >
-      <div className="space-y-8 pb-8">
-        {/* Header Section */}
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-2xl uppercase shadow-md">
-            {creator.handle?.charAt(0)}
+      
+      if (trimmedLine.startsWith('>') || trimmedLine.startsWith('>>')) {
+        continue;
+      }
+      
+      cleanedLines.push(line);
+    }
+    
+    return cleanedLines.join('\n').trim();
+  };
+
+  const isFollowUpDue = () => {
+    const latest = activeCreator.latest_outreach || (activeCreator as any).latestOutreach;
+    if (!latest) return false;
+    if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
+    if (latest.follow_up_count >= 3) return false;
+    return new Date(latest.next_followup_at) < new Date();
+  };
+
+  const isWaitingForFollowUp = () => {
+    const latest = activeCreator.latest_outreach || (activeCreator as any).latestOutreach;
+    if (!latest) return false;
+    if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
+    if (latest.follow_up_count >= 3) return false;
+    return new Date(latest.next_followup_at) >= new Date();
+  };
+
+  const handleSendOutreach = () => {
+    let type = 'initial';
+    const latest = activeCreator.latest_outreach || (activeCreator as any).latestOutreach;
+    if (isFollowUpDue()) {
+      const followUpNumber = (latest?.follow_up_count || 0) + 1;
+      type = followUpNumber >= 3 ? 'final_ping' : `followup_${followUpNumber}`;
+    }
+    
+    setOutreachModalMessageType(type);
+    setOutreachModalOpen(true);
+  };
+
+  const handleConfirmSendOutreach = async (customSubject?: string, customBody?: string, messageType?: string) => {
+    setSendingEmail(true);
+    try {
+      await sendSingleOutreach(activeCreator.id, campaignId, customSubject, customBody, messageType);
+      alert('Outreach email sent successfully!');
+      setOutreachModalOpen(false);
+      refreshFullCreator(); // Refresh conversation logs instantly!
+      if (onActionComplete) onActionComplete();
+    } catch (err) {
+      alert('Failed to send outreach: ' + err);
+      throw err;
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const handleFindSimilar = async () => {
+    setFindingSimilar(true);
+    try {
+      const res: any = await findSimilarCreators(activeCreator.id, campaignId);
+      alert(`✅ Success: ${res.message || '10 similar influencers found and added to this campaign!'}`);
+      if (onActionComplete) onActionComplete();
+    } catch (err: any) {
+      alert(err || "Failed to find similar influencers.");
+    } finally {
+      setFindingSimilar(false);
+    }
+  };
+
+  const handleLinkAffiliate = async () => {
+    setActionLoading(true);
+    try {
+      await linkAffiliate({
+        creator_id: activeCreator.id,
+        campaign_id: campaignId,
+        affiliate_code: affiliateFormData.code,
+        affiliate_link: affiliateFormData.link
+      });
+      setIsAffiliateModalOpen(false);
+      alert('Affiliate assets linked successfully!');
+      refreshFullCreator(); // Refresh affiliate state instantly!
+      if (onActionComplete) onActionComplete();
+    } catch (err) {
+      alert('Failed to link affiliate info: ' + err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    alert('Affiliate tracking code copied to clipboard!');
+  };
+
+  // Parse scoring_notes safely
+  let scoringNotes = activeCreator.scoring_notes || (activeCreator as any).scoringNotes;
+  if (typeof scoringNotes === 'string') {
+    try { scoringNotes = JSON.parse(scoringNotes); } catch { scoringNotes = {}; }
+  }
+  const breakdown = (scoringNotes as any)?.initial_breakdown || {};
+
+  const platformsList = [
+    { key: 'instagram', label: 'Instagram', icon: <Instagram size={14} className="text-pink-600"/> },
+    { key: 'youtube', label: 'YouTube', icon: <Youtube size={14} className="text-red-600"/> },
+    { key: 'tiktok', label: 'TikTok', icon: <Activity size={14} className="text-black"/> }
+  ];
+
+  // Sort conversation messages
+  const messages = [...(activeCreator.conversation?.messages || [])].sort((a: any, b: any) => 
+    new Date(a.message_time || a.messageTime || Date.now()).getTime() - new Date(b.message_time || b.messageTime || Date.now()).getTime()
+  );
+
+  return (
+    <>
+      <Drawer 
+        isOpen={isOpen} 
+        onClose={onClose} 
+        title="Creator Preview"
+        footer={
+          <Link 
+            to={`/creators/${activeCreator.id}`} 
+            state={{ fromCampaignId: campaignId }}
+            className="block"
+          >
+            <Button className="w-full h-12 uppercase tracking-widest text-[11px] font-normal" icon={<ArrowRight size={16} />}>
+              Open Full Profile
+            </Button>
+          </Link>
+        }
+      >
+        <div className="space-y-8 pb-8">
+          {/* Header Section */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-primary-600 text-white flex flex-shrink-0 items-center justify-center font-normal text-2xl uppercase shadow-md font-outfit">
+              {activeCreator.handle?.charAt(0)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-xl font-normal text-gray-900 font-outfit uppercase tracking-tight truncate leading-tight">
+                {activeCreator.full_name || 'No full name'}
+              </h3>
+              <div className="flex items-center gap-2 mt-1">
+                <a 
+                  href={
+                    (() => {
+                      const igProfile = activeCreator.profiles?.find(p => p.platform.toLowerCase() === 'instagram');
+                      if (igProfile?.profile_url) return igProfile.profile_url;
+                      if (activeCreator.profile_url && !activeCreator.profile_url.includes('scontent')) return activeCreator.profile_url;
+                      return `https://instagram.com/${activeCreator.handle?.replace(/^@/, '')}`;
+                    })()
+                  } 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-gray-500 font-medium text-sm truncate hover:text-primary-600 transition-colors flex items-center gap-1 group"
+                >
+                  <span>@{activeCreator.handle?.replace(/^@/, '')}</span>
+                  <ExternalLink size={14} className="text-gray-300 group-hover:text-primary-400 transition-colors shrink-0" />
+                </a>
+              </div>
+              
+              {/* Category Tags */}
+              <div className="flex flex-wrap gap-1 mt-2">
+                {activeCreator.category?.split(',').map(c => (
+                   <span key={c} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[9px] font-normal uppercase tracking-wider">{c.trim()}</span>
+                ))}
+              </div>
+            </div>
           </div>
-          <div>
-            <h3 className="text-xl font-normal text-gray-900 font-outfit uppercase tracking-tight">{creator.full_name || 'No Name'}</h3>
-            <div className="flex items-center gap-2 text-gray-500 mt-0.5">
-              <span className="text-sm font-medium">@{creator.handle}</span>
-              <a 
-                href={`https://instagram.com/${creator.handle?.replace(/^@/, '')}`} 
-                target="_blank" 
-                rel="noreferrer"
-                className="text-gray-300 hover:text-primary-500"
+
+          {/* Status & Scores */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal">Status</p>
+              <StatusBadge status={['not_respond'].includes(activeCreator.lifecycle_status) ? activeCreator.lifecycle_status : (activeCreator.review_status as any || 'pending')} />
+            </div>
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal">Relevance</p>
+              <ScoreBadge score={activeCreator.relevance_score || 0} />
+            </div>
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal">Readiness</p>
+              <ScoreBadge score={activeCreator.outreach_readiness_score || 0} />
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
+            <div className="flex gap-3">
+              <Button 
+                variant="outline"
+                className="flex-1 border-primary-100 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal"
+                onClick={handleFindSimilar}
+                disabled={findingSimilar}
               >
-                <ExternalLink size={14} />
-              </a>
+                {findingSimilar ? <RefreshCw size={14} className="animate-spin text-primary-600" /> : <Users size={14} className="text-primary-600" />} 
+                {findingSimilar ? 'Searching...' : 'Find Similar'}
+              </Button>
+              <Button 
+                className={`flex-1 ${
+                  isFollowUpDue() 
+                    ? 'bg-amber-600 hover:bg-amber-700 shadow-lg shadow-amber-500/40 animate-pulse' 
+                    : isWaitingForFollowUp()
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed shadow-none border border-gray-300'
+                      : 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/20 text-white'
+                } shadow-xl flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all`}
+                onClick={handleSendOutreach}
+                disabled={sendingEmail || activeCreator.review_status === 'rejected' || isWaitingForFollowUp()}
+              >
+                {sendingEmail ? <RefreshCw size={14} className="animate-spin text-white" /> : (isFollowUpDue() ? <Clock size={14} /> : isWaitingForFollowUp() ? <Clock size={14} className="text-gray-400" /> : <Send size={14} />)} 
+                {isFollowUpDue() 
+                  ? `Follow-up #${((activeCreator.latest_outreach || (activeCreator as any).latestOutreach)?.follow_up_count || 0) + 1}` 
+                  : isWaitingForFollowUp()
+                    ? 'Waiting Reply'
+                    : ((activeCreator.latest_outreach || (activeCreator as any).latestOutreach) ? 'Resend' : 'Send Outreach')}
+              </Button>
+            </div>
+          )}
+
+          {/* Summary Block */}
+          <div className="p-4 bg-primary-50/30 rounded-xl border border-primary-100/50">
+            <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <Sparkles size={12} className="text-primary-600" /> AI Summary
+            </h4>
+            <p className="text-sm text-gray-700 leading-relaxed italic border-l-2 border-primary-200 pl-3">
+              {activeCreator.notes || "AI summary not available for this lead."}
+            </p>
+          </div>
+
+          {/* Bio, Direct Contact & Location */}
+          <div className="space-y-4 pt-1">
+            <div className="flex gap-3">
+              <div className="mt-1 text-primary-600 shrink-0"><FileText size={16} /></div>
+              <div>
+                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">About / Bio</h4>
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  {activeCreator.bio || "No biography provided."}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <div className="mt-1 text-primary-600 shrink-0"><Mail size={16} /></div>
+              <div>
+                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Direct Contact</h4>
+                <p className="text-sm font-normal text-gray-800">
+                  {activeCreator.email || "Email hidden or not found"}
+                </p>
+                {activeCreator.has_email && (
+                  <span className="text-[9px] text-green-600 font-normal flex items-center gap-1 mt-0.5">
+                    <Check size={10} /> Verified Email
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="mt-1 text-primary-600 shrink-0"><MapPin size={16} /></div>
+              <div>
+                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Target Location</h4>
+                <p className="text-sm font-normal text-gray-800 capitalize">
+                  {activeCreator.city ? `${activeCreator.city}${activeCreator.state ? `, ${activeCreator.state}` : ''}${activeCreator.country ? `, ${activeCreator.country}` : ''}` : 'Location Unknown'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Platforms */}
+          <div>
+            <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3">Active Platforms</h4>
+            <div className="flex gap-4">
+              {activeCreator.has_instagram && (
+                <a 
+                  href={activeCreator.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${activeCreator.handle?.replace(/^@/, '')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 text-[#E1306C] hover:scale-105 transition-transform cursor-pointer"
+                >
+                  <Instagram size={18} />
+                  <span className="text-xs font-medium uppercase tracking-wider">Instagram</span>
+                </a>
+              )}
+              {activeCreator.has_youtube && (
+                <a 
+                  href={activeCreator.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${activeCreator.handle?.replace(/^@/, '')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 text-[#FF0000] hover:scale-105 transition-transform cursor-pointer"
+                >
+                  <Youtube size={18} />
+                  <span className="text-xs font-medium uppercase tracking-wider">YouTube</span>
+                </a>
+              )}
+              {activeCreator.has_tiktok && (
+                <a 
+                  href={activeCreator.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${activeCreator.handle?.replace(/^@/, '')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 text-gray-900 hover:scale-105 transition-transform cursor-pointer"
+                >
+                  <Activity size={18} />
+                  <span className="text-xs font-medium uppercase tracking-wider">TikTok</span>
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* Platform-wise Score Breakdown */}
+          <div className="border-t border-gray-100 pt-6">
+            <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+              <UserCheck size={14} className="text-primary-600" /> Score Breakdown
+            </h4>
+            <div className="space-y-4">
+              {platformsList.map(platform => {
+                const pData = breakdown[platform.key];
+                const hasPlatform = activeCreator[`has_${platform.key}` as keyof Creator];
+                
+                if (!pData && !hasPlatform) return null;
+
+                const score = pData?.score || 0;
+                const profile = activeCreator.profiles?.find(p => p.platform.toLowerCase() === platform.key);
+                const isExpanded = expandedPlatforms[platform.key];
+                
+                return (
+                  <div key={platform.key} className="bg-gray-50 border border-gray-200 rounded-xl p-4 shadow-sm">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2 font-normal text-gray-800 text-xs uppercase tracking-wide">
+                        {platform.icon} {platform.label}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`text-sm font-normal ${
+                          score >= 70 ? 'text-green-600' :
+                          score >= 40 ? 'text-primary-600' : 'text-gray-500'
+                        }`}>
+                          {score} <span className="text-[10px] text-gray-400 font-medium">/ 100</span>
+                        </div>
+                        <button 
+                          onClick={() => togglePlatform(platform.key)}
+                          className="p-1 hover:bg-gray-200 rounded-full transition-colors text-gray-400"
+                        >
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {profile && (
+                      <div className="flex gap-4 mt-3 pt-3 border-t border-gray-200/50">
+                        <div className="flex-1">
+                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Followers</p>
+                          <p className="text-xs font-normal text-gray-900 flex items-center gap-1">
+                            <Users size={10} className="text-gray-400" />
+                            {profile.followers?.toLocaleString() || 'N/A'}
+                          </p>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Engagement</p>
+                          <p className="text-xs font-normal text-gray-900">
+                            {profile.engagement_rate ? `${(Number(profile.engagement_rate) * 100).toFixed(2)}%` : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {isExpanded && (
+                      <div className="animate-[fadeIn_0.2s_ease]">
+                        {pData?.breakdown ? (
+                          <div className="space-y-1.5 mt-3 pt-3 border-t border-gray-200/50">
+                            {Object.entries(pData.breakdown).map(([key, val]) => (
+                               <div key={key} className="flex justify-between items-center text-[11px]">
+                                 <span className="text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
+                                 <span className="font-normal text-gray-700">+{val as number} points</span>
+                               </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-gray-400 italic mt-3 pt-3 border-t border-gray-200/50">No algorithm points available.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Match Breakdown */}
+          <div className="border-t border-gray-100 pt-6">
+            <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-normal text-gray-900 uppercase tracking-widest">Total Relevance Match</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base font-normal text-primary-600">{Math.round(Number(activeCreator.relevance_score) || 0)}%</span>
+                  <button 
+                    onClick={() => setMatchExpanded(!matchExpanded)}
+                    className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-400"
+                  >
+                    {matchExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                </div>
+              </div>
+              
+              {matchExpanded && (
+                <div className="space-y-2 pl-3 border-l-2 border-primary-100 animate-[fadeIn_0.2s_ease]">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-500 font-medium">City Match</span>
+                    <span className="font-normal text-gray-900">{Number(activeCreator.relevance_score) >= 33 ? '+33.3%' : '0%'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-500 font-medium">Niche Match</span>
+                    <span className="font-normal text-gray-900">{Number(activeCreator.relevance_score) >= 66 ? '+33.3%' : '0%'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-500 font-medium">Keyword Match</span>
+                    <span className="font-normal text-gray-900">
+                      {Number(activeCreator.relevance_score) >= 67 
+                        ? `+${(Number(activeCreator.relevance_score) - 66.6).toFixed(1)}%` 
+                        : Number(activeCreator.relevance_score) > 33 && Number(activeCreator.relevance_score) < 66
+                          ? `+${(Number(activeCreator.relevance_score) - 33.3).toFixed(1)}%`
+                          : '0%'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Conversation History */}
+          <div className="border-t border-gray-100 pt-6">
+            <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <MessageCircle size={14} className="text-primary-600" /> Conversation History
+            </h4>
+            <div className="max-h-[300px] overflow-y-auto p-4 rounded-xl bg-gray-50 border border-gray-200/60 space-y-4">
+              {loadingFull ? (
+                <div className="flex flex-col items-center justify-center py-8 gap-2 text-gray-400">
+                  <RefreshCw size={18} className="animate-spin text-primary-500" />
+                  <span className="text-xs font-outfit uppercase tracking-wider text-[10px]">Loading conversations...</span>
+                </div>
+              ) : messages.length === 0 && 
+                 (!activeCreator.outreach_logs || activeCreator.outreach_logs.length === 0) &&
+                 (!(activeCreator as any).OutreachLogs || (activeCreator as any).OutreachLogs.length === 0) ? (
+                <div className="text-center py-6 text-gray-400 italic text-xs">
+                  No outreach or conversations found.
+                </div>
+              ) : (
+                <div className="space-y-4 animate-[fadeIn_0.2s_ease]">
+                  {(() => {
+                    const combined = [
+                      ...(activeCreator.outreach_logs || (activeCreator as any).OutreachLogs || []).map((log: any) => {
+                        const logTime = log.sent_at || log.sentAt || log.created_at || log.createdAt || Date.now();
+                        return {
+                          type: 'outreach',
+                          direction: 'outbound',
+                          channel: log.channel,
+                          subject: log.subject_line,
+                          text: log.message_content,
+                          time: new Date(logTime).getTime()
+                        };
+                      }),
+                      ...messages.map((msg: any) => ({
+                        type: 'message',
+                        direction: msg.direction,
+                        channel: msg.channel,
+                        text: msg.message_text,
+                        time: new Date(msg.message_time || msg.messageTime || Date.now()).getTime()
+                      }))
+                    ].sort((a, b) => a.time - b.time);
+
+                    return combined.map((item, idx) => (
+                      <div key={idx} className={`flex flex-col ${item.direction === 'inbound' ? 'items-start mr-auto' : 'items-end ml-auto'} max-w-[90%]`}>
+                        <div className={`p-3 rounded-xl shadow-sm text-xs ${
+                          item.direction === 'inbound' 
+                            ? 'bg-white text-gray-900 rounded-tl-none border border-gray-200' 
+                            : 'bg-indigo-600 text-white rounded-tr-none'
+                        }`}>
+                          <p className={`text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1 ${
+                            item.direction === 'inbound' ? 'text-gray-500' : 'text-indigo-100'
+                          }`}>
+                            {item.direction === 'inbound' ? 'Influencer' : 'ATS Agent'}
+                          </p>
+                          {item.subject && <p className="font-bold border-b pb-1 mb-1 border-gray-200">Sub: {item.subject}</p>}
+                          <p className="whitespace-pre-wrap leading-relaxed font-medium">
+                            {item.type === 'message' ? cleanMessageText(item.text) : (item.text || 'Outreach sent.')}
+                          </p>
+                        </div>
+                        <span className="text-[8px] text-gray-400 mt-1 font-semibold">
+                          {new Date(item.time).toLocaleString()}
+                        </span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Meeting Options */}
+          <div className="border-t border-gray-100 pt-6">
+            <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <Calendar size={14} className="text-primary-600" /> Meeting Options
+            </h4>
+            <div className="space-y-3">
+              <div className="flex items-center justify-center bg-primary-50/40 rounded-xl border border-primary-100/60 py-4 flex-col gap-1">
+                <p className="text-[9px] text-primary-400 uppercase tracking-widest font-normal">No meeting scheduled</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => alert('Meeting Scheduler Integration Coming Soon')}
+                className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 shadow-sm text-[10px] uppercase tracking-widest rounded-xl py-2.5 transition-colors font-normal"
+              >
+                <Calendar size={14} className="text-primary-600" />
+                <span>Schedule Meeting</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Affiliate Assets */}
+          <div className="border-t border-gray-100 pt-6">
+            <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <LinkIcon size={14} className="text-primary-600" /> Affiliate Info
+            </h4>
+            {activeCreator.affiliate_code || activeCreator.affiliate_link || (activeCreator as any).AffiliateTracking?.affiliate_code ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
+                  <div>
+                    <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest">Tracking Code</p>
+                    <p className="text-xs font-normal text-gray-900 font-outfit uppercase">
+                      {activeCreator.affiliate_code || (activeCreator as any).AffiliateTracking?.affiliate_code || '---'}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => handleCopyCode(activeCreator.affiliate_code || (activeCreator as any).AffiliateTracking?.affiliate_code)}
+                    className="text-primary-500 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
+                {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
+                  <Button
+                    variant="outline"
+                    className="w-full text-[10px] uppercase tracking-widest font-normal h-10"
+                    onClick={() => {
+                      setAffiliateFormData({
+                        code: activeCreator.affiliate_code || (activeCreator as any).AffiliateTracking?.affiliate_code || '',
+                        link: activeCreator.affiliate_link || (activeCreator as any).AffiliateTracking?.affiliate_link || ''
+                      });
+                      setIsAffiliateModalOpen(true);
+                    }}
+                  >
+                    Manage Assets
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex flex-col items-center justify-center bg-gray-50 rounded-xl border border-dashed border-gray-200 py-4 gap-1">
+                  <LinkIcon size={18} className="text-gray-300" />
+                  <p className="text-[9px] text-gray-400 uppercase tracking-widest">No assets linked</p>
+                </div>
+                {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
+                  <Button
+                    className="w-full bg-primary-600 hover:bg-primary-700 shadow-md text-[10px] uppercase tracking-widest font-normal h-10"
+                    onClick={() => {
+                      setAffiliateFormData({ code: '', link: '' });
+                      setIsAffiliateModalOpen(true);
+                    }}
+                  >
+                    Link Assets
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ROI Performance Metrics */}
+          <div className="border-t border-gray-100 pt-6">
+            <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <TrendingUp size={14} className="text-primary-600" /> Affiliate Performance
+            </h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                  <MousePointer2 size={10} /> Clicks
+                </p>
+                <p className="text-base font-normal text-gray-900 font-outfit">{activeCreator.AffiliateTracking?.clicks || 0}</p>
+              </div>
+              <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                  <ShoppingCart size={10} /> Sales
+                </p>
+                <p className="text-base font-normal text-gray-900 font-outfit">{activeCreator.AffiliateTracking?.conversions || 0}</p>
+              </div>
+              <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                  <DollarSign size={10} /> Revenue
+                </p>
+                <p className="text-base font-normal text-emerald-600 font-outfit">
+                  ${Number(activeCreator.AffiliateTracking?.revenue_generated || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                  <ArrowUpRight size={10} /> Commission
+                </p>
+                <p className="text-base font-normal text-primary-600 font-outfit">
+                  ${Number(activeCreator.AffiliateTracking?.commission_owed || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+              </div>
             </div>
           </div>
         </div>
+      </Drawer>
 
-        {/* Status & Scores */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-2 font-normal">Status</p>
-            <StatusBadge status={['not_respond'].includes(creator.lifecycle_status) ? creator.lifecycle_status : (creator.review_status as any || 'pending')} />
+      {/* Outreach Preview Modal */}
+      {outreachModalOpen && (
+        <OutreachPreviewModal
+          isOpen={outreachModalOpen}
+          onClose={() => setOutreachModalOpen(false)}
+          onConfirm={handleConfirmSendOutreach}
+          creatorName={activeCreator.full_name || activeCreator.handle}
+          campaignName={campaignId}
+          messageType={outreachModalMessageType}
+          loading={sendingEmail}
+        />
+      )}
+
+      {/* Link Affiliate Modal */}
+      {isAffiliateModalOpen && (
+        <Modal
+          isOpen={isAffiliateModalOpen}
+          onClose={() => setIsAffiliateModalOpen(false)}
+          title="Link Affiliate Assets"
+        >
+          <div className="space-y-4 p-4">
+            <div>
+              <label className="block text-xs font-normal text-gray-500 uppercase tracking-widest mb-1.5 font-outfit">Affiliate Code *</label>
+              <Input
+                required
+                value={affiliateFormData.code}
+                onChange={e => setAffiliateFormData({ ...affiliateFormData, code: e.target.value })}
+                placeholder="e.g. ATS_INFLUENCER_10"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-normal text-gray-500 uppercase tracking-widest mb-1.5 font-outfit">Affiliate Link</label>
+              <Input
+                value={affiliateFormData.link}
+                onChange={e => setAffiliateFormData({ ...affiliateFormData, link: e.target.value })}
+                placeholder="https://brand.com/discount?code=..."
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-3 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setIsAffiliateModalOpen(false)}
+                className="uppercase tracking-widest text-[10px] font-normal"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleLinkAffiliate}
+                disabled={actionLoading || !affiliateFormData.code}
+                className="bg-primary-600 hover:bg-primary-700 text-white uppercase tracking-widest text-[10px] font-normal"
+              >
+                {actionLoading ? 'Saving...' : 'Link Assets'}
+              </Button>
+            </div>
           </div>
-          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-2 font-normal">Relevance</p>
-            <ScoreBadge score={creator.relevance_score || 0} />
-          </div>
-        </div>
-
-        {/* Summary */}
-        <div>
-          <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-            <Sparkles size={12} className="text-primary-600" /> AI Summary
-          </h4>
-          <p className="text-sm text-gray-700 leading-relaxed italic border-l-2 border-primary-200 pl-4">
-            {creator.notes || "AI summary not available for this lead."}
-          </p>
-        </div>
-
-        {/* Bio */}
-        <div>
-          <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-2">About / Bio</h4>
-          <p className="text-sm text-gray-600 leading-relaxed">
-            {creator.bio || "No biography provided."}
-          </p>
-        </div>
-
-        {/* Location */}
-        <div>
-          <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-            <MapPin size={12} className="text-gray-400" /> Location
-          </h4>
-          <p className="text-sm text-gray-800 capitalize">
-            {creator.city ? `${creator.city}${creator.country ? `, ${creator.country}` : ''}` : 'Location Unknown'}
-          </p>
-        </div>
-
-        {/* Platforms */}
-        <div>
-          <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3">Active Platforms</h4>
-          <div className="flex gap-4">
-            {creator.has_instagram && (
-              <div className="flex items-center gap-1.5 text-[#E1306C]">
-                <Instagram size={18} />
-                <span className="text-xs font-medium uppercase tracking-wider">Instagram</span>
-              </div>
-            )}
-            {creator.has_youtube && (
-              <div className="flex items-center gap-1.5 text-[#FF0000]">
-                <Youtube size={18} />
-                <span className="text-xs font-medium uppercase tracking-wider">YouTube</span>
-              </div>
-            )}
-            {creator.has_tiktok && (
-              <div className="flex items-center gap-1.5 text-gray-900">
-                <Activity size={18} />
-                <span className="text-xs font-medium uppercase tracking-wider">TikTok</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </Drawer>
+        </Modal>
+      )}
+    </>
   );
 }

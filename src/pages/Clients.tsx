@@ -120,7 +120,7 @@ export default function Clients() {
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Clients</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Clients</h1>
         </div>
         {['super_admin', 'admin'].includes(user?.role || '') && (
           <Button 

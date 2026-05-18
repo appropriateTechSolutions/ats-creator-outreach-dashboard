@@ -133,7 +133,7 @@ export default function Meetings() {
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Meetings & Conversions</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Meetings & Conversions</h1>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
           {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (

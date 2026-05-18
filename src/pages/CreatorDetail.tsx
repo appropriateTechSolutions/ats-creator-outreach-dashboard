@@ -241,12 +241,12 @@ export default function CreatorDetail() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
       {fromCampaignId ? (
-        <Link to={`/campaigns/${fromCampaignId}`} className="inline-flex items-center text-sm font-normal text-gray-500 hover:text-gray-900 transition-colors mb-4">
-          <ArrowLeft size={16} className="mr-1" /> Back to Campaign
+        <Link to={`/campaigns/${fromCampaignId}`} className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
+          <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO CAMPAIGN
         </Link>
       ) : (
-        <Link to="/creators" className="inline-flex items-center text-sm font-normal text-gray-500 hover:text-gray-900 transition-colors mb-4">
-          <ArrowLeft size={16} className="mr-1" /> Back to Directory
+        <Link to="/creators" className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
+          <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO DIRECTORY
         </Link>
       )}
 

@@ -86,7 +86,7 @@ export default function ReviewQueue() {
     return (
       <div className="space-y-6 max-w-4xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Review Queue</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Review Queue</h1>
         </div>
         <Card className="p-16 text-center border-dashed border-2 border-primary-200 bg-primary-50/30">
           <div className="w-16 h-16 bg-primary-100 text-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -103,7 +103,7 @@ export default function ReviewQueue() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
       <div className="flex justify-between items-center mb-2">
-        <h1 className="text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Review Queue</h1>
+        <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Review Queue</h1>
         <div className="text-sm font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-full uppercase tracking-widest">
           {currentIndex + 1} of {queue.length} Pending
         </div>
