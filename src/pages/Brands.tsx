@@ -268,11 +268,13 @@ export default function Brands() {
                           const campaignList = brand.campaigns || [];
                           if (campaignList.length === 0) return;
                           
-                          if (campaignList.length === 1) {
-                            navigate(`/campaigns/${campaignList[0].id}`, { state: { fromBrandsList: true } });
-                          } else {
-                            navigate('/campaigns', { state: { initialSearch: brand.name } });
-                          }
+                          navigate('/campaigns', { 
+                            state: { 
+                              selectedBrandId: brand.id, 
+                              selectedBrandName: brand.name, 
+                              fromBrandsList: true 
+                            } 
+                          });
                         }}
                         className={`text-xs font-normal px-2.5 py-1 rounded transition-all select-none border ${
                           brand.campaigns?.length 

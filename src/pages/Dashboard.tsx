@@ -224,7 +224,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-4">
                     <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">New</div>
                     <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
-                      <div className="bg-gradient-to-r from-slate-400 to-slate-500 h-full transition-all shadow-inner" style={{ width: '100%' }}></div>
+                      <div className="bg-gradient-to-r from-slate-400 to-slate-500 h-full transition-all shadow-inner" style={{ width: stats.kpis.totalCreators.value === 0 ? '0%' : '100%' }}></div>
                     </div>
                     <div className="w-12 text-sm font-bold text-gray-900">{stats.kpis.totalCreators.value}</div>
                   </div>

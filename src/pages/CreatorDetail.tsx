@@ -463,7 +463,7 @@ export default function CreatorDetail() {
                         <div className="flex-1">
                           <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Engagement</p>
                           <p className="text-sm font-normal text-gray-900">
-                            {profile.engagement_rate ? `${(Number(profile.engagement_rate) * 100).toFixed(2)}%` : 'N/A'}
+                            {profile.engagement_rate ? `${Number(profile.engagement_rate).toFixed(2)}%` : 'N/A'}
                           </p>
                         </div>
                       </div>

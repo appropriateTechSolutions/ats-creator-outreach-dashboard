@@ -139,7 +139,7 @@ export default function ReviewQueue() {
                  </div>
                  <div className="flex justify-between items-center">
                    <span className="text-sm text-gray-600">Engagement</span>
-                   <span className="font-normal text-gray-900">{currentLead.engagement_rate ? `${(currentLead.engagement_rate * 100).toFixed(1)}%` : '-'}</span>
+                   <span className="font-normal text-gray-900">{currentLead.engagement_rate ? `${(currentLead.engagement_rate).toFixed(1)}%` : '-'}</span>
                  </div>
                  <div className="flex justify-between items-center">
                    <span className="text-sm text-gray-600">Category</span>

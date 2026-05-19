@@ -491,7 +491,7 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
                         <div className="flex-1">
                           <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Engagement</p>
                           <p className="text-xs font-normal text-gray-900">
-                            {profile.engagement_rate ? `${(Number(profile.engagement_rate) * 100).toFixed(2)}%` : 'N/A'}
+                            {profile.engagement_rate ? `${Number(profile.engagement_rate).toFixed(2)}%` : 'N/A'}
                           </p>
                         </div>
                       </div>

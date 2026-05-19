@@ -84,6 +84,7 @@ export default function ClientDetail() {
   const [isAddBrandModalOpen, setIsAddBrandModalOpen] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const navigate = useNavigate();
   
   // Invite Form State
@@ -156,8 +157,12 @@ export default function ClientDetail() {
 
   const handleDeleteClient = async () => {
     if (!id || !client) return;
-    if (!window.confirm(`Are you sure you want to delete?`)) return;
-    
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteClient = async () => {
+    if (!id || !client) return;
+    setShowDeleteConfirm(false);
     setUpdateLoading(true);
     try {
       await api.deleteClient(id);
@@ -965,6 +970,39 @@ export default function ClientDetail() {
                 </Button>
               </div>
             </form>
+          </Card>
+        </div>
+      )}
+
+      {/* Custom Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <Card className="w-full max-w-sm border-none shadow-3xl bg-white rounded-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={32} />
+              </div>
+              <h3 className="text-xl font-normal text-gray-900 mb-2 font-outfit uppercase tracking-tight">Delete Tenant?</h3>
+              <p className="text-sm font-normal text-gray-500 mb-6 font-outfit">
+                Are you sure you want to permanently delete <strong className="text-gray-900">{client.name}</strong>?
+              </p>
+              <div className="flex gap-3">
+                <Button 
+                  variant="ghost" 
+                  className="flex-1 font-normal uppercase tracking-widest text-[10px]"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-normal uppercase tracking-widest text-[10px] shadow-xl shadow-red-500/20"
+                  onClick={confirmDeleteClient}
+                  disabled={updateLoading}
+                >
+                  {updateLoading ? <LoadingState mini /> : 'Delete Client'}
+                </Button>
+              </div>
+            </div>
           </Card>
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   BarChart3, 
@@ -12,7 +12,9 @@ import {
   Menu,
   Building2,
   Briefcase,
-  Layout
+  Layout,
+  LogOut,
+  ChevronUp
 } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
@@ -23,8 +25,22 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [clientName, setClientName] = useState<string>('ATS Outreach');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     if (user?.user_type === 'client' && user?.client_id) {
@@ -135,6 +151,36 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               </NavLink>
             ))}
           </nav>
+        </div>
+
+        {/* Profile Footer with Dropdown */}
+        <div className="relative border-t border-gray-200 bg-gray-50" ref={menuRef}>
+          {menuOpen && (
+            <div className="absolute bottom-full left-2 right-2 mb-2 bg-white border border-gray-200 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] py-1 z-50 animate-[fadeIn_0.1s_ease]">
+              <button
+                onClick={() => { setMenuOpen(false); logout(); }}
+                className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors"
+              >
+                <LogOut size={16} /> <span className="font-normal uppercase tracking-widest text-[10px]">Logout</span>
+              </button>
+            </div>
+          )}
+          
+          <button 
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="w-full p-4 flex items-center justify-between hover:bg-gray-100 transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-transparent group-hover:ring-primary-200 transition-all">
+                {user?.full_name?.substring(0, 2) || 'US'}
+              </div>
+              <div className="text-left overflow-hidden">
+                <div className="text-sm font-normal text-gray-700 leading-tight font-outfit uppercase tracking-tight truncate max-w-[110px]">{user?.full_name || 'Admin User'}</div>
+                <div className="text-[10px] uppercase tracking-wider text-gray-500 mt-0.5 truncate max-w-[110px]">{user?.role?.replace('client_', '').replace('_', ' ') || 'Role'}</div>
+              </div>
+            </div>
+            <ChevronUp size={16} className={`text-gray-400 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`} />
+          </button>
         </div>
       </aside>
     </>

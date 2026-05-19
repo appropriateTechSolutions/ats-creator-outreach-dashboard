@@ -4,7 +4,7 @@ import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
 import { Drawer } from '../components/ui/Drawer';
-import { Search, Plus, Filter, Target, Megaphone } from 'lucide-react';
+import { Search, Plus, Filter, Target, Megaphone, ArrowLeft } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { getCampaigns, createCampaign, getBrands } from '../lib/api';
 import { format } from 'date-fns';
@@ -20,7 +20,9 @@ interface Campaign {
   city: string;
   category: string;
   created_at: string;
+  brand_id?: string;
   Brand?: {
+    id?: string;
     name: string;
   };
   Client?: {
@@ -37,6 +39,8 @@ export default function Campaigns() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [customCat, setCustomCat] = useState('');
   const [search, setSearch] = useState('');
+  const [selectedBrandIdFilter, setSelectedBrandIdFilter] = useState<string | null>(null);
+  const [selectedBrandNameFilter, setSelectedBrandNameFilter] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Form State
@@ -75,6 +79,12 @@ export default function Campaigns() {
   useEffect(() => {
     if (location.state?.initialSearch) {
       setSearch(location.state.initialSearch);
+    }
+    if (location.state?.selectedBrandId) {
+      setSelectedBrandIdFilter(location.state.selectedBrandId);
+    }
+    if (location.state?.selectedBrandName) {
+      setSelectedBrandNameFilter(location.state.selectedBrandName);
     }
   }, [location.state]);
 
@@ -177,6 +187,11 @@ export default function Campaigns() {
   ];
 
   const filteredCampaigns = campaigns.filter(c => {
+    // Brand Filter
+    if (selectedBrandIdFilter && c.brand_id !== selectedBrandIdFilter && c.Brand?.id !== selectedBrandIdFilter) {
+      return false;
+    }
+
     const searchLower = search.toLowerCase();
     return (
       c.name.toLowerCase().includes(searchLower) ||
@@ -187,7 +202,15 @@ export default function Campaigns() {
   });
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
+      {location.state?.fromBrandsList && (
+        <Link 
+          to="/brands" 
+          className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-4"
+        >
+          <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO BRANDS
+        </Link>
+      )}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaigns</h1>
@@ -240,7 +263,13 @@ export default function Campaigns() {
               <tbody className="divide-y divide-gray-50">
                 {filteredCampaigns.map(c => (
                   <tr key={c.id} 
-                    onClick={() => navigate(`/campaigns/${c.id}`)}
+                    onClick={() => navigate(`/campaigns/${c.id}`, {
+                      state: {
+                        fromBrandsList: location.state?.fromBrandsList,
+                        fromBrandId: selectedBrandIdFilter,
+                        fromBrandName: selectedBrandNameFilter
+                      }
+                    })}
                     className="hover:bg-primary-50/30 transition-all group cursor-pointer"
                   >
                     <td className="px-8 py-6 align-top">

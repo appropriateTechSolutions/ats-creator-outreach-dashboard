@@ -20,6 +20,7 @@ export default function Users() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [isNewClient, setIsNewClient] = useState(false);
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -230,8 +231,8 @@ export default function Users() {
       {/* Invite Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-md p-4">
-          <Card className="w-full max-w-md border-none shadow-3xl animate-in zoom-in-95 duration-200 bg-white rounded-2xl">
-            <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/30 rounded-t-2xl">
+          <Card className="w-full max-w-md border-none shadow-3xl animate-in zoom-in-95 duration-200 bg-white rounded-2xl flex flex-col max-h-[90vh]">
+            <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/30 rounded-t-2xl shrink-0">
               <h2 className="text-xl font-normal uppercase tracking-tight flex items-center gap-2 text-gray-900 font-outfit">
                 <UserPlus className="text-primary-600" size={24} /> Invite New User
               </h2>
@@ -240,7 +241,7 @@ export default function Users() {
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto flex-1">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Full Name</label>
                 <div className="relative">
@@ -319,34 +320,58 @@ export default function Users() {
                   <label className="text-[10px] font-normal text-primary-600 uppercase tracking-widest flex items-center gap-2">
                     <Building2 size={14} /> Client Assignment
                   </label>
-                  <div className="flex gap-2 mt-2">
-                    <select 
-                      className="flex-1 rounded-xl border border-gray-100 bg-white p-3 text-sm font-normal text-gray-900 outline-none shadow-sm uppercase tracking-tight font-outfit"
-                      value={formData.client_id}
-                      onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                    >
-                      <option value="">Select Existing Client</option>
-                      {clients.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                      <option value="new">-- New Tenant ID --</option>
-                    </select>
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      onClick={generateUUID}
-                      className="h-12 w-12 p-0 border border-primary-100 bg-white flex items-center justify-center rounded-xl hover:bg-white"
-                    >
-                      <Wand2 size={18} className="text-primary-600" />
-                    </Button>
-                  </div>
-                  {formData.client_id === 'new' && (
-                    <Input
-                      placeholder="Enter new Tenant UUID"
-                      className="mt-3 bg-white font-mono text-xs"
-                      value={formData.client_id}
-                      onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                    />
+                  
+                  {!isNewClient ? (
+                    <div className="flex gap-2 mt-2">
+                      <select 
+                        className="flex-1 rounded-xl border border-gray-100 bg-white p-3 text-sm font-normal text-gray-900 outline-none shadow-sm uppercase tracking-tight font-outfit"
+                        value={formData.client_id}
+                        onChange={(e) => {
+                          if (e.target.value === 'new') {
+                            setIsNewClient(true);
+                            setFormData({ ...formData, client_id: '' });
+                          } else {
+                            setFormData({ ...formData, client_id: e.target.value });
+                          }
+                        }}
+                      >
+                        <option value="">Select Existing Client</option>
+                        {clients.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                        <option value="new">-- Enter New Tenant ID --</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 mt-2 flex-col">
+                      <div className="flex gap-2">
+                         <Input
+                          placeholder="Enter new Tenant UUID"
+                          className="flex-1 bg-white font-mono text-xs"
+                          value={formData.client_id}
+                          onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
+                        />
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          onClick={generateUUID}
+                          className="h-[46px] w-[46px] p-0 border border-primary-100 bg-white flex shrink-0 items-center justify-center rounded-xl hover:bg-white transition-all shadow-sm"
+                          title="Generate Random UUID"
+                        >
+                          <Wand2 size={18} className="text-primary-600" />
+                        </Button>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setIsNewClient(false);
+                          setFormData({ ...formData, client_id: '' });
+                        }}
+                        className="text-[10px] font-normal text-gray-400 hover:text-gray-900 text-left uppercase tracking-widest transition-colors mt-1 inline-flex w-fit"
+                      >
+                        ← Back to existing clients
+                      </button>
+                    </div>
                   )}
                 </div>
               )}

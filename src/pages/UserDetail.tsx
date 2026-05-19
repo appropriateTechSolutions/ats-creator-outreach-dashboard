@@ -51,6 +51,7 @@ export default function UserDetail() {
   const [userData, setUserData] = useState<UserDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -107,8 +108,12 @@ export default function UserDetail() {
 
   const handleDeleteUser = async () => {
     if (!id || !userData) return;
-    if (!window.confirm(`Are you sure you want to delete?`)) return;
-    
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!id || !userData) return;
+    setShowDeleteConfirm(false);
     setActionLoading(true);
     try {
       await api.deleteUser(id);
@@ -240,13 +245,7 @@ export default function UserDetail() {
                 </td>
               </tr>
               <tr>
-                <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">System Identity Type</td>
-                <td className="px-8 py-5">
-                  <span className="text-sm font-normal text-gray-900 uppercase tracking-widest">{userData.user_type}</span>
-                </td>
-              </tr>
-              <tr>
-                <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Assigned Client</td>
+                <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Client</td>
                 <td className="px-8 py-5 text-sm font-normal text-gray-900 uppercase tracking-tight flex items-center gap-2 font-outfit">
                   <Building2 size={14} className="text-gray-400" />
                   {userData.Client?.name || 'Internal - All Access'}
@@ -276,7 +275,7 @@ export default function UserDetail() {
               </td>
             </tr>
             <tr>
-              <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Identity Status</td>
+                <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Status</td>
               <td className="px-8 py-5">
                 <div className="flex items-center gap-2">
                   {userData.status === 'active' ? <UserCheck className="text-green-500" size={16} /> : 
@@ -306,7 +305,7 @@ export default function UserDetail() {
         <table className="w-full text-left">
           <tbody className="divide-y divide-gray-50">
             <tr>
-              <td className="px-8 py-5 w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Intelligence Creation</td>
+                <td className="px-8 py-5 w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Created</td>
               <td className="px-8 py-5 text-sm font-normal text-gray-900">
                 <div className="flex items-center gap-2">
                   <Calendar size={14} className="text-gray-400" />
@@ -328,6 +327,39 @@ export default function UserDetail() {
           </tbody>
         </table>
       </Card>
+
+      {/* Custom Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <Card className="w-full max-w-sm border-none shadow-3xl bg-white rounded-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={32} />
+              </div>
+              <h3 className="text-xl font-normal text-gray-900 mb-2 font-outfit uppercase tracking-tight">Delete User?</h3>
+              <p className="text-sm font-normal text-gray-500 mb-6 font-outfit">
+                Are you sure you want to permanently delete <strong className="text-gray-900">{userData.full_name}</strong>?
+              </p>
+              <div className="flex gap-3">
+                <Button 
+                  variant="ghost" 
+                  className="flex-1 font-normal uppercase tracking-widest text-[10px]"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-normal uppercase tracking-widest text-[10px] shadow-xl shadow-red-500/20"
+                  onClick={confirmDeleteUser}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? <LoadingState mini /> : 'Delete User'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
