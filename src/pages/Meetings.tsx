@@ -80,7 +80,7 @@ export default function Meetings() {
       };
 
       // We use a placeholder date for now since it's not booked yet
-      await bookMeeting(selectedCreatorId, creator?.campaign_id, new Date().toISOString(), metadata);
+      await bookMeeting(selectedCreatorId, creator?.campaign_id, new Date().toISOString(), JSON.stringify(metadata));
       
       alert('Booking link sent! The creator has been added to the scheduling queue.');
       setIsInviteModalOpen(false);

@@ -13,6 +13,10 @@ import { Input } from '../components/ui/Input';
 import { LoadingState } from '../components/ui/LoadingState';
 import { useAuth } from '../contexts/AuthContext';
 
+const COUNTRIES = [
+  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+];
+
 interface Campaign {
   id: string;
   name: string;
@@ -47,7 +51,10 @@ export default function Campaigns() {
   const [formData, setFormData] = useState({
     name: '',
     brand_id: '',
+    campaign_description: '',
     category: [] as string[],
+    country: '',
+    state: '',
     city: '',
     keywords: '',
     product_offer_notes: '',
@@ -102,7 +109,10 @@ export default function Campaigns() {
         name: formData.name,
         brand_id: formData.brand_id,
         client_id: selectedBrand?.client_id,
+        description: formData.campaign_description,
         category: formData.category.join(','),
+        country: formData.country,
+        state: formData.state,
         city: formData.city,
         keywords: formData.keywords.split(',').map(k => k.trim()).filter(Boolean),
         product_offer_notes: formData.product_offer_notes,
@@ -112,7 +122,7 @@ export default function Campaigns() {
         email_body: 'Hey {{full_name}}, love your content! We would love to collaborate for our {{campaign_name}} campaign in {{city}}.\n\nOffer: {{product_offer_notes}}'
       });
       setIsModalOpen(false);
-      setFormData({ name: '', brand_id: '', category: [], city: '', keywords: '', product_offer_notes: '', discovery_channels: ['instagram'] });
+      setFormData({ name: '', brand_id: '', campaign_description: '', category: [], country: '', state: '', city: '', keywords: '', product_offer_notes: '', discovery_channels: ['instagram'] });
       setCustomCat('');
       fetchData();
     } catch (err: any) {
@@ -332,10 +342,12 @@ export default function Campaigns() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Campaign Name *</label>
-              <Input
+              <textarea
                 required
+                rows={2}
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm resize-y"
                 placeholder="Summer Skincare 2026"
               />
             </div>
@@ -362,6 +374,17 @@ export default function Campaigns() {
                 )}
               </select>
             </div>
+          </div>
+
+          <div>
+             <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Campaign Description</label>
+             <textarea
+                value={formData.campaign_description}
+                onChange={e => setFormData({ ...formData, campaign_description: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm resize-y"
+                rows={3}
+                placeholder="Describe your campaign..."
+             />
           </div>
 
           <div>
@@ -412,24 +435,48 @@ export default function Campaigns() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Search Keywords</label>
-              <Input
-                value={formData.keywords}
-                onChange={e => setFormData({ ...formData, keywords: e.target.value })}
-                placeholder="vegan, organic, eco"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Target City *</label>
-              <Input
-                required
-                value={formData.city}
-                onChange={e => setFormData({ ...formData, city: e.target.value })}
-                placeholder="London"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Search Keywords</label>
+            <Input
+              value={formData.keywords}
+              onChange={e => setFormData({ ...formData, keywords: e.target.value })}
+              placeholder="vegan, organic, eco"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Target Country *</label>
+            <select
+              required
+              value={formData.country}
+              onChange={e => setFormData({ ...formData, country: e.target.value })}
+              className="w-full h-11 px-4 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
+            >
+              <option value="">Select Country</option>
+              <option value="Global">Global</option>
+              {COUNTRIES.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Target State</label>
+            <Input
+              value={formData.state}
+              onChange={e => setFormData({ ...formData, state: e.target.value })}
+              placeholder="California"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Target City *</label>
+            <Input
+              required
+              value={formData.city}
+              onChange={e => setFormData({ ...formData, city: e.target.value })}
+              placeholder="Los Angeles"
+            />
           </div>
 
           <div>

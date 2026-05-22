@@ -3,7 +3,6 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import { 
   getCampaignById, 
   getCampaignLeads, 
-  triggerDiscovery,
   updateCampaignTemplate,
   reviewLead,
   updateCampaign,
@@ -17,7 +16,7 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
-import { ArrowLeft, Sparkles, Activity, Users, Mail, Info, Check, X, Edit2, Tag, Instagram, Youtube } from 'lucide-react';
+import { ArrowLeft, Sparkles, Activity, Mail, Info, Check, X, Instagram, Youtube, Edit2 } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,7 +28,6 @@ export default function CampaignDetail() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const fromBrandId = location.state?.fromBrandId;
-  const fromBrandName = location.state?.fromBrandName;
   const fromBrandsList = location.state?.fromBrandsList;
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Creator[]>([]);
@@ -55,6 +53,8 @@ export default function CampaignDetail() {
     discovery_channels: ['instagram'] as string[]
   });
   const [isUpdating, setIsUpdating] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState('');
 
   const fetchData = async (silent = false) => {
     if (!id) return;
@@ -94,42 +94,114 @@ export default function CampaignDetail() {
     fetchData();
   }, [id]);
 
-  const handleDiscovery = async () => {
+  const handleDiscovery = () => {
     if (!campaign || !id) return;
     setDiscovering(true);
-    try {
-      await triggerDiscovery(
-        campaign.category ? campaign.category.split(',') : [],
-        campaign.city || 'global',
-        id,
-        campaign.keywords || []
-      );
-      alert('AI Discovery launched! The backend is scraping now.');
-      fetchData(); // Reload leads
-    } catch (err) {
-      console.error(err);
-      alert('Failed to trigger AI Discovery.');
-    } finally {
+
+    const token = localStorage.getItem('ats_token') || '';
+    const categoriesStr = campaign.category || '';
+    const cityStr = campaign.city || 'global';
+    const keywordsStr = Array.isArray(campaign.keywords) ? campaign.keywords.join(',') : '';
+
+    const apiBaseUrl = 'http://localhost:8081/api';
+    const streamUrl = `${apiBaseUrl}/creators/ai-discovery-stream?campaign_id=${id}&categories=${encodeURIComponent(categoriesStr)}&city=${encodeURIComponent(cityStr)}&keywords=${encodeURIComponent(keywordsStr)}&token=${encodeURIComponent(token)}`;
+
+    console.log('⚡ Connecting to AI Discovery SSE Stream at:', streamUrl);
+    const eventSource = new EventSource(streamUrl);
+
+    eventSource.onmessage = (event) => {
+      console.log('📩 SSE message:', event);
+    };
+
+    eventSource.addEventListener('status', (e: any) => {
+      try {
+        const data = JSON.parse(e.data);
+        console.log('🔄 Discovery Status:', data.message);
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    eventSource.addEventListener('saved', (e: any) => {
+      try {
+        const newLead = JSON.parse(e.data);
+        console.log('✨ Lead Saved:', newLead);
+        // Prepend/append new lead to the list if not already present
+        setLeads((prevLeads) => {
+          if (prevLeads.some((l) => l.id === newLead.id)) {
+            return prevLeads;
+          }
+          return [newLead, ...prevLeads];
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    eventSource.addEventListener('enriched', (e: any) => {
+      try {
+        const enrichedLead = JSON.parse(e.data);
+        console.log('✅ Lead Enriched:', enrichedLead);
+        // Update the lead in state
+        setLeads((prevLeads) => {
+          return prevLeads.map((l) => (l.id === enrichedLead.id ? { ...l, ...enrichedLead } : l));
+        });
+        // If the current preview drawer is open for this creator, update it too
+        setPreviewCreator((prevPreview) => {
+          if (prevPreview && prevPreview.id === enrichedLead.id) {
+            return { ...prevPreview, ...enrichedLead };
+          }
+          return prevPreview;
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    eventSource.addEventListener('completed', (e: any) => {
+      try {
+        const data = JSON.parse(e.data);
+        alert(`AI Discovery Completed! ${data.success_count} leads processed successfully.`);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        eventSource.close();
+        setDiscovering(false);
+      }
+    });
+
+    eventSource.addEventListener('error', (e: any) => {
+      let message = 'An error occurred during AI Discovery stream.';
+      try {
+        if (e.data) {
+          const data = JSON.parse(e.data);
+          message = data.error || data.message || message;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      console.error('❌ SSE Stream Error:', e);
+      alert(message);
+      eventSource.close();
       setDiscovering(false);
-    }
+    });
   };
 
-  const handleReview = async (creatorId: string, action: 'approve' | 'reject') => {
-    const lead = leads.find(l => l.id === creatorId);
-    
+  const handleReview = async (creatorId: string, action: 'approve' | 'reject' | 'shortlist') => {
     if (action === 'approve') {
-      if (lead?.review_status === 'pending_review' || lead?.review_status === 'reviewed') {
-        setOutreachModalMessageType('initial');
-        setOutreachModalCreatorId(creatorId);
-        return;
-      }
+      setOutreachModalMessageType('initial');
+      setOutreachModalCreatorId(creatorId);
+      return;
     }
     
+    setActionLoading(creatorId);
     try {
       await reviewLead(creatorId, action);
-      fetchData(); // Reload leads to reflect status change
+      fetchData(true); // Reload leads to reflect status change silently
     } catch (err) {
       alert('Failed to review lead: ' + err);
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -271,7 +343,7 @@ export default function CampaignDetail() {
     }
     
     try {
-      await updateCampaign(id, { status: newStatus });
+      await updateCampaign(id, { status: newStatus as any });
       fetchData(true); // Silent refresh in background
     } catch (err) {
       alert(`Failed to update campaign status to ${newStatus}`);
@@ -279,7 +351,13 @@ export default function CampaignDetail() {
     }
   };
 
-  const filteredLeads = leads;
+  const filteredLeads = leads.filter(c => {
+    if (!statusFilter) return true;
+    if (statusFilter === 'pending') {
+      return c.review_status === 'pending_review' || c.review_status === 'shortlisted' || !c.review_status || c.review_status === 'pending';
+    }
+    return c.review_status === statusFilter;
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
@@ -340,8 +418,20 @@ export default function CampaignDetail() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
         <Card className="lg:col-span-2">
-          <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-[12px]">
+          <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-t-[12px]">
             <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Creators Leads ({filteredLeads.length})</h2>
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+              <select 
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-1.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[140px]"
+              >
+                <option value="">Any Status</option>
+                <option value="pending">Pending Review</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
           </div>
           {filteredLeads.length === 0 ? (
             <div className="p-16 text-center">
@@ -381,7 +471,7 @@ export default function CampaignDetail() {
                             {lead.full_name || `@${lead.handle}`}
                           </button>
                           <div className="flex items-center gap-2 mt-1.5">
-                            {((lead.platform || lead.primary_platform)?.toLowerCase() === 'instagram' || lead.has_instagram) && (
+                            {((lead.primary_platform)?.toLowerCase() === 'instagram' || lead.has_instagram) && (
                               <a 
                                 href={lead.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${lead.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
@@ -392,7 +482,7 @@ export default function CampaignDetail() {
                                 <Instagram size={14} />
                               </a>
                             )}
-                            {((lead.platform || lead.primary_platform)?.toLowerCase() === 'youtube' || lead.has_youtube) && (
+                            {((lead.primary_platform)?.toLowerCase() === 'youtube' || lead.has_youtube) && (
                               <a 
                                 href={lead.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${lead.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
@@ -403,7 +493,7 @@ export default function CampaignDetail() {
                                 <Youtube size={14} />
                               </a>
                             )}
-                            {((lead.platform || lead.primary_platform)?.toLowerCase() === 'tiktok' || lead.has_tiktok) && (
+                            {((lead.primary_platform)?.toLowerCase() === 'tiktok' || lead.has_tiktok) && (
                               <a 
                                 href={lead.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${lead.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
@@ -415,8 +505,8 @@ export default function CampaignDetail() {
                               </a>
                             )}
                             {/* Fallback if no icon matches but platform info exists */}
-                            {!(lead.platform || lead.primary_platform || lead.has_instagram || lead.has_youtube || lead.has_tiktok) && lead.platform && (
-                              <span className="text-[10px] text-gray-400 uppercase tracking-widest">{lead.platform}</span>
+                            {!(lead.primary_platform || lead.has_instagram || lead.has_youtube || lead.has_tiktok) && lead.primary_platform && (
+                              <span className="text-[10px] text-gray-400 uppercase tracking-widest">{lead.primary_platform}</span>
                             )}
                           </div>
                         </div>
@@ -428,24 +518,34 @@ export default function CampaignDetail() {
                     <Td className="text-right">
                       {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                         <div className="flex items-center justify-end gap-2">
-
-                          
-                          {(lead.review_status === 'hold' || !lead.review_status || lead.review_status === 'pending_review' || lead.review_status === 'reviewed' || lead.review_status === 'pending') && lead.review_status !== 'approved' && lead.review_status !== 'rejected' && lead.lifecycle_status !== 'not_respond' && (
+                          {lead.review_status !== 'approved' && lead.review_status !== 'rejected' && lead.review_status !== 'shortlisted' && lead.review_status !== 'pending_review' && lead.lifecycle_status !== 'not_respond' && (
                             <>
                               <button 
-                                className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors" 
                                 onClick={() => handleReview(lead.id, 'approve')}
-                                title="Shortlist / Approve"
+                                disabled={!!actionLoading}
+                                className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                title="Approve & Send Outreach"
                               >
                                 <Check size={16} />
                               </button>
                               <button 
-                                className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors" 
                                 onClick={() => handleReview(lead.id, 'reject')}
+                                disabled={!!actionLoading}
+                                className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                                 title="Reject"
                               >
                                 <X size={16} />
                               </button>
+                              {lead.review_status !== 'shortlisted' && lead.review_status !== 'pending_review' && (
+                                <button
+                                  onClick={() => handleReview(lead.id, 'shortlist')}
+                                  disabled={!!actionLoading}
+                                  className="px-2.5 py-1 rounded text-[11px] font-normal uppercase tracking-wider bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-outfit"
+                                  title="Shortlist → Move to Review Queue"
+                                >
+                                  Shortlist
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -476,18 +576,48 @@ export default function CampaignDetail() {
               
               <div className="pt-4 border-t border-gray-100">
                 <p className="text-xs font-normal text-gray-500 uppercase tracking-widest mb-4">Metrics Intelligence</p>
-                <div className="flex justify-between items-center text-sm mb-1">
-                  <span className="text-gray-600">Pending Review</span>
-                  <span className="font-normal text-gray-900">{filteredLeads.filter(l => l.review_status === 'pending').length}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm mb-1">
-                  <span className="text-gray-600">Approved</span>
-                  <span className="font-normal text-success-600">{filteredLeads.filter(l => l.review_status === 'approved').length}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Rejected</span>
-                  <span className="font-normal text-error-600">{filteredLeads.filter(l => l.review_status === 'rejected').length}</span>
-                </div>
+                <button 
+                  onClick={() => setStatusFilter(statusFilter === 'pending' ? '' : 'pending')}
+                  className={`flex justify-between items-center w-full text-sm mb-1.5 px-3 py-2 rounded-xl border transition-all duration-300 ${
+                    statusFilter === 'pending'
+                      ? 'bg-primary-50 text-primary-700 border-primary-200 shadow-sm'
+                      : 'text-gray-600 border-transparent hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                  title="Click to filter by Pending Review"
+                >
+                  <span className="font-outfit uppercase tracking-tight text-xs">Pending Review</span>
+                  <span className={`font-normal text-xs ${statusFilter === 'pending' ? 'text-primary-700 font-bold' : 'text-gray-900'}`}>
+                    {leads.filter(l => l.review_status === 'shortlisted' || l.review_status === 'pending_review' || !l.review_status || l.review_status === 'pending' || l.review_status === 'reviewed').length}
+                  </span>
+                </button>
+                <button 
+                  onClick={() => setStatusFilter(statusFilter === 'approved' ? '' : 'approved')}
+                  className={`flex justify-between items-center w-full text-sm mb-1.5 px-3 py-2 rounded-xl border transition-all duration-300 ${
+                    statusFilter === 'approved'
+                      ? 'bg-green-50 text-green-700 border-green-200 shadow-sm'
+                      : 'text-gray-600 border-transparent hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                  title="Click to filter by Approved"
+                >
+                  <span className="font-outfit uppercase tracking-tight text-xs">Approved</span>
+                  <span className={`font-normal text-xs ${statusFilter === 'approved' ? 'text-green-700 font-bold' : 'text-success-600'}`}>
+                    {leads.filter(l => l.review_status === 'approved').length}
+                  </span>
+                </button>
+                <button 
+                  onClick={() => setStatusFilter(statusFilter === 'rejected' ? '' : 'rejected')}
+                  className={`flex justify-between items-center w-full text-sm px-3 py-2 rounded-xl border transition-all duration-300 ${
+                    statusFilter === 'rejected'
+                      ? 'bg-red-50 text-red-700 border-red-200 shadow-sm'
+                      : 'text-gray-600 border-transparent hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                  title="Click to filter by Rejected"
+                >
+                  <span className="font-outfit uppercase tracking-tight text-xs">Rejected</span>
+                  <span className={`font-normal text-xs ${statusFilter === 'rejected' ? 'text-red-700 font-bold' : 'text-error-600'}`}>
+                    {leads.filter(l => l.review_status === 'rejected').length}
+                  </span>
+                </button>
               </div>
             </CardContent>
           </Card>

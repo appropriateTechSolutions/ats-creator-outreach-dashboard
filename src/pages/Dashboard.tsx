@@ -64,7 +64,7 @@ export default function Dashboard() {
   const discoveredCount = filteredCreatorsForStats.filter(c => c.review_status === 'hold' || c.review_status === 'pending' || !c.review_status).length;
   
   const sentCount = filteredCreatorsForStats.filter(c => c.lifecycle_status === 'contacted' || c.latest_outreach?.delivery_status === 'sent').length;
-  const failedCount = filteredCreatorsForStats.filter(c => c.lifecycle_status === 'failed' || c.latest_outreach?.delivery_status === 'failed').length;
+  const rejectedCount = filteredCreatorsForStats.filter(c => c.review_status === 'rejected').length;
 
   const topCreators = [...creators]
     .filter(c => {
@@ -84,7 +84,7 @@ export default function Dashboard() {
     else if (status === 'pending_review') targetFilter = 'pending';
     else if (status === 'approved') targetFilter = 'approved';
     else if (status === 'contacted') targetFilter = 'contacted';
-    else if (status === 'failed') targetFilter = 'failed';
+    else if (status === 'rejected') targetFilter = 'rejected';
     else if (status === 'not_respond') targetFilter = 'not_respond';
     
     navigate('/creators', { state: { initialStatusFilter: targetFilter } });
@@ -314,15 +314,15 @@ export default function Dashboard() {
                    </div>
                  </div>
  
-                 {/* 5. Failed */}
+                 {/* 5. Rejected */}
                  <div 
-                   onClick={() => handleQueueClick('failed')}
+                   onClick={() => handleQueueClick('rejected')}
                    className="cursor-pointer transition-all border p-3 rounded-xl flex flex-col justify-between bg-rose-50/20 border-rose-100/50 hover:bg-rose-50/50 hover:scale-[1.01]"
                  >
-                   <p className="text-[9px] font-normal text-rose-500 uppercase tracking-widest mb-1 text-left">Failed</p>
+                   <p className="text-[9px] font-normal text-rose-500 uppercase tracking-widest mb-1 text-left">Rejected</p>
                    <div className="flex justify-between items-end">
-                     <span className="text-lg font-normal text-rose-950 font-outfit">{failedCount}</span>
-                     <span className="text-[8px] uppercase tracking-wider bg-rose-100 text-rose-800 px-1 py-0.5 rounded font-bold">Failed</span>
+                     <span className="text-lg font-normal text-rose-950 font-outfit">{rejectedCount}</span>
+                     <span className="text-[8px] uppercase tracking-wider bg-rose-100 text-rose-800 px-1 py-0.5 rounded font-bold">Rejected</span>
                    </div>
                  </div>
  

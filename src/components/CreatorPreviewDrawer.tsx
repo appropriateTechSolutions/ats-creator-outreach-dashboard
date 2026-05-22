@@ -176,6 +176,31 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
     setOutreachModalOpen(true);
   };
 
+  const getInstagramHandle = () => {
+    const igProfile = activeCreator.profiles?.find(p => p.platform.toLowerCase() === 'instagram');
+    const directHandle = igProfile?.handle || activeCreator.handle;
+    if (directHandle) return directHandle.replace(/^@/, '').trim();
+
+    const profileUrl = igProfile?.profile_url || activeCreator.profile_url;
+    if (!profileUrl) return '';
+
+    try {
+      const url = new URL(profileUrl);
+      return url.pathname.split('/').filter(Boolean)[0] || '';
+    } catch {
+      return '';
+    }
+  };
+
+  const handleSendDM = () => {
+    const instagramHandle = getInstagramHandle();
+    const url = instagramHandle
+      ? `https://ig.me/m/${encodeURIComponent(instagramHandle)}`
+      : 'https://www.instagram.com/direct/inbox/';
+
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const handleConfirmSendOutreach = async (customSubject?: string, customBody?: string, messageType?: string) => {
     setSendingEmail(true);
     try {
@@ -332,24 +357,34 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
                 {findingSimilar ? <RefreshCw size={14} className="animate-spin text-primary-600" /> : <Users size={14} className="text-primary-600" />} 
                 {findingSimilar ? 'Searching...' : 'Find Similar'}
               </Button>
-              <Button 
-                className={`flex-1 ${
-                  isFollowUpDue() 
-                    ? 'bg-amber-600 hover:bg-amber-700 shadow-lg shadow-amber-500/40 animate-pulse' 
+              {!activeCreator.email ? (
+                <Button
+                  className="flex-1 bg-pink-600 hover:bg-pink-700 shadow-xl shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all"
+                  onClick={handleSendDM}
+                >
+                  <Instagram size={14} />
+                  Send DM
+                </Button>
+              ) : (
+                <Button 
+                  className={`flex-1 ${
+                    isFollowUpDue() 
+                      ? 'bg-amber-600 hover:bg-amber-700 shadow-lg shadow-amber-500/40 animate-pulse' 
+                      : isWaitingForFollowUp()
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed shadow-none border border-gray-300'
+                        : 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/20 text-white'
+                  } shadow-xl flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all`}
+                  onClick={handleSendOutreach}
+                  disabled={sendingEmail || activeCreator.review_status === 'rejected' || isWaitingForFollowUp()}
+                >
+                  {sendingEmail ? <RefreshCw size={14} className="animate-spin text-white" /> : (isFollowUpDue() ? <Clock size={14} /> : isWaitingForFollowUp() ? <Clock size={14} className="text-gray-400" /> : <Send size={14} />)} 
+                  {isFollowUpDue() 
+                    ? `Follow-up #${((activeCreator.latest_outreach || (activeCreator as any).latestOutreach)?.follow_up_count || 0) + 1}` 
                     : isWaitingForFollowUp()
-                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed shadow-none border border-gray-300'
-                      : 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/20 text-white'
-                } shadow-xl flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all`}
-                onClick={handleSendOutreach}
-                disabled={sendingEmail || activeCreator.review_status === 'rejected' || isWaitingForFollowUp()}
-              >
-                {sendingEmail ? <RefreshCw size={14} className="animate-spin text-white" /> : (isFollowUpDue() ? <Clock size={14} /> : isWaitingForFollowUp() ? <Clock size={14} className="text-gray-400" /> : <Send size={14} />)} 
-                {isFollowUpDue() 
-                  ? `Follow-up #${((activeCreator.latest_outreach || (activeCreator as any).latestOutreach)?.follow_up_count || 0) + 1}` 
-                  : isWaitingForFollowUp()
-                    ? 'Waiting Reply'
-                    : ((activeCreator.latest_outreach || (activeCreator as any).latestOutreach) ? 'Resend' : 'Send Outreach')}
-              </Button>
+                      ? 'Waiting Reply'
+                      : ((activeCreator.latest_outreach || (activeCreator as any).latestOutreach) ? 'Resend' : 'Send Outreach')}
+                </Button>
+              )}
             </div>
           )}
 
@@ -377,11 +412,15 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
             
             <div className="flex gap-3">
               <div className="mt-1 text-primary-600 shrink-0"><Mail size={16} /></div>
-              <div>
+              <div className="flex-1">
                 <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Direct Contact</h4>
-                <p className="text-sm font-normal text-gray-800">
+                <div className={`p-3 rounded-lg text-sm font-normal ${
+                  activeCreator.email
+                    ? 'text-gray-800 bg-transparent'
+                    : 'text-amber-700 bg-amber-50 border border-amber-200'
+                }`}>
                   {activeCreator.email || "Email hidden or not found"}
-                </p>
+                </div>
                 {activeCreator.has_email && (
                   <span className="text-[9px] text-green-600 font-normal flex items-center gap-1 mt-0.5">
                     <Check size={10} /> Verified Email
@@ -479,19 +518,27 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
                       </div>
                     </div>
 
-                    {profile && (
+                     {profile && (
                       <div className="flex gap-4 mt-3 pt-3 border-t border-gray-200/50">
                         <div className="flex-1">
                           <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Followers</p>
-                          <p className="text-xs font-normal text-gray-900 flex items-center gap-1">
+                          <p className="text-xs font-normal text-gray-900 flex items-center gap-1 mb-2">
                             <Users size={10} className="text-gray-400" />
                             {profile.followers?.toLocaleString() || 'N/A'}
+                          </p>
+                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Avg Likes</p>
+                          <p className="text-xs font-normal text-gray-900 flex items-center gap-1">
+                            {profile.avg_likes?.toLocaleString() || 'N/A'}
                           </p>
                         </div>
                         <div className="flex-1">
                           <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Engagement</p>
-                          <p className="text-xs font-normal text-gray-900">
+                          <p className="text-xs font-normal text-gray-900 mb-2">
                             {profile.engagement_rate ? `${Number(profile.engagement_rate).toFixed(2)}%` : 'N/A'}
+                          </p>
+                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Avg Comments</p>
+                          <p className="text-xs font-normal text-gray-900">
+                            {profile.avg_comments?.toLocaleString() || 'N/A'}
                           </p>
                         </div>
                       </div>
@@ -746,16 +793,14 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
         </div>
       </Drawer>
 
-      {/* Outreach Preview Modal */}
       {outreachModalOpen && (
         <OutreachPreviewModal
           isOpen={outreachModalOpen}
           onClose={() => setOutreachModalOpen(false)}
-          onConfirm={handleConfirmSendOutreach}
-          creatorName={activeCreator.full_name || activeCreator.handle}
-          campaignName={campaignId}
+          onSend={handleConfirmSendOutreach}
+          creatorId={activeCreator.id}
+          campaignId={campaignId}
           messageType={outreachModalMessageType}
-          loading={sendingEmail}
         />
       )}
 

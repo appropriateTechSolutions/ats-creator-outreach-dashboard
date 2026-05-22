@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Check, X, Instagram, Youtube, Activity } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 
 export default function Creators() {
   const { user } = useAuth();
@@ -21,6 +22,7 @@ export default function Creators() {
   const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
+  const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
 
   const fetchCreators = () => {
     setLoading(true);
@@ -41,7 +43,7 @@ export default function Creators() {
     }
   }, [location.state]);
 
-  const handleReview = async (id: string, action: 'approve' | 'reject') => {
+  const handleReview = async (id: string, action: 'approve' | 'reject' | 'shortlist') => {
     setActionLoading(id);
     try {
       await reviewLead(id, action);
@@ -50,6 +52,17 @@ export default function Creators() {
       alert('Failed to update creator: ' + err);
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleConfirmApprove = async (customSubject?: string, customBody?: string) => {
+    if (!outreachModalCreatorId) return;
+    try {
+      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody);
+      fetchCreators();
+    } catch (err) {
+      alert('Failed to approve lead and send outreach.');
+      throw err;
     }
   };
 
@@ -65,7 +78,7 @@ export default function Creators() {
     }
 
     if (statusFilter === 'pending') {
-      return matchesSearch && c.review_status === 'pending_review' && c.lifecycle_status !== 'not_respond';
+      return matchesSearch && (c.review_status === 'pending_review' || c.review_status === 'shortlisted') && c.lifecycle_status !== 'not_respond';
     }
 
     if (statusFilter === 'not_respond') {
@@ -120,10 +133,8 @@ export default function Creators() {
             >
               <option value="">Any Status</option>
               <option value="hold">Discovered</option>
-              <option value="pending">Pending Review</option>
+              <option value="pending">Shortlisted</option>
               <option value="approved">Approved</option>
-              <option value="contacted">Sent (Contacted)</option>
-              <option value="failed">Failed Outreach</option>
               <option value="rejected">Rejected</option>
               <option value="not_respond">Not Responsive</option>
             </select>
@@ -218,13 +229,13 @@ export default function Creators() {
                     <Td className="text-right">
                       {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                         <div className="flex justify-end gap-2">
-                          {(c.review_status === 'hold' || !c.review_status || c.review_status === 'pending_review' || c.review_status === 'reviewed') && c.review_status !== 'approved' && c.review_status !== 'rejected' && c.lifecycle_status !== 'not_respond' && (
+                          {c.review_status !== 'approved' && c.review_status !== 'rejected' && c.review_status !== 'shortlisted' && c.review_status !== 'pending_review' && c.lifecycle_status !== 'not_respond' && (
                             <>
                               <button
-                                onClick={() => handleReview(c.id, 'approve')}
+                                onClick={() => setOutreachModalCreatorId(c.id)}
                                 disabled={!!actionLoading}
                                 className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                                title={c.review_status === 'hold' || !c.review_status ? 'Shortlist → Move to Review Queue' : 'Approve → Send outreach email'}
+                                title="Approve & Send Outreach"
                               >
                                 <Check size={16} />
                               </button>
@@ -236,6 +247,16 @@ export default function Creators() {
                               >
                                 <X size={16} />
                               </button>
+                              {c.review_status !== 'shortlisted' && c.review_status !== 'pending_review' && (
+                                <button
+                                  onClick={() => handleReview(c.id, 'shortlist')}
+                                  disabled={!!actionLoading}
+                                  className="px-2.5 py-1 rounded text-[11px] font-normal uppercase tracking-wider bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-outfit"
+                                  title="Shortlist → Move to Review Queue"
+                                >
+                                  Shortlist
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -258,6 +279,14 @@ export default function Creators() {
           </div>
         )}
       </Card>
+
+      <OutreachPreviewModal
+        creatorId={outreachModalCreatorId || ''}
+        campaignId={creators.find(c => c.id === outreachModalCreatorId)?.campaign_id || undefined}
+        isOpen={!!outreachModalCreatorId}
+        onClose={() => setOutreachModalCreatorId(null)}
+        onSend={handleConfirmApprove}
+      />
     </div>
   );
 }

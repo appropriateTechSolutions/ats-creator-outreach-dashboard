@@ -14,6 +14,7 @@ export function StatusBadge({ status }: { status: StatusType }) {
       break;
     case 'pending':
     case 'pending_review':
+    case 'shortlisted':
       variant = 'warning';
       break;
     case 'failed':
@@ -40,6 +41,7 @@ export function StatusBadge({ status }: { status: StatusType }) {
   if (status === 'archived') label = 'Inactive';
   if (status === 'not_respond') label = 'Not Responsive';
   if (status === 'inactive') label = 'Inactive';
+  if (status === 'pending_review' || status === 'shortlisted' || status === 'pending') label = 'Shortlisted';
 
   return <Badge variant={variant}>{label}</Badge>;
 }

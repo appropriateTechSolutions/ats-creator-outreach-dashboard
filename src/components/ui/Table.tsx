@@ -42,9 +42,9 @@ export function Th({ children, className = '' }: { children: React.ReactNode, cl
   );
 }
 
-export function Td({ children, className = '' }: { children: React.ReactNode, className?: string }) {
+export function Td({ children, className = '', colSpan }: { children: React.ReactNode, className?: string, colSpan?: number }) {
   return (
-    <td className={`px-6 py-4 whitespace-nowrap text-sm ${className}`}>
+    <td colSpan={colSpan} className={`px-6 py-4 whitespace-nowrap text-sm ${className}`}>
       {children}
     </td>
   );

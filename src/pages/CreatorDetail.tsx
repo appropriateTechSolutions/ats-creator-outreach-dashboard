@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, getConversationThread, linkAffiliate, findSimilarCreators } from '../lib/api';
+import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
@@ -126,15 +126,42 @@ export default function CreatorDetail() {
 
   const handleSendOutreach = () => {
     if (!creator) return;
-    
+
     let type = 'initial';
     if (isFollowUpDue()) {
       const followUpNumber = (creator.latest_outreach?.follow_up_count || 0) + 1;
       type = followUpNumber >= 3 ? 'final_ping' : `followup_${followUpNumber}`;
     }
-    
+
     setOutreachModalMessageType(type);
     setOutreachModalOpen(true);
+  };
+
+  const getInstagramHandle = () => {
+    if (!creator) return '';
+
+    const igProfile = creator.profiles?.find(p => p.platform.toLowerCase() === 'instagram');
+    const directHandle = igProfile?.handle || creator.handle;
+    if (directHandle) return directHandle.replace(/^@/, '').trim();
+
+    const profileUrl = igProfile?.profile_url || creator.profile_url;
+    if (!profileUrl) return '';
+
+    try {
+      const url = new URL(profileUrl);
+      return url.pathname.split('/').filter(Boolean)[0] || '';
+    } catch {
+      return '';
+    }
+  };
+
+  const handleSendDM = () => {
+    const instagramHandle = getInstagramHandle();
+    const url = instagramHandle
+      ? `https://ig.me/m/${encodeURIComponent(instagramHandle)}`
+      : 'https://www.instagram.com/direct/inbox/';
+
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleConfirmSendOutreach = async (customSubject?: string, customBody?: string, messageType?: string) => {
@@ -251,8 +278,8 @@ export default function CreatorDetail() {
       )}
 
       <Card>
-        <div className="bg-gradient-to-r from-gray-50 to-white px-6 sm:px-8 py-8 border-b border-gray-100 flex flex-col lg:flex-row items-start justify-between gap-8 rounded-t-[12px]">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+        <div className="bg-gradient-to-r from-gray-50 to-white px-6 sm:px-8 py-8 border-b border-gray-100 flex flex-col lg:flex-row items-start gap-6 rounded-t-[12px]">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 min-w-0 flex-1">
              <div className="w-20 h-20 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-4xl uppercase shadow-lg shadow-primary-500/30 ring-4 ring-white font-outfit shrink-0">
                {creator.handle?.charAt(0)}
              </div>
@@ -321,43 +348,51 @@ export default function CreatorDetail() {
               </div>
             </div>
           </div>
-          <div className="flex flex-col items-start lg:items-end gap-3 w-full lg:w-auto">
+          <div className="flex flex-col gap-3 lg:items-end shrink-0 w-full lg:w-[200px]">
             <StatusBadge status={['not_respond'].includes(creator.lifecycle_status) ? creator.lifecycle_status : (creator.review_status as any || 'pending')} />
-            <div className="flex items-center gap-2 mt-2">
-               <span className="text-xs font-normal text-gray-400 uppercase">Readiness:</span>
-               <ScoreBadge score={creator.outreach_readiness_score || 0} />
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-normal text-gray-400 uppercase">Readiness:</span>
+              <ScoreBadge score={creator.outreach_readiness_score || 0} />
             </div>
-            
-            {/* Action Buttons */}
             {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
-              <div className="flex flex-col sm:flex-row items-center gap-3 mt-4 w-full lg:max-w-sm">
-                <Button 
+              <div className="flex flex-col gap-2 w-full mt-1">
+                <Button
                   variant="outline"
-                  className="w-full sm:flex-1 border-primary-100 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal"
+                  className="w-full border-primary-100 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal"
                   onClick={handleFindSimilar}
                   disabled={findingSimilar}
                 >
-                  {findingSimilar ? <RefreshCw size={16} className="animate-spin text-primary-600" /> : <Users size={16} className="text-primary-600" />} 
+                  {findingSimilar ? <RefreshCw size={13} className="animate-spin text-primary-600" /> : <Users size={13} className="text-primary-600" />}
                   {findingSimilar ? 'Searching...' : 'Find Similar'}
                 </Button>
-                <Button 
-                  className={`w-full sm:flex-1 ${
-                    isFollowUpDue() 
-                      ? 'bg-amber-600 hover:bg-amber-700 shadow-lg shadow-amber-500/40 animate-pulse' 
+                {!creator.email ? (
+                  <Button
+                    className="w-full bg-pink-600 hover:bg-pink-700 shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all shadow-sm"
+                    onClick={handleSendDM}
+                  >
+                    <Instagram size={13} />
+                    Send DM
+                  </Button>
+                ) : (
+                  <Button
+                    className={`w-full ${
+                      isFollowUpDue()
+                        ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/40 animate-pulse'
+                        : isWaitingForFollowUp()
+                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300'
+                          : 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/20 text-white'
+                    } flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all shadow-sm`}
+                    onClick={handleSendOutreach}
+                    disabled={sendingEmail || creator.review_status === 'rejected' || isWaitingForFollowUp()}
+                  >
+                    {sendingEmail ? <LoadingState mini /> : (isFollowUpDue() ? <Clock size={13} /> : isWaitingForFollowUp() ? <Clock size={13} className="text-gray-400" /> : <Send size={13} />)}
+                    {isFollowUpDue()
+                      ? `Follow-up #${(creator.latest_outreach?.follow_up_count || 0) + 1}`
                       : isWaitingForFollowUp()
-                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed shadow-none border border-gray-300'
-                        : 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/20 text-white'
-                  } shadow-xl flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all`}
-                  onClick={handleSendOutreach}
-                  disabled={sendingEmail || creator.review_status === 'rejected' || isWaitingForFollowUp()}
-                >
-                  {sendingEmail ? <LoadingState mini /> : (isFollowUpDue() ? <Clock size={16} /> : isWaitingForFollowUp() ? <Clock size={16} className="text-gray-400" /> : <Send size={16} />)} 
-                  {isFollowUpDue() 
-                    ? `Send Follow-up #${(creator.latest_outreach?.follow_up_count || 0) + 1}` 
-                    : isWaitingForFollowUp()
-                      ? 'Waiting for Reply...'
-                      : (creator.latest_outreach ? 'Resend Outreach' : 'Send Outreach')}
-                </Button>
+                        ? 'Waiting...'
+                        : (creator.latest_outreach ? 'Resend' : 'Send Outreach')}
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -386,11 +421,15 @@ export default function CreatorDetail() {
              </div>
              <div className="flex gap-3">
                 <div className="mt-1 text-primary-600"><Mail size={18} /></div>
-                <div>
+                <div className="flex-1">
                   <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">Direct Contact</h4>
-                  <p className="text-sm font-normal text-gray-800">
-                    {creator.email || "Email hidden or not found"}
-                  </p>
+                  <div className={`p-3 rounded-lg text-sm font-normal ${
+                    creator.email
+                      ? 'text-gray-800 bg-transparent'
+                      : 'text-amber-700 bg-amber-50 border border-amber-200'
+                  }`}>
+                    {creator.email || "📧 Email hidden or not found"}
+                  </div>
                   {creator.has_email && <span className="text-[10px] text-green-600 font-normal flex items-center gap-1 mt-1"><Check size={10} /> Verified Email</span>}
                 </div>
              </div>
@@ -455,15 +494,23 @@ export default function CreatorDetail() {
                       <div className="flex gap-4 mb-4 pb-4 border-b border-gray-200/50">
                         <div className="flex-1">
                           <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Followers</p>
-                          <p className="text-sm font-normal text-gray-900 flex items-center gap-1">
+                          <p className="text-sm font-normal text-gray-900 flex items-center gap-1 mb-3">
                             <Users size={12} className="text-gray-400" />
                             {profile.followers?.toLocaleString() || 'N/A'}
+                          </p>
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Avg Likes</p>
+                          <p className="text-sm font-normal text-gray-900 flex items-center gap-1">
+                            {profile.avg_likes?.toLocaleString() || 'N/A'}
                           </p>
                         </div>
                         <div className="flex-1">
                           <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Engagement</p>
-                          <p className="text-sm font-normal text-gray-900">
+                          <p className="text-sm font-normal text-gray-900 mb-3">
                             {profile.engagement_rate ? `${Number(profile.engagement_rate).toFixed(2)}%` : 'N/A'}
+                          </p>
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Avg Comments</p>
+                          <p className="text-sm font-normal text-gray-900">
+                            {profile.avg_comments?.toLocaleString() || 'N/A'}
                           </p>
                         </div>
                       </div>

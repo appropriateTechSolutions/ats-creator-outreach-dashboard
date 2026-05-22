@@ -5,6 +5,9 @@ export interface Campaign {
   brand_id: string | null
   owner_user_id: string | null
   category: string        // Comma-separated for multi-niche: "Fashion,Beauty,Fitness"
+  description?: string
+  country?: string
+  state?: string
   city: string
   keywords: string[]
   status: 'draft' | 'active' | 'paused' | 'completed' | 'archived'
@@ -38,11 +41,14 @@ export interface OutreachLog {
   creator_id: string;
   channel: string;
   message_type: string;
-  follow_up_count: number;
-  next_followup_at: string | null;
-  is_dismissed: boolean;
-  response_received: boolean;
-  sent_at: string;
+  follow_up_count?: number;
+  next_followup_at?: string | null;
+  is_dismissed?: boolean;
+  response_received?: boolean;
+  subject_line?: string | null;
+  delivery_status?: 'pending' | 'sent' | 'failed' | 'blocked' | 'skipped';
+  sent_at: string | null;
+  created_at?: string;
 }
 
 export interface Creator {
@@ -77,12 +83,15 @@ export interface Creator {
     }
   } | null
   review_status: string | null
+  lifecycle_status: string
+  notes?: string | null
   campaign_id: string | null
   campaign_ids: string[]
   assigned_status: string
   meetings: Meeting[]
   affiliate: Affiliate | null
   outreach_logs: OutreachLog[]
+  OutreachLogs?: OutreachLog[]
   conversation: CreatorConversation | null
   profiles: CreatorPlatformProfile[]
 }
@@ -121,17 +130,7 @@ export interface Affiliate {
   total_revenue_generated: string
 }
 
-export interface OutreachLog {
-  id: string
-  creator_id: string
-  campaign_id: string
-  channel: string
-  message_type: string
-  subject_line: string | null
-  delivery_status: 'pending' | 'sent' | 'failed' | 'blocked' | 'skipped'
-  sent_at: string | null
-  created_at: string
-}
+
 
 export interface CreatorConversation {
   id: string
@@ -141,6 +140,7 @@ export interface CreatorConversation {
   detected_intent: 'interested' | 'not_interested' | 'unclear' | null
   interested: boolean | null
   qualification_status: string
+  messages?: any[]
 }
 
 export interface ConversationMessage {
