@@ -342,8 +342,8 @@ export default function CreatorDetail() {
               </div>
               
               <div className="flex flex-wrap gap-2 mt-3">
-                {creator.category?.split(',').map(c => (
-                   <span key={c} className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded text-xs font-normal uppercase tracking-wider">{c.trim()}</span>
+                {[...new Set(creator.category?.split(',').map(c => c.trim()).filter(Boolean))].map((c, index) => (
+                   <span key={`${c}-${index}`} className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded text-xs font-normal uppercase tracking-wider">{c}</span>
                 ))}
               </div>
             </div>

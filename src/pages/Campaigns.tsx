@@ -6,11 +6,11 @@ import { Button } from '../components/ui/Button';
 import { Drawer } from '../components/ui/Drawer';
 import { Search, Plus, Filter, Target, Megaphone, ArrowLeft } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { getCampaigns, createCampaign, getBrands } from '../lib/api';
+import { getCampaigns, createCampaign, getBrands, getCustomCategories, createCustomCategory } from '../lib/api';
 import { format } from 'date-fns';
 import { Modal } from '../components/ui/Modal';
-import { Input } from '../components/ui/Input';
 import { LoadingState } from '../components/ui/LoadingState';
+import { CampaignForm } from '../components/CampaignForm';
 import { useAuth } from '../contexts/AuthContext';
 
 const COUNTRIES = [
@@ -42,9 +42,12 @@ export default function Campaigns() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [customCat, setCustomCat] = useState('');
+  const [customState, setCustomState] = useState('');
+  const [customCity, setCustomCity] = useState('');
   const [search, setSearch] = useState('');
   const [selectedBrandIdFilter, setSelectedBrandIdFilter] = useState<string | null>(null);
   const [selectedBrandNameFilter, setSelectedBrandNameFilter] = useState<string | null>(null);
+  const [dbCustomCategories, setDbCustomCategories] = useState<any[]>([]);
   const navigate = useNavigate();
 
   // Form State
@@ -71,6 +74,7 @@ export default function Campaigns() {
       ]);
       setCampaigns(campaignsData);
       setBrands(brandsData);
+      // Don't fetch categories here - fetch them when brand is selected
     } catch (err) {
       console.error('Fetch error:', err);
     } finally {
@@ -81,6 +85,46 @@ export default function Campaigns() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Fetch categories when brand is selected
+  useEffect(() => {
+    const fetchCategories = async () => {
+      // Only fetch if we have brands loaded and a brand is selected
+      if (!brands.length) return;
+      
+      if (formData.brand_id) {
+        const selectedBrand = brands.find(b => b.id === formData.brand_id);
+        const clientId = selectedBrand?.client_id;
+        
+        console.log('🔍 Brand selected, fetching categories:', {
+          brandId: formData.brand_id,
+          brandName: selectedBrand?.name,
+          clientId: clientId
+        });
+        
+        if (clientId) {
+          try {
+            const categoriesData = await getCustomCategories(clientId);
+            console.log('✅ Categories fetched successfully:', categoriesData);
+            console.log('📊 Number of categories:', categoriesData?.length || 0);
+            console.log('📋 Category names:', categoriesData?.map(c => typeof c === 'string' ? c : c.name));
+            setDbCustomCategories(categoriesData || []);
+          } catch (err) {
+            console.error('❌ Failed to fetch categories:', err);
+            setDbCustomCategories([]);
+          }
+        } else {
+          console.warn('⚠️ Selected brand has no client_id');
+          setDbCustomCategories([]);
+        }
+      } else {
+        // Silently clear categories when no brand is selected (don't log)
+        setDbCustomCategories([]);
+      }
+    };
+    
+    fetchCategories();
+  }, [formData.brand_id, brands.length]); // Only depend on brand_id and brands.length, not entire brands array
 
   // Capture brand filter from Brands page click
   useEffect(() => {
@@ -101,6 +145,10 @@ export default function Campaigns() {
       alert('Please select a Brand');
       return;
     }
+    if (!getCommaValues(formData.city).length) {
+      alert('Please add at least one target city');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const selectedBrand = brands.find(b => b.id === formData.brand_id);
@@ -112,8 +160,8 @@ export default function Campaigns() {
         description: formData.campaign_description,
         category: formData.category.join(','),
         country: formData.country,
-        state: formData.state,
-        city: formData.city,
+        state: getCommaValues(formData.state).join(', '),
+        city: getCommaValues(formData.city).join(', '),
         keywords: formData.keywords.split(',').map(k => k.trim()).filter(Boolean),
         product_offer_notes: formData.product_offer_notes,
         offer_type: 'hybrid',
@@ -121,9 +169,15 @@ export default function Campaigns() {
         email_subject: 'Collaboration with {{campaign_name}}',
         email_body: 'Hey {{full_name}}, love your content! We would love to collaborate for our {{campaign_name}} campaign in {{city}}.\n\nOffer: {{product_offer_notes}}'
       });
+      // Close modal and reset form
       setIsModalOpen(false);
-      setFormData({ name: '', brand_id: '', campaign_description: '', category: [], country: '', state: '', city: '', keywords: '', product_offer_notes: '', discovery_channels: ['instagram'] });
-      setCustomCat('');
+      // Reset form after a small delay to avoid triggering useEffect while modal is still visible
+      setTimeout(() => {
+        setFormData({ name: '', brand_id: '', campaign_description: '', category: [], country: '', state: '', city: '', keywords: '', product_offer_notes: '', discovery_channels: ['instagram'] });
+        setCustomCat('');
+        setCustomState('');
+        setCustomCity('');
+      }, 100);
       fetchData();
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Failed to create campaign';
@@ -142,15 +196,110 @@ export default function Campaigns() {
     }));
   };
 
-  const handleAddCustomCategory = () => {
+  const handleAddCustomCategory = async () => {
     if (!customCat.trim()) return;
-    if (!formData.category.includes(customCat.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        category: [...prev.category, customCat.trim()]
-      }));
+    const catName = customCat.trim();
+    
+    // Don't add to form state yet - let it come from the database fetch
+    // This prevents duplicate keys
+    
+    // Try to save it to the database for this client
+    try {
+      const selectedBrand = brands.find(b => b.id === formData.brand_id);
+      const clientId = selectedBrand?.client_id;
+      
+      // Only try to save if we have a brand selected
+      if (!formData.brand_id) {
+        console.warn('⚠️ No brand selected - category added locally only');
+        // Only add locally if we can't save to DB
+        if (!formData.category.includes(catName)) {
+          setFormData(prev => ({
+            ...prev,
+            category: [...prev.category, catName]
+          }));
+        }
+        setCustomCat('');
+        return;
+      }
+      
+      if (!clientId) {
+        console.warn('⚠️ Selected brand has no client_id - category added locally only');
+        // Only add locally if we can't save to DB
+        if (!formData.category.includes(catName)) {
+          setFormData(prev => ({
+            ...prev,
+            category: [...prev.category, catName]
+          }));
+        }
+        setCustomCat('');
+        return;
+      }
+      
+      console.log('📤 Creating category:', catName, 'for client:', clientId);
+      
+      // Pass both client_id and brand_id to the backend
+      const result = await createCustomCategory(catName, clientId, formData.brand_id);
+      console.log('✅ Category created successfully');
+      
+      // Refresh custom categories
+      const updatedCats = await getCustomCategories(clientId);
+      setDbCustomCategories(updatedCats || []);
+      
+      // Now add to form state after successful save
+      if (!formData.category.includes(catName)) {
+        setFormData(prev => ({
+          ...prev,
+          category: [...prev.category, catName]
+        }));
+      }
+      
+    } catch (err: any) {
+      console.error('❌ Failed to save custom category:', err);
+      // Show user-friendly error message
+      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to save category';
+      alert(`Failed to save category: ${errorMsg}`);
+      // Still add locally even if save failed
+      if (!formData.category.includes(catName)) {
+        setFormData(prev => ({
+          ...prev,
+          category: [...prev.category, catName]
+        }));
+      }
     }
+    
     setCustomCat('');
+  };
+
+  const getCommaValues = (value: string) =>
+    value
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
+
+  const addCommaValues = (field: 'state' | 'city', value: string) => {
+    const nextValues = getCommaValues(value);
+    if (!nextValues.length) return;
+
+    setFormData(prev => {
+      const existing = getCommaValues(prev[field]);
+      const merged = [...existing];
+      nextValues.forEach(item => {
+        if (!merged.some(current => current.toLowerCase() === item.toLowerCase())) {
+          merged.push(item);
+        }
+      });
+      return { ...prev, [field]: merged.join(', ') };
+    });
+
+    if (field === 'state') setCustomState('');
+    if (field === 'city') setCustomCity('');
+  };
+
+  const removeCommaValue = (field: 'state' | 'city', value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: getCommaValues(prev[field]).filter(item => item !== value).join(', ')
+    }));
   };
 
   const toggleChannel = (id: string) => {
@@ -210,6 +359,7 @@ export default function Campaigns() {
       (c.city || '').toLowerCase().includes(searchLower)
     );
   });
+  const activeInitiativesCount = filteredCampaigns.filter(c => c.status?.toLowerCase() === 'active').length;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
@@ -249,7 +399,7 @@ export default function Campaigns() {
             />
           </div>
           <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-white px-3 py-1.5 rounded-lg border border-gray-100 whitespace-nowrap">
-            {filteredCampaigns.length} Active Initiatives
+            {activeInitiativesCount} Active Initiatives
           </div>
         </div>
 
@@ -287,8 +437,8 @@ export default function Campaigns() {
                         {c.name}
                       </div>
                       <div className="flex gap-1 mt-2 flex-wrap">
-                        {c.category?.split(',').map(cat => cat.trim()).filter(Boolean).map(cat => (
-                          <span key={cat} className="px-2 py-0.5 rounded text-[9px] font-normal uppercase tracking-widest bg-gray-100 text-gray-600 border border-gray-200">
+                        {[...new Set(c.category?.split(',').map(cat => cat.trim()).filter(Boolean))].map((cat, index) => (
+                          <span key={`${cat}-${index}`} className="px-2 py-0.5 rounded text-[9px] font-normal uppercase tracking-widest bg-gray-100 text-gray-600 border border-gray-200">
                             {cat}
                           </span>
                         ))}
@@ -337,192 +487,27 @@ export default function Campaigns() {
         onClose={() => setIsModalOpen(false)} 
         title="Launch New Campaign"
       >
-        <form onSubmit={handleCreate} className="space-y-6">
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Campaign Name *</label>
-              <textarea
-                required
-                rows={2}
-                value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm resize-y"
-                placeholder="Summer Skincare 2026"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Brand *</label>
-              <select
-                required
-                value={formData.brand_id}
-                onChange={e => {
-                  if (e.target.value === 'create_new_brand') {
-                    navigate('/brands', { state: { openCreateModal: true } });
-                  } else {
-                    setFormData({ ...formData, brand_id: e.target.value });
-                  }
-                }}
-                className="w-full h-11 px-4 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
-              >
-                <option value="">Select Brand</option>
-                {brands.map(b => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-                {['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
-                  <option value="create_new_brand" className="font-semibold text-primary-600">+ Create Brand</option>
-                )}
-              </select>
-            </div>
-          </div>
-
-          <div>
-             <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Campaign Description</label>
-             <textarea
-                value={formData.campaign_description}
-                onChange={e => setFormData({ ...formData, campaign_description: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm resize-y"
-                rows={3}
-                placeholder="Describe your campaign..."
-             />
-          </div>
-
-          <div>
-            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-2.5">Discovery Categories *</label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {standardCategories.map(cat => (
-                <button
-                  type="button"
-                  key={cat}
-                  onClick={() => toggleCategory(cat)}
-                  className={`px-3 py-1.5 rounded-full text-[10px] font-normal uppercase tracking-widest border transition-all ${
-                    formData.category.includes(cat) 
-                      ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' 
-                      : 'bg-white text-gray-600 border-gray-100 hover:border-primary-300'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-              {formData.category.filter(c => !standardCategories.includes(c)).map(cat => (
-                <button
-                  type="button"
-                  key={cat}
-                  onClick={() => toggleCategory(cat)}
-                  className="px-3 py-1.5 rounded-full text-[10px] font-normal uppercase tracking-widest border bg-primary-50 text-primary-600 border-primary-200 shadow-sm"
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-            
-            <div className="flex gap-2">
-              <Input 
-                placeholder="Or enter custom category..." 
-                value={customCat}
-                onChange={e => setCustomCat(e.target.value)}
-                onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), handleAddCustomCategory())}
-                className="h-10 text-xs bg-gray-50/50"
-              />
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={handleAddCustomCategory}
-                className="h-10 text-[10px]"
-              >
-                Add
-              </Button>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Search Keywords</label>
-            <Input
-              value={formData.keywords}
-              onChange={e => setFormData({ ...formData, keywords: e.target.value })}
-              placeholder="vegan, organic, eco"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Target Country *</label>
-            <select
-              required
-              value={formData.country}
-              onChange={e => setFormData({ ...formData, country: e.target.value })}
-              className="w-full h-11 px-4 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
-            >
-              <option value="">Select Country</option>
-              <option value="Global">Global</option>
-              {COUNTRIES.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Target State</label>
-            <Input
-              value={formData.state}
-              onChange={e => setFormData({ ...formData, state: e.target.value })}
-              placeholder="California"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Target City *</label>
-            <Input
-              required
-              value={formData.city}
-              onChange={e => setFormData({ ...formData, city: e.target.value })}
-              placeholder="Los Angeles"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-2.5">Platforms *</label>
-            <div className="flex gap-3">
-              {platforms.map(p => (
-                <button
-                  type="button"
-                  key={p.id}
-                  onClick={() => toggleChannel(p.id)}
-                  className={`flex-1 py-3 rounded-2xl border flex flex-col items-center justify-center transition-all duration-300 ${
-                    formData.discovery_channels.includes(p.id)
-                      ? 'bg-white border-primary-500 ring-4 ring-primary-50 shadow-md transform scale-[1.05]'
-                      : 'bg-gray-50 border-gray-100 text-gray-400 opacity-70 hover:bg-white hover:border-gray-200'
-                  }`}
-                >
-                  <div className={`mb-1.5 p-1.5 rounded-lg ${formData.discovery_channels.includes(p.id) ? 'bg-white shadow-sm' : ''}`}>
-                    {p.icon}
-                  </div>
-                  <span className={`text-[9px] font-bold uppercase tracking-widest ${formData.discovery_channels.includes(p.id) ? 'text-gray-900' : 'text-gray-400'}`}>
-                    {p.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-             <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Offer Notes</label>
-             <textarea
-                value={formData.product_offer_notes}
-                onChange={e => setFormData({ ...formData, product_offer_notes: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm resize-none"
-                rows={3}
-                placeholder="Free access + 15% affiliate..."
-             />
-          </div>
-
-          <div className="pt-4 border-t border-gray-50 flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setIsModalOpen(false)} type="button" className="font-normal uppercase text-[10px] tracking-widest">Cancel</Button>
-            <Button type="submit" disabled={isSubmitting} className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 font-normal uppercase text-[10px] tracking-widest">
-              {isSubmitting ? 'Starting Agent...' : 'Launch Campaign'}
-            </Button>
-          </div>
-          
-        </form>
+        <CampaignForm
+          formData={formData}
+          setFormData={setFormData}
+          brands={brands}
+          countries={COUNTRIES}
+          isSubmitting={isSubmitting}
+          onSubmit={handleCreate}
+          onCancel={() => setIsModalOpen(false)}
+          submitLabel="Launch Campaign"
+          submittingLabel="Starting Agent..."
+          showCreateBrandOption={['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '')}
+          onCreateBrand={() => navigate('/brands', { state: { openCreateModal: true } })}
+          customCat={customCat}
+          setCustomCat={setCustomCat}
+          customState={customState}
+          setCustomState={setCustomState}
+          customCity={customCity}
+          setCustomCity={setCustomCity}
+          dbCustomCategories={dbCustomCategories}
+          onAddCustomCategory={handleAddCustomCategory}
+        />
       </Modal>
     </div>
   );

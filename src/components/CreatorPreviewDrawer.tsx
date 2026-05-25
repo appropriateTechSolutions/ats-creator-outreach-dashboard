@@ -322,8 +322,8 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
               
               {/* Category Tags */}
               <div className="flex flex-wrap gap-1 mt-2">
-                {activeCreator.category?.split(',').map(c => (
-                   <span key={c} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[9px] font-normal uppercase tracking-wider">{c.trim()}</span>
+                {[...new Set(activeCreator.category?.split(',').map(c => c.trim()).filter(Boolean))].map((c, index) => (
+                   <span key={`${c}-${index}`} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[9px] font-normal uppercase tracking-wider">{c}</span>
                 ))}
               </div>
             </div>

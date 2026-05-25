@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   getCampaignById, 
   getCampaignLeads, 
   updateCampaignTemplate,
   reviewLead,
   updateCampaign,
-  getBrands
+  getBrands,
+  deleteCampaign
 } from '../lib/api';
 import type { Campaign, Creator } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
@@ -16,17 +17,22 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
-import { ArrowLeft, Sparkles, Activity, Mail, Info, Check, X, Instagram, Youtube, Edit2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, Activity, Mail, Info, Check, X, Instagram, Youtube, Edit2, Trash2, Loader2, AlertCircle } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
-import { Input } from '../components/ui/Input';
+import { CampaignForm } from '../components/CampaignForm';
 import { useAuth } from '../contexts/AuthContext';
 
 import { CreatorPreviewDrawer } from '../components/CreatorPreviewDrawer';
+
+const COUNTRIES = [
+  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+];
 
 export default function CampaignDetail() {
   const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const fromBrandId = location.state?.fromBrandId;
   const fromBrandsList = location.state?.fromBrandsList;
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -39,14 +45,20 @@ export default function CampaignDetail() {
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [outreachModalMessageType, setOutreachModalMessageType] = useState<string>('initial');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [previewCreator, setPreviewCreator] = useState<Creator | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [brands, setBrands] = useState<any[]>([]);
   const [customCat, setCustomCat] = useState('');
+  const [customState, setCustomState] = useState('');
+  const [customCity, setCustomCity] = useState('');
   const [editFormData, setEditFormData] = useState({
     name: '',
     brand_id: '',
+    campaign_description: '',
     category: [] as string[],
+    country: '',
+    state: '',
     city: '',
     keywords: '',
     product_offer_notes: '',
@@ -71,7 +83,10 @@ export default function CampaignDetail() {
       setEditFormData({
         name: camp.name || '',
         brand_id: camp.brand_id || '',
+        campaign_description: camp.description || '',
         category: camp.category ? camp.category.split(',').map(c => c.trim()).filter(Boolean) : [],
+        country: camp.country || '',
+        state: camp.state || '',
         city: camp.city || '',
         keywords: Array.isArray(camp.keywords) ? camp.keywords.join(', ') : '',
         product_offer_notes: camp.product_offer_notes || '',
@@ -238,13 +253,20 @@ export default function CampaignDetail() {
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
+    if (!getCommaValues(editFormData.city).length) {
+      alert('Please add at least one target city');
+      return;
+    }
     setIsUpdating(true);
     try {
       await updateCampaign(id, {
         name: editFormData.name,
         brand_id: editFormData.brand_id,
+        description: editFormData.campaign_description,
         category: editFormData.category.join(','),
-        city: editFormData.city,
+        country: editFormData.country,
+        state: getCommaValues(editFormData.state).join(', '),
+        city: getCommaValues(editFormData.city).join(', '),
         keywords: editFormData.keywords.split(',').map(k => k.trim()).filter(Boolean),
         product_offer_notes: editFormData.product_offer_notes,
         discovery_channels: editFormData.discovery_channels
@@ -259,68 +281,29 @@ export default function CampaignDetail() {
     }
   };
 
-  const toggleCategory = (cat: string) => {
-    setEditFormData(prev => ({
-      ...prev,
-      category: prev.category.includes(cat) 
-        ? prev.category.filter(c => c !== cat) 
-        : [...prev.category, cat]
-    }));
+  const handleDeleteCampaign = () => {
+    setShowDeleteConfirm(true);
   };
 
-  const handleAddCustomCategory = () => {
-    if (!customCat.trim()) return;
-    if (!editFormData.category.includes(customCat.trim())) {
-      setEditFormData(prev => ({
-        ...prev,
-        category: [...prev.category, customCat.trim()]
-      }));
+  const confirmDeleteCampaign = async () => {
+    if (!id) return;
+    setIsUpdating(true);
+    try {
+      await deleteCampaign(id);
+      navigate('/campaigns');
+    } catch (err: any) {
+      alert(err || 'Failed to delete campaign.');
+    } finally {
+      setIsUpdating(false);
+      setShowDeleteConfirm(false);
     }
-    setCustomCat('');
   };
 
-  const toggleChannel = (id: string) => {
-    setEditFormData(prev => ({
-      ...prev,
-      discovery_channels: prev.discovery_channels.includes(id) 
-        ? (prev.discovery_channels.length > 1 ? prev.discovery_channels.filter(c => c !== id) : prev.discovery_channels)
-        : [...prev.discovery_channels, id]
-    }));
-  };
-
-  const standardCategories = ['Fashion', 'Beauty', 'Fitness', 'Food', 'Travel', 'Tech', 'Lifestyle', 'Health'];
-  const platforms = [
-    { 
-      id: 'instagram', 
-      label: 'Instagram',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#E1306C]">
-          <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
-          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-          <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line>
-        </svg>
-      )
-    },
-    { 
-      id: 'youtube', 
-      label: 'YouTube',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-600">
-          <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.42a2.78 2.78 0 0 0-1.94 2C1 8.14 1 12 1 12s0 3.86.46 5.58a2.78 2.78 0 0 0 1.94 2c1.72.42 8.6.42 8.6.42s6.88 0 8.6-.42a2.78 2.78 0 0 0 1.94-2C23 15.86 23 12 23 12s0-3.86-.46-5.58z"></path>
-          <polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"></polygon>
-        </svg>
-      )
-    },
-    { 
-      id: 'tiktok', 
-      label: 'TikTok',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-900">
-          <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path>
-        </svg>
-      )
-    }
-  ];
+  const getCommaValues = (value: string) =>
+    value
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
 
   if (loading) {
     return (
@@ -693,161 +676,85 @@ export default function CampaignDetail() {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         title="Edit Campaign Parameters"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
-            <Button 
-              onClick={handleEditSave} 
-              disabled={isUpdating}
-              className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30"
-            >
-              {isUpdating ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </>
-        }
       >
-        <form onSubmit={handleEditSave} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Campaign Name *</label>
-              <Input
-                required
-                value={editFormData.name}
-                onChange={e => setEditFormData({ ...editFormData, name: e.target.value })}
-                placeholder="Summer Skincare 2026"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Brand *</label>
-              <select
-                required
-                value={editFormData.brand_id}
-                onChange={e => setEditFormData({ ...editFormData, brand_id: e.target.value })}
-                className="w-full h-11 px-4 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
-              >
-                <option value="">Select Brand</option>
-                {brands.map(b => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-2.5">Discovery Categories *</label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {standardCategories.map(cat => (
-                <button
-                  type="button"
-                  key={cat}
-                  onClick={() => toggleCategory(cat)}
-                  className={`px-3 py-1.5 rounded-full text-[10px] font-normal uppercase tracking-widest border transition-all ${
-                    editFormData.category.includes(cat) 
-                      ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' 
-                      : 'bg-white text-gray-600 border-gray-100 hover:border-primary-300'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-              {editFormData.category.filter(c => !standardCategories.includes(c)).map(cat => (
-                <button
-                  type="button"
-                  key={cat}
-                  onClick={() => toggleCategory(cat)}
-                  className="px-3 py-1.5 rounded-full text-[10px] font-normal uppercase tracking-widest border bg-primary-50 text-primary-600 border-primary-200 shadow-sm"
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-            
-            <div className="flex gap-2">
-              <Input 
-                placeholder="Or enter custom category..." 
-                value={customCat}
-                onChange={e => setCustomCat(e.target.value)}
-                onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), handleAddCustomCategory())}
-                className="h-10 text-xs bg-gray-50/50"
-              />
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={handleAddCustomCategory}
-                className="h-10 text-[10px]"
-              >
-                Add
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Search Keywords</label>
-              <Input
-                value={editFormData.keywords}
-                onChange={e => setEditFormData({ ...editFormData, keywords: e.target.value })}
-                placeholder="vegan, organic, eco"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Target City *</label>
-              <Input
-                required
-                value={editFormData.city}
-                onChange={e => setEditFormData({ ...editFormData, city: e.target.value })}
-                placeholder="London"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-2.5">Platforms *</label>
-            <div className="flex gap-3">
-              {platforms.map(p => (
-                <button
-                  type="button"
-                  key={p.id}
-                  onClick={() => toggleChannel(p.id)}
-                  className={`flex-1 py-3 rounded-2xl border flex flex-col items-center justify-center transition-all duration-300 ${
-                    editFormData.discovery_channels.includes(p.id)
-                      ? 'bg-white border-primary-500 ring-4 ring-primary-50 shadow-md transform scale-[1.05]'
-                      : 'bg-gray-50 border-gray-100 text-gray-400 opacity-70 hover:bg-white hover:border-gray-200'
-                  }`}
-                >
-                  <div className={`mb-1.5 p-1.5 rounded-lg ${editFormData.discovery_channels.includes(p.id) ? 'bg-white shadow-sm' : ''}`}>
-                    {p.icon}
-                  </div>
-                  <span className={`text-[9px] font-bold uppercase tracking-widest ${editFormData.discovery_channels.includes(p.id) ? 'text-gray-900' : 'text-gray-400'}`}>
-                    {p.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-             <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Offer Notes</label>
-             <textarea
-                value={editFormData.product_offer_notes}
-                onChange={e => setEditFormData({ ...editFormData, product_offer_notes: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm resize-none"
-                rows={3}
-                placeholder="Free access + 15% affiliate..."
-             />
-          </div>
-        </form>
+        <CampaignForm
+          formData={editFormData}
+          setFormData={setEditFormData}
+          brands={brands}
+          countries={COUNTRIES}
+          isSubmitting={isUpdating}
+          onSubmit={handleEditSave}
+          onCancel={() => setIsEditModalOpen(false)}
+          submitLabel="Save Changes"
+          customCat={customCat}
+          setCustomCat={setCustomCat}
+          customState={customState}
+          setCustomState={setCustomState}
+          customCity={customCity}
+          setCustomCity={setCustomCity}
+        />
       </Modal>
       
-      {/* Floating Edit Button */}
+      {/* Floating Actions */}
+      {['super_admin', 'admin'].includes(user?.role || '') && (
+        <button
+          type="button"
+          onClick={handleDeleteCampaign}
+          disabled={isUpdating}
+          className="fixed bottom-28 right-8 w-12 h-12 bg-white text-red-600 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center justify-center hover:bg-red-50 hover:scale-110 active:scale-95 transition-all z-[60] group disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label="Delete campaign"
+          title="Delete Campaign"
+        >
+          {isUpdating ? (
+            <Loader2 size={20} className="animate-spin" />
+          ) : (
+            <Trash2 size={21} className="group-hover:rotate-12 transition-transform" />
+          )}
+        </button>
+      )}
+
       {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
-        <button 
+        <button
+          type="button"
           onClick={() => setIsEditModalOpen(true)}
           className="fixed bottom-8 right-8 w-14 h-14 bg-white text-primary-600 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-[60] group"
+          aria-label="Edit campaign"
           title="Edit Campaign Parameters"
         >
           <Edit2 size={24} className="group-hover:rotate-12 transition-transform" />
         </button>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <Card className="w-full max-w-sm border-none shadow-3xl bg-white rounded-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={32} />
+              </div>
+              <h3 className="text-xl font-normal text-gray-900 mb-2 font-outfit uppercase tracking-tight">Delete Campaign?</h3>
+              <p className="text-sm font-normal text-gray-500 mb-6 font-outfit">
+                Are you sure you want to permanently delete <strong className="text-gray-900">{campaign.name}</strong>?
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="ghost"
+                  className="flex-1 font-normal uppercase tracking-widest text-[10px]"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-normal uppercase tracking-widest text-[10px] shadow-xl shadow-red-500/20"
+                  onClick={confirmDeleteCampaign}
+                  disabled={isUpdating}
+                >
+                  {isUpdating ? <LoadingState mini /> : 'Delete Campaign'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
       <CreatorPreviewDrawer 
         isOpen={isPreviewOpen}

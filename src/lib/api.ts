@@ -25,7 +25,23 @@ api.interceptors.response.use(
     return response.data.data !== undefined ? response.data.data : response.data;
   },
   error => {
-    return Promise.reject(error?.response?.data?.error || error.message);
+    // Enhanced error handling with more details
+    const errorMessage = error?.response?.data?.error 
+      || error?.response?.data?.message 
+      || error?.message 
+      || 'An unexpected error occurred';
+    
+    // Log detailed error for debugging
+    if (error?.response) {
+      console.error('API Error:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+    }
+    
+    return Promise.reject(error?.response?.data || new Error(errorMessage));
   }
 );
 
@@ -78,6 +94,14 @@ export const getBrandById = (id: string): Promise<any> => api.get(`/brands/${id}
 export const createBrand = (data: any): Promise<any> => api.post('/brands', data);
 export const updateBrand = (id: string, data: any): Promise<any> => api.patch(`/brands/${id}`, data);
 export const deleteBrand = (id: string): Promise<any> => api.post(`/brands/${id}/delete`);
+
+// ─── Categories ───────────────────────────────────────
+export const getCustomCategories = (clientId?: string): Promise<any[]> => {
+  const params = clientId ? { client_id: clientId } : {};
+  return api.get('/categories', { params });
+};
+export const createCustomCategory = (name: string, clientId?: string, brandId?: string): Promise<any> => 
+  api.post('/categories', { name, client_id: clientId, brand_id: brandId });
 
 // ─── Campaigns ────────────────────────────────────────
 export const getCampaigns = (): Promise<Campaign[]> => api.get('/campaigns');

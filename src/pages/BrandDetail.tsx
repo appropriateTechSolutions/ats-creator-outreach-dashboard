@@ -21,7 +21,9 @@ import {
   Users,
   Edit2,
   X,
-  Info
+  Info,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import * as api from '../lib/api';
 import { Card } from '../components/ui/Card';
@@ -70,6 +72,7 @@ export default function BrandDetail() {
   const [brand, setBrand] = useState<Brand | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<Brand>>({});
   const [updateLoading, setUpdateLoading] = useState(false);
   const navigate = useNavigate();
@@ -121,6 +124,28 @@ export default function BrandDetail() {
       alert(err || 'Failed to update brand');
     } finally {
       setUpdateLoading(false);
+    }
+  };
+
+  const canDeleteBrand =
+    ['super_admin', 'admin'].includes(currentUser?.role || '') ||
+    (currentUser?.role === 'client_admin' && currentUser.client_id === brand?.Client?.id);
+
+  const handleDeleteBrand = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteBrand = async () => {
+    if (!id) return;
+    setUpdateLoading(true);
+    try {
+      await api.deleteBrand(id);
+      navigate('/brands');
+    } catch (err: any) {
+      alert(err || 'Failed to delete brand.');
+    } finally {
+      setUpdateLoading(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -329,8 +354,8 @@ export default function BrandDetail() {
                     </td>
                     <td className="px-8 py-5 text-center">
                       <div className="flex gap-1 justify-center flex-wrap">
-                        {c.category?.split(',').map(cat => cat.trim()).filter(Boolean).map(cat => (
-                          <span key={cat} className="px-2 py-0.5 rounded text-[9px] font-normal uppercase tracking-widest bg-gray-100 text-gray-600 break-keep capitalize border border-gray-200">
+                        {[...new Set(c.category?.split(',').map(cat => cat.trim()).filter(Boolean))].map((cat, index) => (
+                          <span key={`${cat}-${index}`} className="px-2 py-0.5 rounded text-[9px] font-normal uppercase tracking-widest bg-gray-100 text-gray-600 break-keep capitalize border border-gray-200">
                             {cat}
                           </span>
                         ))}
@@ -356,10 +381,30 @@ export default function BrandDetail() {
         </div>
       </Card>
 
-      {/* Floating Edit Button */}
+      {/* Floating Actions */}
+      {canDeleteBrand && (
+        <button
+          type="button"
+          onClick={handleDeleteBrand}
+          disabled={updateLoading}
+          aria-label="Delete brand"
+          title="Delete brand"
+          className="fixed bottom-28 right-8 w-12 h-12 bg-white text-red-600 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center justify-center hover:bg-red-50 hover:scale-110 active:scale-95 transition-all z-40 group disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {updateLoading ? (
+            <Loader2 size={20} className="animate-spin" />
+          ) : (
+            <Trash2 size={21} className="group-hover:rotate-12 transition-transform" />
+          )}
+        </button>
+      )}
+
       {['super_admin', 'admin', 'client_admin'].includes(currentUser?.role || '') && (
-        <button 
+        <button
+          type="button"
           onClick={() => setIsEditModalOpen(true)}
+          aria-label="Edit brand"
+          title="Edit brand"
           className="fixed bottom-8 right-8 w-14 h-14 bg-white text-primary-600 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40 group"
         >
           <Edit2 size={24} className="group-hover:rotate-12 transition-transform" />
@@ -540,6 +585,39 @@ export default function BrandDetail() {
               >
                 Update Brand Identity
               </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <Card className="w-full max-w-sm border-none shadow-3xl bg-white rounded-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={32} />
+              </div>
+              <h3 className="text-xl font-normal text-gray-900 mb-2 font-outfit uppercase tracking-tight">Delete Brand?</h3>
+              <p className="text-sm font-normal text-gray-500 mb-6 font-outfit">
+                Are you sure you want to permanently delete <strong className="text-gray-900">{brand.name}</strong>?
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="ghost"
+                  className="flex-1 font-normal uppercase tracking-widest text-[10px]"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-normal uppercase tracking-widest text-[10px] shadow-xl shadow-red-500/20"
+                  onClick={confirmDeleteBrand}
+                  disabled={updateLoading}
+                >
+                  {updateLoading ? <LoadingState mini /> : 'Delete Brand'}
+                </Button>
+              </div>
             </div>
           </Card>
         </div>

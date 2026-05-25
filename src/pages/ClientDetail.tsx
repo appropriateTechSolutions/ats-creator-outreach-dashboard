@@ -272,18 +272,6 @@ export default function ClientDetail() {
 
         <div className="flex flex-col items-start lg:items-end gap-3 lg:pt-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            {['super_admin', 'admin'].includes(currentUser?.role || '') && (
-              <Button 
-                variant="outline"
-                onClick={handleDeleteClient}
-                loading={updateLoading}
-                className="flex items-center gap-2 border-red-100 text-red-600 hover:bg-red-50 px-4 py-2 rounded-xl transition-all font-normal uppercase tracking-widest text-[10px] font-outfit h-[40px]"
-              >
-                 <Trash2 size={16} />
-                 Delete Client
-              </Button>
-            )}
-
             <div className="flex flex-col items-start sm:items-end gap-2 sm:pl-6 sm:border-l border-gray-100">
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Tenant Status</span>
@@ -513,10 +501,30 @@ export default function ClientDetail() {
         </div>
       </Card>
 
-      {/* Floating Edit Button */}
+      {/* Floating Actions */}
+      {['super_admin', 'admin'].includes(currentUser?.role || '') && (
+        <button
+          type="button"
+          onClick={handleDeleteClient}
+          disabled={updateLoading}
+          aria-label="Delete client"
+          title="Delete client"
+          className="fixed bottom-28 right-8 w-12 h-12 bg-white text-red-600 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center justify-center hover:bg-red-50 hover:scale-110 active:scale-95 transition-all z-40 group disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {updateLoading ? (
+            <Loader2 size={20} className="animate-spin" />
+          ) : (
+            <Trash2 size={21} className="group-hover:rotate-12 transition-transform" />
+          )}
+        </button>
+      )}
+
       {['super_admin', 'admin', 'client_admin'].includes(currentUser?.role || '') && (
-        <button 
+        <button
+          type="button"
           onClick={() => setIsEditModalOpen(true)}
+          aria-label="Edit client"
+          title="Edit client"
           className="fixed bottom-8 right-8 w-14 h-14 bg-white text-primary-600 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40 group"
         >
           <Edit2 size={24} className="group-hover:rotate-12 transition-transform" />
