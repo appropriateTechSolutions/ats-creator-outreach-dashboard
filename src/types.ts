@@ -83,7 +83,7 @@ export interface Creator {
     }
   } | null
   review_status: string | null
-  lifecycle_status: string
+  lifecycle_status?: string | null
   notes?: string | null
   campaign_id: string | null
   campaign_ids: string[]
@@ -95,12 +95,10 @@ export interface Creator {
   conversation: CreatorConversation | null
   profiles: CreatorPlatformProfile[]
   // Optional fields populated from various API responses
-  lifecycle_status?: string | null
   platform?: string | null
   followers_count?: number | null
   engagement_rate?: number | null
   research_summary?: string | null
-  notes?: string | null
   affiliate_code?: string | null
   affiliate_link?: string | null
   AffiliateTracking?: AffiliateTracking | null

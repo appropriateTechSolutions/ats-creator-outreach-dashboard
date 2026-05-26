@@ -185,15 +185,6 @@ export default function Campaigns() {
     }
   };
 
-  const toggleCategory = (cat: string) => {
-    setFormData(prev => ({
-      ...prev,
-      category: prev.category.includes(cat) 
-        ? prev.category.filter(c => c !== cat) 
-        : [...prev.category, cat]
-    }));
-  };
-
   const handleAddCustomCategory = async () => {
     if (!customCat.trim()) return;
     const catName = customCat.trim();
@@ -236,7 +227,7 @@ export default function Campaigns() {
       console.log('📤 Creating category:', catName, 'for client:', clientId);
       
       // Pass both client_id and brand_id to the backend
-      const result = await createCustomCategory(catName, clientId, formData.brand_id);
+      await createCustomCategory(catName, clientId, formData.brand_id);
       console.log('✅ Category created successfully');
       
       // Refresh custom categories
@@ -273,75 +264,6 @@ export default function Campaigns() {
       .split(',')
       .map(item => item.trim())
       .filter(Boolean);
-
-  const addCommaValues = (field: 'state' | 'city', value: string) => {
-    const nextValues = getCommaValues(value);
-    if (!nextValues.length) return;
-
-    setFormData(prev => {
-      const existing = getCommaValues(prev[field]);
-      const merged = [...existing];
-      nextValues.forEach(item => {
-        if (!merged.some(current => current.toLowerCase() === item.toLowerCase())) {
-          merged.push(item);
-        }
-      });
-      return { ...prev, [field]: merged.join(', ') };
-    });
-
-    if (field === 'state') setCustomState('');
-    if (field === 'city') setCustomCity('');
-  };
-
-  const removeCommaValue = (field: 'state' | 'city', value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: getCommaValues(prev[field]).filter(item => item !== value).join(', ')
-    }));
-  };
-
-  const toggleChannel = (id: string) => {
-    setFormData(prev => ({
-      ...prev,
-      discovery_channels: prev.discovery_channels.includes(id) 
-        ? (prev.discovery_channels.length > 1 ? prev.discovery_channels.filter(c => c !== id) : prev.discovery_channels)
-        : [...prev.discovery_channels, id]
-    }));
-  };
-
-  const standardCategories = ['Fashion', 'Beauty', 'Fitness', 'Food', 'Travel', 'Tech', 'Lifestyle', 'Health'];
-  const platforms = [
-    { 
-      id: 'instagram', 
-      label: 'Instagram',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#E1306C]">
-          <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
-          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-          <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line>
-        </svg>
-      )
-    },
-    { 
-      id: 'youtube', 
-      label: 'YouTube',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-600">
-          <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.42a2.78 2.78 0 0 0-1.94 2C1 8.14 1 12 1 12s0 3.86.46 5.58a2.78 2.78 0 0 0 1.94 2c1.72.42 8.6.42 8.6.42s6.88 0 8.6-.42a2.78 2.78 0 0 0 1.94-2C23 15.86 23 12 23 12s0-3.86-.46-5.58z"></path>
-          <polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"></polygon>
-        </svg>
-      )
-    },
-    { 
-      id: 'tiktok', 
-      label: 'TikTok',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-900">
-          <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path>
-        </svg>
-      )
-    }
-  ];
 
   const filteredCampaigns = campaigns.filter(c => {
     // Brand Filter

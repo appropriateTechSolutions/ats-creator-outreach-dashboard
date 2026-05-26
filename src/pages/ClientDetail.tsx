@@ -21,7 +21,8 @@ import {
   Target,
   Megaphone,
   Percent,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import * as api from '../lib/api';
 import { Card } from '../components/ui/Card';

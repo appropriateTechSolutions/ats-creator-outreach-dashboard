@@ -11,7 +11,6 @@ import {
   Shield,
   Edit2,
   X,
-  Info,
   Trash2,
   Loader2
 } from 'lucide-react';
