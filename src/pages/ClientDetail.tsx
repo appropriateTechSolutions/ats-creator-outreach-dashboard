@@ -395,7 +395,7 @@ export default function ClientDetail() {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-gray-50/50 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100">
+              <tr className="bg-gray-50/50 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 font-outfit">
                 <th className="px-8 py-4">Brand Identity</th>
                 <th className="px-8 py-4">Industry Sector</th>
                 <th className="px-8 py-4">Primary URL</th>
@@ -415,7 +415,7 @@ export default function ClientDetail() {
                     className="hover:bg-primary-50/30 transition-colors group cursor-pointer"
                   >
                     <td className="px-8 py-5">
-                      <div className="font-normal text-gray-900 text-base leading-tight group-hover:text-primary-600 transition-colors">{brand.name}</div>
+                      <div className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit group-hover:text-primary-600 transition-colors">{brand.name}</div>
                     </td>
                     <td className="px-8 py-5">
                       <span className="px-2.5 py-1 rounded bg-gray-100 text-gray-600 text-[10px] font-normal uppercase tracking-wider border border-gray-200">
@@ -455,7 +455,7 @@ export default function ClientDetail() {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-gray-50/50 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100">
+              <tr className="bg-gray-50/50 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 font-outfit">
                 <th className="px-8 py-4">Professional Identity</th>
                 <th className="px-8 py-4">Assigned Role</th>
                 <th className="px-8 py-4 text-right">Status</th>

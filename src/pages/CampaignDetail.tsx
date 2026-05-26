@@ -449,7 +449,7 @@ export default function CampaignDetail() {
                               setPreviewCreator(lead);
                               setIsPreviewOpen(true);
                             }}
-                            className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-left"
+                            className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-left text-sm uppercase tracking-tight font-outfit"
                           >
                             {lead.full_name || `@${lead.handle}`}
                           </button>

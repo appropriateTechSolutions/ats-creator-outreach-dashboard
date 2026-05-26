@@ -218,10 +218,10 @@ export default function BrandDetail() {
       {/* 1. Brand Intelligence Table */}
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
         <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+          <h2 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2 font-outfit">
             Brand Intelligence
           </h2>
-          <div className="text-[10px] font-normal text-primary-600 bg-primary-50 px-3 py-1 rounded-full uppercase tracking-widest border border-primary-100">
+          <div className="text-[10px] font-normal text-primary-600 bg-primary-50 px-3 py-1 rounded-full uppercase tracking-widest border border-primary-100 font-outfit">
             {brand.industry}
           </div>
         </div>
@@ -229,11 +229,11 @@ export default function BrandDetail() {
           <table className="w-full text-left">
             <tbody className="divide-y divide-gray-50">
               <tr>
-                <td className="px-6 sm:px-8 py-5 w-40 sm:w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Product Category</td>
-                <td className="px-6 sm:px-8 py-5 text-sm font-normal text-gray-900 uppercase tracking-tight">{brand.product_category || 'N/A'}</td>
+                <td className="px-6 sm:px-8 py-5 w-40 sm:w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50 font-outfit">Product Category</td>
+                <td className="px-6 sm:px-8 py-5 text-sm font-normal text-gray-900">{brand.product_category || 'N/A'}</td>
               </tr>
               <tr>
-                <td className="px-6 sm:px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Official Website</td>
+                <td className="px-6 sm:px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50 font-outfit">Official Website</td>
                 <td className="px-6 sm:px-8 py-5">
                   <a href={brand.website} target="_blank" rel="noreferrer" className="text-primary-600 font-normal text-sm flex items-center gap-2 hover:underline truncate max-w-[200px] sm:max-w-none inline-flex">
                     <Globe size={14} className="shrink-0" /> <span className="truncate">{brand.website || 'No URL Provided'}</span>
@@ -241,11 +241,11 @@ export default function BrandDetail() {
                 </td>
               </tr>
               <tr>
-                <td className="px-6 sm:px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Market Description</td>
+                <td className="px-6 sm:px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50 font-outfit">Market Description</td>
                 <td className="px-6 sm:px-8 py-5 text-sm font-normal text-gray-600 leading-relaxed">{brand.brand_description || 'No description provided.'}</td>
               </tr>
               <tr>
-                <td className="px-6 sm:px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Target Demographic</td>
+                <td className="px-6 sm:px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50 font-outfit">Target Demographic</td>
                 <td className="px-6 sm:px-8 py-5 text-sm font-normal text-gray-600">{brand.target_audience || 'Not specified.'}</td>
               </tr>
             </tbody>
@@ -256,18 +256,18 @@ export default function BrandDetail() {
       {/* 2. Creative Parameters Table */}
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
         <div className="p-6 border-b border-gray-100 bg-gray-50/50">
-          <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+          <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2 font-outfit">
             Creative Parameters
           </h3>
         </div>
         <table className="w-full text-left">
           <tbody className="divide-y divide-gray-50">
             <tr>
-              <td className="px-8 py-5 w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Brand Voice</td>
+              <td className="px-8 py-5 w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50 font-outfit">Brand Voice</td>
               <td className="px-8 py-5 text-sm font-normal text-gray-900">{brand.brand_voice || 'N/A'}</td>
             </tr>
             <tr>
-              <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Content Restrictions</td>
+              <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50 font-outfit">Content Restrictions</td>
               <td className="px-8 py-5 text-sm font-normal text-gray-600 italic">{brand.restrictions || 'None specified.'}</td>
             </tr>
           </tbody>
@@ -277,22 +277,22 @@ export default function BrandDetail() {
       {/* 3. Commercial Terms Table */}
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
         <div className="p-6 border-b border-gray-100 bg-gray-50/50">
-          <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+          <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2 font-outfit">
             Commercial Terms
           </h3>
         </div>
         <table className="w-full text-left">
           <tbody className="divide-y divide-gray-50">
             <tr>
-              <td className="px-8 py-5 w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Commission Basis</td>
-              <td className="px-8 py-5 text-sm font-normal text-gray-900 uppercase tracking-widest font-black">{brand.default_commission_percent}% Default</td>
+              <td className="px-8 py-5 w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50 font-outfit">Commission Basis</td>
+              <td className="px-8 py-5 text-sm font-normal text-gray-900">{brand.default_commission_percent}% Default</td>
             </tr>
             <tr>
-              <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Affiliate Terms</td>
+              <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50 font-outfit">Affiliate Terms</td>
               <td className="px-8 py-5 text-sm font-normal text-gray-600 leading-relaxed whitespace-pre-line">{brand.affiliate_terms || 'Standard terms apply.'}</td>
             </tr>
             <tr>
-              <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Product Offerings</td>
+              <td className="px-8 py-5 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50 font-outfit">Product Offerings</td>
               <td className="px-8 py-5 text-sm font-normal text-gray-600 italic">{brand.product_offer_notes || 'No specific offer details.'}</td>
             </tr>
           </tbody>
@@ -302,14 +302,14 @@ export default function BrandDetail() {
       {/* 4. Operational Integrity Table */}
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
         <div className="p-6 border-b border-gray-100 bg-gray-50/50">
-          <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+          <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2 font-outfit">
             Operational Integrity
           </h3>
         </div>
         <table className="w-full text-left">
           <tbody className="divide-y divide-gray-50">
             <tr>
-              <td className="px-8 py-5 w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50">Internal Notes</td>
+              <td className="px-8 py-5 w-64 bg-gray-50/30 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-r border-gray-50 font-outfit">Internal Notes</td>
               <td className="px-8 py-5 text-sm font-normal text-gray-600 italic">{brand.notes || 'No internal documentation available.'}</td>
             </tr>
           </tbody>
@@ -319,17 +319,17 @@ export default function BrandDetail() {
       {/* 5. Campaigns Portfolio */}
       <Card className="border-none shadow-2xl overflow-hidden bg-white">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-          <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+          <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2 font-outfit">
             Campaigns Portfolio
           </h3>
-          <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">
+          <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest font-outfit">
             {brand.campaigns?.length || 0} Outreach Initiatives
           </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-gray-50/50 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100">
+              <tr className="bg-gray-50/50 text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 font-outfit">
                 <th className="px-8 py-4">Campaign Name</th>
                 <th className="px-8 py-4 text-center">City</th>
                 <th className="px-8 py-4 text-center">Target Categories</th>
@@ -345,7 +345,7 @@ export default function BrandDetail() {
                     className="hover:bg-primary-50/30 transition-all group cursor-pointer"
                   >
                     <td className="px-8 py-5">
-                      <div className="font-semibold text-gray-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight font-outfit text-sm">
+                      <div className="font-normal text-gray-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight font-outfit text-sm">
                         {c.name}
                       </div>
                     </td>
