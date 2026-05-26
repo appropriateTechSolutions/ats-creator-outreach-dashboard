@@ -94,6 +94,16 @@ export interface Creator {
   OutreachLogs?: OutreachLog[]
   conversation: CreatorConversation | null
   profiles: CreatorPlatformProfile[]
+  // Optional fields populated from various API responses
+  lifecycle_status?: string | null
+  platform?: string | null
+  followers_count?: number | null
+  engagement_rate?: number | null
+  research_summary?: string | null
+  notes?: string | null
+  affiliate_code?: string | null
+  affiliate_link?: string | null
+  AffiliateTracking?: AffiliateTracking | null
 }
 
 export interface CreatorPlatformProfile {
@@ -130,8 +140,6 @@ export interface Affiliate {
   total_revenue_generated: string
 }
 
-
-
 export interface CreatorConversation {
   id: string
   latest_channel: string | null
@@ -140,7 +148,16 @@ export interface CreatorConversation {
   detected_intent: 'interested' | 'not_interested' | 'unclear' | null
   interested: boolean | null
   qualification_status: string
-  messages?: any[]
+  messages?: ConversationMessage[]
+}
+
+export interface AffiliateTracking {
+  affiliate_code?: string | null
+  affiliate_link?: string | null
+  clicks?: number
+  conversions?: number
+  revenue_generated?: number | string | null
+  commission_owed?: number | string | null
 }
 
 export interface ConversationMessage {

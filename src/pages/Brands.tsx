@@ -1,21 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  ShoppingBag, 
-  Plus, 
-  Search, 
-  MoreVertical,
-  ArrowRight,
+  ShoppingBag,
+  Plus,
+  Search,
   Filter,
   Building2,
-  BarChart3,
-  CheckCircle2,
   X,
   Globe,
-  Tag,
-  FileText,
   Target,
   Megaphone,
-  AlertCircle,
   Percent
 } from 'lucide-react';
 import * as api from '../lib/api';
@@ -82,7 +75,7 @@ export default function Brands() {
       const brandsPromise = api.getBrands(selectedClientId === 'all' ? undefined : selectedClientId);
       
       // Only fetch all clients for internal staff
-      let clientsPromise = Promise.resolve([]);
+      let clientsPromise: Promise<any[]> = Promise.resolve([]);
       if (user?.user_type === 'internal') {
         clientsPromise = api.getClients();
       }
@@ -102,7 +95,7 @@ export default function Brands() {
           || 'Quantum Peak Agencyy';
         setClients([{ id: user.client_id, name: clientName }]);
         // Pre-select the client_id for the form
-        setFormData(prev => ({ ...prev, client_id: user.client_id }));
+        setFormData(prev => ({ ...prev, client_id: user.client_id || '' }));
       }
     } catch (err) {
       console.error('Failed to fetch brands/clients', err);
@@ -122,7 +115,6 @@ export default function Brands() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     try {
       // Auto-assign client_id for client users
       const finalData = { ...formData };
@@ -151,8 +143,6 @@ export default function Brands() {
       fetchData();
     } catch (err: any) {
       alert(err?.message || err || 'Failed to create brand');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

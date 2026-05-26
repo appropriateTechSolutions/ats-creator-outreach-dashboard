@@ -1,20 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Building2, 
-  Plus, 
-  Search, 
-  MoreVertical,
-  ArrowRight,
-  ExternalLink,
+import {
+  Building2,
+  Plus,
+  Search,
   Shield,
-  Activity,
   User,
-  Globe,
-  Tag,
-  Mail,
-  Phone,
-  FileText,
-  RefreshCw,
   X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -34,6 +24,7 @@ interface Client {
   plan_type: string;
   billing_status: string;
   created_at: string;
+  industry?: string;
   brands?: any[];
   users?: any[];
   campaign_count?: number;

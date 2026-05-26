@@ -5,7 +5,7 @@ interface LoadingStateProps {
   mini?: boolean;
 }
 
-export const LoadingState: React.FC<LoadingStateProps> = ({ message, mini }) => {
+export const LoadingState: React.FC<LoadingStateProps> = ({ mini }) => {
   const size = mini ? 'w-5 h-5' : 'w-16 h-16';
   const dotSize = mini ? 'w-1 h-1' : 'w-3 h-3';
   const radius = mini ? 10 : 40;

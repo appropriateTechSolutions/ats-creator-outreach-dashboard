@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { Campaign, Creator, AuthUser } from '../types';
 
 export const api = axios.create({
-  baseURL: 'http://localhost:8081/api', 
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8081/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -47,9 +47,9 @@ api.interceptors.response.use(
 
 // ─── Auth ─────────────────────────────────────────────
 export const login = async (email: string, password: string): Promise<{ user: AuthUser; access_token: string }> => {
-  const res = await api.post('/auth/login', { email, password });
+  const res = await api.post('/auth/login', { email, password }) as any;
   localStorage.setItem('ats_token', res.access_token);
-  return res as any;
+  return res;
 };
 
 export const forgotPassword = (email: string): Promise<{ success: boolean; message: string }> => 

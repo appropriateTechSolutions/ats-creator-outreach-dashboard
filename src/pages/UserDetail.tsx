@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
   User as UserIcon, 
@@ -13,12 +13,8 @@ import {
   Fingerprint,
   UserCheck,
   UserX,
-  History,
   Activity,
-  Trash2,
-  Loader2,
-  ToggleLeft,
-  ToggleRight
+  Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';

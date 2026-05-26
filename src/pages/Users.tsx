@@ -5,7 +5,7 @@ import { inviteUser, getClients, getUsers, resendInvite } from '../lib/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { UserPlus, Mail, Shield, User as UserIcon, Loader2, CheckCircle2, AlertCircle, Wand2, Search, X, Building2, RefreshCw } from 'lucide-react';
+import { UserPlus, Mail, Shield, User as UserIcon, CheckCircle2, AlertCircle, Wand2, Search, X, Building2 } from 'lucide-react';
 import { LoadingState } from '../components/ui/LoadingState';
 
 export default function Users() {

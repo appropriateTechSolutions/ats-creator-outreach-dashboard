@@ -1,24 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { 
-  ShoppingBag, 
-  ArrowLeft, 
-  ArrowRight,
-  Globe, 
-  Tag, 
-  FileText,
+import {
+  ArrowLeft,
+  Globe,
   Target,
   Megaphone,
   AlertCircle,
   Percent,
-  Calendar,
   Building2,
-  RefreshCw,
-  ExternalLink,
   Shield,
-  BarChart3,
-  CheckCircle2,
-  Users,
   Edit2,
   X,
   Info,

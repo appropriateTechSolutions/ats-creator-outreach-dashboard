@@ -326,7 +326,7 @@ export default function CampaignDetail() {
     }
     
     try {
-      await updateCampaign(id, { status: newStatus as any });
+      await updateCampaign(id, { status: newStatus as Campaign['status'] });
       fetchData(true); // Silent refresh in background
     } catch (err) {
       alert(`Failed to update campaign status to ${newStatus}`);
@@ -497,7 +497,7 @@ export default function CampaignDetail() {
                     </Td>
                     <Td><ScoreBadge score={lead.relevance_score || 0} /></Td>
                     <Td><ScoreBadge score={lead.outreach_readiness_score || 0} /></Td>
-                    <Td><StatusBadge status={['not_respond'].includes(lead.lifecycle_status) ? lead.lifecycle_status : (lead.review_status as any || 'pending')} /></Td>
+                    <Td><StatusBadge status={['not_respond'].includes(lead.lifecycle_status || '') ? lead.lifecycle_status : (lead.review_status as any || 'pending')} /></Td>
                     <Td className="text-right">
                       {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                         <div className="flex items-center justify-end gap-2">

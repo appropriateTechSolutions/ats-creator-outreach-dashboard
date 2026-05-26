@@ -8,25 +8,16 @@ import {
   Tag, 
   Mail, 
   Phone, 
-  Plus, 
-  Users, 
+  Plus,
   User as UserIcon,
   ShoppingBag,
-  CreditCard,
-  Calendar,
-  MoreVertical,
   CheckCircle2,
   AlertCircle,
   FileText,
   UserPlus,
-  ArrowRight,
   ExternalLink,
-  RefreshCw,
   X,
-  Loader2,
-  Wand2,
   Edit2,
-  Info,
   Target,
   Megaphone,
   Percent,
@@ -38,7 +29,6 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { LoadingState } from '../components/ui/LoadingState';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { Modal } from '../components/ui/Modal';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Brand {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Drawer } from './ui/Drawer';
 import { Button } from './ui/Button';
@@ -22,9 +22,8 @@ import {
   Sparkles, 
   ExternalLink, 
   ArrowRight,
-  Check, 
-  X, 
-  Mail, 
+  Check,
+  Mail,
   FileText, 
   Users, 
   MessageCircle, 
@@ -333,7 +332,7 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
           <div className="grid grid-cols-3 gap-3">
             <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
               <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal">Status</p>
-              <StatusBadge status={['not_respond'].includes(activeCreator.lifecycle_status) ? activeCreator.lifecycle_status : (activeCreator.review_status as any || 'pending')} />
+              <StatusBadge status={['not_respond'].includes(activeCreator.lifecycle_status || '') ? activeCreator.lifecycle_status : (activeCreator.review_status as any || 'pending')} />
             </div>
             <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
               <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal">Relevance</p>
@@ -643,6 +642,7 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
                         type: 'message',
                         direction: msg.direction,
                         channel: msg.channel,
+                        subject: null as string | null,
                         text: msg.message_text,
                         time: new Date(msg.message_time || msg.messageTime || Date.now()).getTime()
                       }))
@@ -795,12 +795,12 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
 
       {outreachModalOpen && (
         <OutreachPreviewModal
-          isOpen={outreachModalOpen}
-          onClose={() => setOutreachModalOpen(false)}
-          onSend={handleConfirmSendOutreach}
           creatorId={activeCreator.id}
           campaignId={campaignId}
           messageType={outreachModalMessageType}
+          isOpen={outreachModalOpen}
+          onClose={() => setOutreachModalOpen(false)}
+          onSend={handleConfirmSendOutreach}
         />
       )}
 

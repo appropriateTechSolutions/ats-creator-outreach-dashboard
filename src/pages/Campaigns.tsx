@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
-import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { Drawer } from '../components/ui/Drawer';
-import { Search, Plus, Filter, Target, Megaphone, ArrowLeft } from 'lucide-react';
+import { Search, Plus, ArrowLeft } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { getCampaigns, createCampaign, getBrands, getCustomCategories, createCustomCategory } from '../lib/api';
 import { format } from 'date-fns';
@@ -24,7 +22,7 @@ interface Campaign {
   city: string;
   category: string;
   created_at: string;
-  brand_id?: string;
+  brand_id?: string | null;
   Brand?: {
     id?: string;
     name: string;

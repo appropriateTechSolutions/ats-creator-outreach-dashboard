@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
@@ -36,7 +36,7 @@ export default function Meetings() {
         if (Array.isArray(data)) {
           const filtered = data.filter(c => {
             // 1. Check if they are manually marked as replied/qualified
-            const isPositiveStatus = ['replied', 'qualified'].includes(c.lifecycle_status);
+            const isPositiveStatus = ['replied', 'qualified'].includes(c.lifecycle_status || '');
             
             // 2. Check if the AI detected interest (Matches your database screenshot)
             const aiDetectedInterest = c.conversation?.detected_intent === 'interested' || 
@@ -80,7 +80,7 @@ export default function Meetings() {
       };
 
       // We use a placeholder date for now since it's not booked yet
-      await bookMeeting(selectedCreatorId, creator?.campaign_id, new Date().toISOString(), JSON.stringify(metadata));
+      await bookMeeting(selectedCreatorId, creator?.campaign_id || '', new Date().toISOString(), JSON.stringify(metadata));
       
       alert('Booking link sent! The creator has been added to the scheduling queue.');
       setIsInviteModalOpen(false);

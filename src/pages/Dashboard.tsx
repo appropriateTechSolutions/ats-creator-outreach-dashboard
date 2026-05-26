@@ -5,8 +5,7 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { Button } from '../components/ui/Button';
-import { Users, Mail, MessageSquare, Target, CheckCircle, Activity, AlertCircle, Clock, Sparkles, Instagram, Youtube } from 'lucide-react';
+import { Users, Mail, MessageSquare, Target, CheckCircle, Activity, Clock, Sparkles, Instagram, Youtube } from 'lucide-react';
 import { LoadingState } from '../components/ui/LoadingState';
 import { getCampaigns, getAllCreators, getDashboardStats } from '../lib/api';
 import type { Campaign, Creator } from '../types';
@@ -20,7 +19,6 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
 
   const fetchStats = (campaignId?: string) => {
     setLoading(true);
@@ -416,7 +414,7 @@ export default function Dashboard() {
                         <Td>
                           <ScoreBadge score={c.relevance_score || 0} />
                         </Td>
-                        <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status) ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
+                        <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
                       </Tr>
                     ))}
                   </Tbody>

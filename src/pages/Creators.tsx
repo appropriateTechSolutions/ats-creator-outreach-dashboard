@@ -1,14 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
-import { Button } from '../components/ui/Button';
-import { Search, Filter, Download, ArrowLeft } from 'lucide-react';
+import { Search, ArrowLeft } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { getAllCreators, reviewLead, sendSingleOutreach } from '../lib/api';
+import { getAllCreators, reviewLead } from '../lib/api';
 import type { Creator } from '../types';
-import { format } from 'date-fns';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Check, X, Instagram, Youtube, Activity } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -225,7 +223,7 @@ export default function Creators() {
                     <Td className="text-center">
                       <ScoreBadge score={c.outreach_readiness_score || 0} />
                     </Td>
-                    <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status) ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
+                    <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
                     <Td className="text-right">
                       {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                         <div className="flex justify-end gap-2">

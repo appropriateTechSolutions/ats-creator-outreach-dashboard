@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators } from '../lib/api';
+import { getCreatorById, getCampaignById, sendSingleOutreach, linkAffiliate, findSimilarCreators } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
@@ -16,7 +16,7 @@ export default function CreatorDetail() {
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [creator, setCreator] = useState<Creator | null>(null);
-  const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [, setCampaign] = useState<Campaign | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
@@ -111,19 +111,6 @@ export default function CreatorDetail() {
     loadData();
   }, [id]);
 
-  const handleReview = async (action: 'approve' | 'reject') => {
-    if (!creator) return;
-    setActionLoading(true);
-    try {
-      await reviewLead(creator.id, action);
-      loadData();
-    } catch (err) {
-      alert('Action failed: ' + err);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleSendOutreach = () => {
     if (!creator) return;
 
@@ -168,7 +155,7 @@ export default function CreatorDetail() {
     if (!creator) return;
     setSendingEmail(true);
     try {
-      await sendSingleOutreach(creator.id, creator.campaign_id, customSubject, customBody, messageType);
+      await sendSingleOutreach(creator.id, creator.campaign_id || undefined, customSubject, customBody, messageType);
       alert('Outreach email sent successfully!');
       loadData();
     } catch (err) {
@@ -183,7 +170,7 @@ export default function CreatorDetail() {
     const latest = creator?.latest_outreach;
     if (!latest) return false;
     if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
-    if (latest.follow_up_count >= 3) return false; // Never suggest a 4th follow-up
+    if ((latest.follow_up_count ?? 0) >= 3) return false; // Never suggest a 4th follow-up
     return new Date(latest.next_followup_at) < new Date();
   };
 
@@ -191,7 +178,7 @@ export default function CreatorDetail() {
     const latest = creator?.latest_outreach;
     if (!latest) return false;
     if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
-    if (latest.follow_up_count >= 3) return false;
+    if ((latest.follow_up_count ?? 0) >= 3) return false;
     return new Date(latest.next_followup_at) >= new Date();
   };
 
@@ -348,11 +335,11 @@ export default function CreatorDetail() {
               </div>
             </div>
           </div>
-          <div className="flex flex-col gap-3 lg:items-end shrink-0 w-full lg:w-[200px]">
-            <StatusBadge status={['not_respond'].includes(creator.lifecycle_status) ? creator.lifecycle_status : (creator.review_status as any || 'pending')} />
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-normal text-gray-400 uppercase">Readiness:</span>
-              <ScoreBadge score={creator.outreach_readiness_score || 0} />
+          <div className="flex flex-col items-start lg:items-end gap-3 w-full lg:w-auto">
+            <StatusBadge status={['not_respond'].includes(creator.lifecycle_status || '') ? creator.lifecycle_status : (creator.review_status as any || 'pending')} />
+            <div className="flex items-center gap-2 mt-2">
+               <span className="text-xs font-normal text-gray-400 uppercase">Readiness:</span>
+               <ScoreBadge score={creator.outreach_readiness_score || 0} />
             </div>
             {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
               <div className="flex flex-col gap-2 w-full mt-1">
@@ -624,7 +611,7 @@ export default function CreatorDetail() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[400px] overflow-y-auto p-6 space-y-6 bg-gray-50/50">
-            {messages.length === 0 && (creator.OutreachLogs?.length === 0 || !creator.OutreachLogs) ? (
+            {messages.length === 0 && ((creator as any).OutreachLogs?.length === 0 || !(creator as any).OutreachLogs) ? (
               <div className="text-center py-12 text-gray-400 italic text-sm">
                 No outreach messages or replies found for this creator yet.
               </div>
@@ -632,7 +619,7 @@ export default function CreatorDetail() {
               <div className="space-y-4">
                 {(() => {
                   const combined = [
-                    ...(creator.OutreachLogs || []).map((log: any) => {
+                    ...((creator as any).OutreachLogs || []).map((log: any) => {
                       const logTime = log.sent_at || log.sentAt || log.created_at || log.createdAt || Date.now();
                       return {
                         id: log.id,
@@ -890,7 +877,7 @@ export default function CreatorDetail() {
       
       <OutreachPreviewModal
         creatorId={creator?.id || ''}
-        campaignId={creator?.campaign_id}
+        campaignId={creator?.campaign_id || undefined}
         messageType={outreachModalMessageType}
         isOpen={outreachModalOpen}
         onClose={() => setOutreachModalOpen(false)}

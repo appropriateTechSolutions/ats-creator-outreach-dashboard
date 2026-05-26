@@ -4,7 +4,7 @@ import { verifyInvite, acceptInvite } from '../lib/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { AlertCircle, CheckCircle2, Loader2, Lock } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Lock } from 'lucide-react';
 import { LoadingState } from '../components/ui/LoadingState';
 
 export default function AcceptInvite() {

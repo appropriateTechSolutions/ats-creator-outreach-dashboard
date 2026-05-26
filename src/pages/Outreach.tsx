@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Settings, Activity } from 'lucide-react';
-import { CheckCircle, AlertCircle, History, MessageSquare, ExternalLink } from 'lucide-react';
+import { CheckCircle, AlertCircle, MessageSquare, ExternalLink } from 'lucide-react';
 import { getCampaigns, getAllCreators, getOutreachLogs } from '../lib/api';
 import type { Campaign, Creator } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 export default function Outreach() {
   const { user } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [creators, setCreators] = useState<Creator[]>([]);
+  const [, setCreators] = useState<Creator[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -122,7 +120,7 @@ export default function Outreach() {
           <div className="space-y-6">
 
             <div className="bg-white border border-gray-100 rounded-2xl p-2 shadow-sm space-y-1">
-              {logs.length > 0 ? logs.map((log, i) => (
+              {logs.length > 0 ? logs.map((log) => (
                 <div key={log.id} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors border-b border-gray-50 last:border-0 group">
                   <div className={`mt-1 p-1.5 rounded-lg ${log.delivery_status === 'sent' ? 'bg-success-50 text-success-600' : 'bg-red-50 text-red-600'}`}>
                     {log.delivery_status === 'sent' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}

@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function ScoreBadge({ score, label, className = '' }: { score: number, label?: string, className?: string }) {
   let colorClass = 'text-gray-500 bg-gray-100';
   let dotColor = 'bg-gray-400';

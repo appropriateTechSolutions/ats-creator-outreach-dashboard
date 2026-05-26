@@ -1,14 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  MousePointer2, 
-  ShoppingCart, 
-  DollarSign, 
-  Filter, 
+import { useState, useEffect } from 'react';
+import {
+  TrendingUp,
+  MousePointer2,
+  ShoppingCart,
+  DollarSign,
   Search,
   ExternalLink,
   RefreshCw,
-  MoreVertical,
   CheckCircle2,
   AlertCircle,
   Clock,
@@ -18,7 +16,6 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { LoadingState } from '../components/ui/LoadingState';
 import { getAffiliatePerformance, getCampaigns, updateAffiliateStatus } from '../lib/api';
-import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function AffiliatePerformance() {
