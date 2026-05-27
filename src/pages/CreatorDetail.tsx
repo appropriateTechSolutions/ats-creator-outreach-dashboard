@@ -550,37 +550,70 @@ export default function CreatorDetail() {
                   </div>
                  </div>
                  
-                 {matchExpanded && (
-                   <div className="space-y-3 pl-3 border-l-2 border-primary-100 animate-[fadeIn_0.2s_ease]">
-                      {/* City Match */}
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-500 font-medium">City Match</span>
-                        <span className="text-sm font-normal text-gray-900">
-                          {Number(creator.relevance_score) >= 33 ? '+33.3%' : '0%'}
-                        </span>
-                      </div>
-                      
-                      {/* Niche Match */}
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-500 font-medium">Niche Match</span>
-                        <span className="text-sm font-normal text-gray-900">
-                          {Number(creator.relevance_score) >= 66 ? '+33.3%' : '0%'}
-                        </span>
-                      </div>
-                      
-                      {/* Keyword Match */}
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-500 font-medium">Keyword Match</span>
-                        <span className="text-sm font-normal text-gray-900">
-                          {Number(creator.relevance_score) >= 67 
-                            ? `+${(Number(creator.relevance_score) - 66.6).toFixed(1)}%` 
-                            : Number(creator.relevance_score) > 33 && Number(creator.relevance_score) < 66
-                              ? `+${(Number(creator.relevance_score) - 33.3).toFixed(1)}%`
-                              : '0%'}
-                        </span>
-                      </div>
-                   </div>
-                 )}
+                 {matchExpanded && (() => {
+                   const rb = (scoringNotes as any)?.relevance_breakdown;
+                   if (!rb) {
+                     return (
+                       <div className="pl-3 border-l-2 border-primary-100 animate-[fadeIn_0.2s_ease] text-xs text-gray-400 italic">
+                         Detailed breakdown unavailable for this lead.
+                       </div>
+                     );
+                   }
+                   const fmtPct = (p: number) => p > 0 ? `+${p.toFixed(1)}%` : '0%';
+                   return (
+                     <div className="space-y-3 pl-3 border-l-2 border-primary-100 animate-[fadeIn_0.2s_ease]">
+                       {/* City Match */}
+                       <div className="flex justify-between items-start gap-3">
+                         <div className="flex flex-col">
+                           <span className="text-sm text-gray-500 font-medium">City Match</span>
+                           {rb.city?.matched && rb.city?.source === 'bio' && (
+                             <span className="text-[10px] text-gray-400">matched in bio (partial)</span>
+                           )}
+                         </div>
+                         <span className="text-sm font-normal text-gray-900 whitespace-nowrap">
+                           {fmtPct(rb.city?.points || 0)}
+                         </span>
+                       </div>
+
+                       {/* Niche / Category Match */}
+                       <div className="flex justify-between items-start gap-3">
+                         <div className="flex flex-col min-w-0">
+                           <span className="text-sm text-gray-500 font-medium">Niche Match</span>
+                           {Array.isArray(rb.categories?.matched_categories) && rb.categories.matched_categories.length > 0 && (
+                             <span className="text-[10px] text-gray-400 truncate">
+                               {rb.categories.matched_categories.join(', ')}
+                             </span>
+                           )}
+                         </div>
+                         <span className="text-sm font-normal text-gray-900 whitespace-nowrap">
+                           {fmtPct(rb.categories?.points || 0)}
+                         </span>
+                       </div>
+
+                       {/* Keyword Match */}
+                       <div className="flex justify-between items-start gap-3">
+                         <div className="flex flex-col min-w-0">
+                           <span className="text-sm text-gray-500 font-medium">
+                             Keyword Match
+                             {rb.keywords?.total_keywords > 0 && (
+                               <span className="text-[10px] text-gray-400 font-normal ml-1">
+                                 ({(rb.keywords?.matched_keywords?.length || 0)}/{rb.keywords.total_keywords})
+                               </span>
+                             )}
+                           </span>
+                           {Array.isArray(rb.keywords?.matched_keywords) && rb.keywords.matched_keywords.length > 0 && (
+                             <span className="text-[10px] text-gray-400 truncate">
+                               {rb.keywords.matched_keywords.join(', ')}
+                             </span>
+                           )}
+                         </div>
+                         <span className="text-sm font-normal text-gray-900 whitespace-nowrap">
+                           {fmtPct(rb.keywords?.points || 0)}
+                         </span>
+                       </div>
+                     </div>
+                   );
+                 })()}
 
                  <p className="text-[10px] text-gray-400 leading-tight mt-4 pt-4 border-t border-gray-100 italic">
                    * Match % determines how well they fit your specific search filters defined in the campaign.
