@@ -12,15 +12,56 @@ import { Check, X, Instagram, Youtube, Activity } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 
+const getFollowers = (c: Creator): number => {
+  if (typeof c.followers_count === 'number') return c.followers_count;
+  const fromProfiles = c.profiles?.map(p => p.followers || 0) ?? [];
+  return fromProfiles.length ? Math.max(...fromProfiles) : 0;
+};
+
+const getEngagement = (c: Creator): number => {
+  if (typeof c.engagement_rate === 'number') return c.engagement_rate;
+  const fromProfiles = c.profiles?.map(p => p.engagement_rate || 0) ?? [];
+  return fromProfiles.length ? Math.max(...fromProfiles) : 0;
+};
+
+const formatFollowers = (n: number): string => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+  return String(n);
+};
+
+const FILTERS_STORAGE_KEY = 'creators-filters-v1';
+
+type StoredFilters = {
+  search?: string;
+  statusFilter?: string;
+  followersFilter?: string;
+  engagementFilter?: string;
+  sortBy?: string;
+};
+
+const loadStoredFilters = (): StoredFilters => {
+  try {
+    const raw = sessionStorage.getItem(FILTERS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
 export default function Creators() {
   const { user } = useAuth();
   const location = useLocation();
   const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState('');
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
+
+  const [search, setSearch] = useState(() => loadStoredFilters().search || '');
+  const [statusFilter, setStatusFilter] = useState(() => loadStoredFilters().statusFilter || '');
+  const [followersFilter, setFollowersFilter] = useState(() => loadStoredFilters().followersFilter || '');
+  const [engagementFilter, setEngagementFilter] = useState(() => loadStoredFilters().engagementFilter || '');
+  const [sortBy, setSortBy] = useState(() => loadStoredFilters().sortBy || 'followers_desc');
 
   const fetchCreators = () => {
     setLoading(true);
@@ -40,6 +81,18 @@ export default function Creators() {
       setStatusFilter(location.state.initialStatusFilter);
     }
   }, [location.state]);
+
+  // Persist filter/sort selections across navigation within the session
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        FILTERS_STORAGE_KEY,
+        JSON.stringify({ search, statusFilter, followersFilter, engagementFilter, sortBy })
+      );
+    } catch {
+      // ignore storage errors (quota / disabled)
+    }
+  }, [search, statusFilter, followersFilter, engagementFilter, sortBy]);
 
   const handleReview = async (id: string, action: 'approve' | 'reject' | 'shortlist') => {
     setActionLoading(id);
@@ -65,10 +118,28 @@ export default function Creators() {
   };
 
   const filteredCreators = creators.filter(c => {
-    const matchesSearch = 
-      c.handle?.toLowerCase().includes(search.toLowerCase()) || 
+    const matchesSearch =
+      c.handle?.toLowerCase().includes(search.toLowerCase()) ||
       c.full_name?.toLowerCase().includes(search.toLowerCase()) ||
       c.category?.toLowerCase().includes(search.toLowerCase());
+
+    const followers = getFollowers(c);
+    const matchesFollowers =
+      !followersFilter ||
+      (followersFilter === '<10k' && followers < 10_000) ||
+      (followersFilter === '10k-100k' && followers >= 10_000 && followers < 100_000) ||
+      (followersFilter === '100k-1m' && followers >= 100_000 && followers < 1_000_000) ||
+      (followersFilter === '1m+' && followers >= 1_000_000);
+
+    const engagement = getEngagement(c);
+    const matchesEngagement =
+      !engagementFilter ||
+      (engagementFilter === '<1' && engagement < 1) ||
+      (engagementFilter === '1-3' && engagement >= 1 && engagement < 3) ||
+      (engagementFilter === '3-6' && engagement >= 3 && engagement < 6) ||
+      (engagementFilter === '6+' && engagement >= 6);
+
+    if (!matchesFollowers || !matchesEngagement) return false;
 
     // Handle specific status filters
     if (statusFilter === 'hold') {
@@ -93,9 +164,19 @@ export default function Creators() {
 
     // Default: If a status filter is selected, match it. If not, show all that match search.
     if (!statusFilter) return matchesSearch;
-    
+
     return matchesSearch && c.review_status === statusFilter;
   });
+
+  const sortedCreators = [...filteredCreators];
+  switch (sortBy) {
+    case 'followers_desc':  sortedCreators.sort((a, b) => getFollowers(b) - getFollowers(a)); break;
+    case 'followers_asc':   sortedCreators.sort((a, b) => getFollowers(a) - getFollowers(b)); break;
+    case 'engagement_desc': sortedCreators.sort((a, b) => getEngagement(b) - getEngagement(a)); break;
+    case 'engagement_asc':  sortedCreators.sort((a, b) => getEngagement(a) - getEngagement(b)); break;
+    case 'relevance_desc':  sortedCreators.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0)); break;
+    case 'readiness_desc':  sortedCreators.sort((a, b) => (b.outreach_readiness_score || 0) - (a.outreach_readiness_score || 0)); break;
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
@@ -112,22 +193,28 @@ export default function Creators() {
       </div>
 
       <Card>
-        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gray-50/30">
-          <div className="relative w-full sm:max-w-md">
-            <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search global identities..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
-            />
+        <div className="p-6 border-b border-gray-100 bg-gray-50/30 flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="relative flex-1 sm:max-w-md">
+              <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search global identities..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
+              />
+            </div>
+            <div className="text-sm text-gray-500 font-normal sm:ml-auto">
+              {filteredCreators.length} records found
+            </div>
           </div>
-          <div className="flex items-center gap-4 w-full sm:w-auto">
-            <select 
+
+          <div className="flex flex-wrap items-center gap-3">
+            <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[140px]"
+              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px]"
             >
               <option value="">Any Status</option>
               <option value="hold">Discovered</option>
@@ -137,9 +224,42 @@ export default function Creators() {
               <option value="not_respond">Not Responsive</option>
             </select>
 
-          </div>
-          <div className="text-sm text-gray-500 font-normal">
-            {filteredCreators.length} records found
+            <select
+              value={followersFilter}
+              onChange={e => setFollowersFilter(e.target.value)}
+              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px]"
+            >
+              <option value="">Any Followers</option>
+              <option value="<10k">&lt; 10K</option>
+              <option value="10k-100k">10K – 100K</option>
+              <option value="100k-1m">100K – 1M</option>
+              <option value="1m+">1M+</option>
+            </select>
+
+            <select
+              value={engagementFilter}
+              onChange={e => setEngagementFilter(e.target.value)}
+              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px]"
+            >
+              <option value="">Any Engagement</option>
+              <option value="<1">&lt; 1%</option>
+              <option value="1-3">1 – 3%</option>
+              <option value="3-6">3 – 6%</option>
+              <option value="6+">6%+</option>
+            </select>
+
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[200px] sm:ml-auto"
+            >
+              <option value="followers_desc">Sort: Followers (High→Low)</option>
+              <option value="followers_asc">Sort: Followers (Low→High)</option>
+              <option value="engagement_desc">Sort: Engagement (High→Low)</option>
+              <option value="engagement_asc">Sort: Engagement (Low→High)</option>
+              <option value="relevance_desc">Sort: Relevance (High→Low)</option>
+              <option value="readiness_desc">Sort: Readiness (High→Low)</option>
+            </select>
           </div>
         </div>
 
@@ -154,6 +274,8 @@ export default function Creators() {
                 <Tr>
                   <Th>Creator Details</Th>
                   <Th>Category</Th>
+                  <Th className="text-center">Followers</Th>
+                  <Th className="text-center">Engagement</Th>
                   <Th className="text-center">Relevance</Th>
                   <Th className="text-center">Readiness</Th>
                   <Th>Status</Th>
@@ -161,7 +283,7 @@ export default function Creators() {
                 </Tr>
               </Thead>
               <Tbody>
-                {filteredCreators.map(c => (
+                {sortedCreators.map(c => (
                   <Tr key={c.id}>
                     <Td>
                       <div className="flex items-center gap-3">
@@ -218,6 +340,18 @@ export default function Creators() {
                       </div>
                     </Td>
                     <Td className="text-center">
+                      {(() => {
+                        const f = getFollowers(c);
+                        return <span className="text-sm text-gray-700 font-normal">{f > 0 ? formatFollowers(f) : '—'}</span>;
+                      })()}
+                    </Td>
+                    <Td className="text-center">
+                      {(() => {
+                        const e = getEngagement(c);
+                        return <span className="text-sm text-gray-700 font-normal">{e > 0 ? `${e.toFixed(1)}%` : '—'}</span>;
+                      })()}
+                    </Td>
+                    <Td className="text-center">
                       <ScoreBadge score={c.relevance_score || 0} />
                     </Td>
                     <Td className="text-center">
@@ -262,9 +396,9 @@ export default function Creators() {
                     </Td>
                   </Tr>
                 ))}
-                {filteredCreators.length === 0 && (
+                {sortedCreators.length === 0 && (
                   <Tr>
-                    <Td colSpan={7} className="text-center py-16 text-gray-500">
+                    <Td colSpan={9} className="text-center py-16 text-gray-500">
                       <div className="flex justify-center mb-3">
                         <Search size={32} className="text-gray-300" />
                       </div>
