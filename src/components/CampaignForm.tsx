@@ -398,6 +398,17 @@ export function CampaignForm({
             </button>
           ))}
         </div>
+        {formData.discovery_channels.includes('tiktok') && (
+          <p className={`mt-3 text-[11px] leading-relaxed rounded-lg px-3 py-2 ${
+            formData.discovery_channels.length === 1
+              ? 'bg-amber-50 text-amber-800 border border-amber-200'
+              : 'bg-gray-50 text-gray-500 border border-gray-100'
+          }`}>
+            {formData.discovery_channels.length === 1
+              ? 'TikTok-only discovery is not yet supported — follower and engagement enrichment is unavailable for TikTok. Add Instagram or YouTube to run discovery.'
+              : 'Note: TikTok handles are surfaced, but follower and engagement data is only enriched on Instagram and YouTube.'}
+          </p>
+        )}
       </div>
 
       <div>
