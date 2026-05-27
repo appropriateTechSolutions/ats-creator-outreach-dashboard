@@ -118,7 +118,7 @@ export default function CampaignDetail() {
     const cityStr = campaign.city || 'global';
     const keywordsStr = Array.isArray(campaign.keywords) ? campaign.keywords.join(',') : '';
 
-    const apiBaseUrl = 'http://localhost:8081/api';
+    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
     const streamUrl = `${apiBaseUrl}/creators/ai-discovery-stream?campaign_id=${id}&categories=${encodeURIComponent(categoriesStr)}&city=${encodeURIComponent(cityStr)}&keywords=${encodeURIComponent(keywordsStr)}&token=${encodeURIComponent(token)}`;
 
     console.log('⚡ Connecting to AI Discovery SSE Stream at:', streamUrl);
