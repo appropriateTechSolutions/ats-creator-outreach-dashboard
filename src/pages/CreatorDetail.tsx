@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach } from '../lib/api';
+import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
@@ -26,6 +26,7 @@ export default function CreatorDetail() {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [matchExpanded, setMatchExpanded] = useState(false);
   const [findingSimilar, setFindingSimilar] = useState(false);
+  const [regeneratingSummary, setRegeneratingSummary] = useState(false);
 
   // Affiliate Form State
   const [isAffiliateModalOpen, setIsAffiliateModalOpen] = useState(false);
@@ -234,6 +235,19 @@ export default function CreatorDetail() {
     if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
     if ((latest.follow_up_count ?? 0) >= 3) return false;
     return new Date(latest.next_followup_at) >= new Date();
+  };
+
+  const handleRegenerateSummary = async () => {
+    if (!creator || regeneratingSummary) return;
+    setRegeneratingSummary(true);
+    try {
+      const res = await regenerateCreatorSummary(creator.id);
+      setCreator(prev => prev ? { ...prev, notes: res.notes } : prev);
+    } catch (err: any) {
+      alert(err?.message || err || 'Failed to regenerate summary.');
+    } finally {
+      setRegeneratingSummary(false);
+    }
   };
 
   const handleFindSimilar = async () => {
@@ -480,11 +494,27 @@ export default function CreatorDetail() {
         {/* Creator Insights Section (Summary, Bio, Email, Location) */}
         <div className="px-8 py-6 bg-primary-50/30 border-b border-gray-100">
            <div className="mb-6">
-              <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                <Sparkles size={12} className="text-primary-600" /> SUMMARY
-              </h4>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <Sparkles size={12} className="text-primary-600" /> SUMMARY
+                </h4>
+                {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
+                  <button
+                    type="button"
+                    onClick={handleRegenerateSummary}
+                    disabled={regeneratingSummary}
+                    className="text-[10px] font-normal text-gray-400 hover:text-primary-600 uppercase tracking-widest flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Regenerate summary using the latest enriched data"
+                  >
+                    <RefreshCw size={11} className={regeneratingSummary ? 'animate-spin' : ''} />
+                    {regeneratingSummary ? 'Regenerating...' : 'Regenerate'}
+                  </button>
+                )}
+              </div>
               <p className="text-sm text-gray-700 leading-relaxed italic border-l-2 border-primary-200 pl-4 whitespace-pre-wrap">
-                {creator.notes || "AI is analyzing this creator's profile and generating a professional summary..."}
+                {regeneratingSummary
+                  ? 'Re-analyzing creator with latest data…'
+                  : (creator.notes || "AI is analyzing this creator's profile and generating a professional summary...")}
               </p>
            </div>
 

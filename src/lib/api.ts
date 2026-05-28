@@ -128,8 +128,11 @@ export const getDashboardStats = (campaignId?: string): Promise<any> =>
 export const triggerDiscovery = (categories: string[], city: string, campaignId: string, keywords: string[] = []): Promise<unknown> => 
   api.post('/creators/ai-discovery', { categories, city, campaign_id: campaignId, keywords });
 
-export const findSimilarCreators = (creatorId: string, campaignId: string): Promise<any> => 
+export const findSimilarCreators = (creatorId: string, campaignId: string): Promise<any> =>
   api.post(`/creators/${creatorId}/similar?campaignId=${campaignId}`);
+
+export const regenerateCreatorSummary = (creatorId: string): Promise<{ notes: string }> =>
+  api.post(`/creators/${creatorId}/regenerate-summary`);
 
 export const bookMeeting = (creatorId: string, campaignId: string, date: string, notes: string): Promise<unknown> => 
   api.post('/conversions/book-meeting', { creator_id: creatorId, campaign_id: campaignId, date, notes });
