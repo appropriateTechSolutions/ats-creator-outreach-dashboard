@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { getCreatorById, getCampaignById, sendSingleOutreach, linkAffiliate, findSimilarCreators } from '../lib/api';
+import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
@@ -111,6 +111,38 @@ export default function CreatorDetail() {
     loadData();
   }, [id]);
 
+  const handleReview = async (action: 'approve' | 'reject' | 'shortlist' | 'revoke') => {
+    if (!creator) return;
+
+    if (action === 'approve') {
+      handleSendOutreach();
+      return;
+    }
+
+    const previousCreator = { ...creator };
+
+    // Optimistically update the UI state immediately
+    setCreator(prev => {
+      if (!prev) return null;
+      if (action === 'revoke') {
+        return { ...prev, review_status: 'hold', lifecycle_status: 'new' };
+      } else if (action === 'reject') {
+        return { ...prev, review_status: 'rejected' };
+      } else if (action === 'shortlist') {
+        return { ...prev, review_status: 'shortlisted' };
+      }
+      return prev;
+    });
+
+    try {
+      await reviewLead(creator.id, action);
+      loadData();
+    } catch (err) {
+      setCreator(previousCreator); // Revert state on error
+      alert('Action failed: ' + err);
+    }
+  };
+
   const handleSendOutreach = () => {
     if (!creator) return;
 
@@ -142,11 +174,33 @@ export default function CreatorDetail() {
     }
   };
 
-  const handleSendDM = () => {
+  const handleSendDM = async () => {
+    if (!creator) return;
+
+    let bodyText = '';
+    try {
+      const preview = await previewOutreach(creator.id, creator.campaign_id || undefined);
+      bodyText = preview?.body || '';
+    } catch (err) {
+      console.error('Failed to load outreach preview for DM:', err);
+    }
+
+    if (bodyText) {
+      try {
+        await navigator.clipboard.writeText(bodyText);
+      } catch (clipErr) {
+        console.error('Clipboard copy failed:', clipErr);
+      }
+    }
+
     const instagramHandle = getInstagramHandle();
-    const url = instagramHandle
+    let url = instagramHandle
       ? `https://ig.me/m/${encodeURIComponent(instagramHandle)}`
       : 'https://www.instagram.com/direct/inbox/';
+
+    if (bodyText && instagramHandle) {
+      url += `?text=${encodeURIComponent(bodyText)}`;
+    }
 
     window.open(url, '_blank', 'noopener,noreferrer');
   };
@@ -333,6 +387,45 @@ export default function CreatorDetail() {
                    <span key={`${c}-${index}`} className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded text-xs font-normal uppercase tracking-wider">{c}</span>
                 ))}
               </div>
+
+              {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
+                <div className="flex items-center gap-2 mt-4">
+                  {creator.review_status === 'rejected' && (
+                    <button
+                      onClick={() => handleReview('revoke')}
+                      className="px-3 py-1.5 rounded text-xs font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
+                      title="Revoke Rejection"
+                    >
+                      Revoke
+                    </button>
+                  )}
+                  {creator.review_status !== 'approved' && creator.review_status !== 'rejected' && creator.review_status !== 'shortlisted' && creator.review_status !== 'pending_review' && creator.lifecycle_status !== 'not_respond' && (
+                    <>
+                      <button 
+                        onClick={() => handleReview('approve')}
+                        className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors flex items-center justify-center gap-1.5 text-xs font-normal font-outfit uppercase tracking-wider px-3"
+                        title="Approve & Send Outreach"
+                      >
+                        <Check size={14} /> Approve
+                      </button>
+                      <button 
+                        onClick={() => handleReview('reject')}
+                        className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5 text-xs font-normal font-outfit uppercase tracking-wider px-3"
+                        title="Reject"
+                      >
+                        <X size={14} /> Reject
+                      </button>
+                      <button
+                        onClick={() => handleReview('shortlist')}
+                        className="px-3 py-1.5 rounded-lg text-xs font-normal uppercase tracking-wider bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-outfit"
+                        title="Shortlist"
+                      >
+                        Shortlist
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex flex-col items-start lg:items-end gap-3 w-full lg:w-auto">
@@ -352,15 +445,14 @@ export default function CreatorDetail() {
                   {findingSimilar ? <RefreshCw size={13} className="animate-spin text-primary-600" /> : <Users size={13} className="text-primary-600" />}
                   {findingSimilar ? 'Searching...' : 'Find Similar'}
                 </Button>
-                {!creator.email ? (
-                  <Button
-                    className="w-full bg-pink-600 hover:bg-pink-700 shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all shadow-sm"
-                    onClick={handleSendDM}
-                  >
-                    <Instagram size={13} />
-                    Send DM
-                  </Button>
-                ) : (
+                <Button
+                  className="w-full bg-pink-600 hover:bg-pink-700 shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all shadow-sm"
+                  onClick={handleSendDM}
+                >
+                  <Instagram size={13} />
+                  Send DM
+                </Button>
+                {creator.email && (
                   <Button
                     className={`w-full ${
                       isFollowUpDue()

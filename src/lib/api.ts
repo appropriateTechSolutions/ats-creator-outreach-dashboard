@@ -140,7 +140,7 @@ export const approvePartner = (meetingId: string): Promise<unknown> =>
   api.post('/conversions/approve-partner', { meeting_id: meetingId, outcome: 'approved' });
 
 // ─── Review ───────────────────────────────────────────
-export const reviewLead = (creatorId: string, action: 'approve' | 'reject' | 'shortlist', custom_subject?: string, custom_body?: string, message_type?: string): Promise<unknown> => 
+export const reviewLead = (creatorId: string, action: 'approve' | 'reject' | 'shortlist' | 'revoke', custom_subject?: string, custom_body?: string, message_type?: string): Promise<unknown> => 
   api.patch(`/creators/${creatorId}/review`, { action, custom_subject, custom_body, message_type });
 
 // ─── Outreach ─────────────────────────────────────────

@@ -12,7 +12,8 @@ import {
   getCreatorById,
   sendSingleOutreach, 
   linkAffiliate, 
-  findSimilarCreators 
+  findSimilarCreators,
+  previewOutreach
 } from '../lib/api';
 import { 
   Instagram, 
@@ -191,11 +192,31 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
     }
   };
 
-  const handleSendDM = () => {
+  const handleSendDM = async () => {
+    let bodyText = '';
+    try {
+      const preview = await previewOutreach(activeCreator.id, campaignId);
+      bodyText = preview?.body || '';
+    } catch (err) {
+      console.error('Failed to load outreach preview for DM:', err);
+    }
+
+    if (bodyText) {
+      try {
+        await navigator.clipboard.writeText(bodyText);
+      } catch (clipErr) {
+        console.error('Clipboard copy failed:', clipErr);
+      }
+    }
+
     const instagramHandle = getInstagramHandle();
-    const url = instagramHandle
+    let url = instagramHandle
       ? `https://ig.me/m/${encodeURIComponent(instagramHandle)}`
       : 'https://www.instagram.com/direct/inbox/';
+
+    if (bodyText && instagramHandle) {
+      url += `?text=${encodeURIComponent(bodyText)}`;
+    }
 
     window.open(url, '_blank', 'noopener,noreferrer');
   };
@@ -356,15 +377,14 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
                 {findingSimilar ? <RefreshCw size={14} className="animate-spin text-primary-600" /> : <Users size={14} className="text-primary-600" />} 
                 {findingSimilar ? 'Searching...' : 'Find Similar'}
               </Button>
-              {!activeCreator.email ? (
-                <Button
-                  className="flex-1 bg-pink-600 hover:bg-pink-700 shadow-xl shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all"
-                  onClick={handleSendDM}
-                >
-                  <Instagram size={14} />
-                  Send DM
-                </Button>
-              ) : (
+              <Button
+                className="flex-1 bg-pink-600 hover:bg-pink-700 shadow-xl shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all"
+                onClick={handleSendDM}
+              >
+                <Instagram size={14} />
+                Send DM
+              </Button>
+              {activeCreator.email && (
                 <Button 
                   className={`flex-1 ${
                     isFollowUpDue() 

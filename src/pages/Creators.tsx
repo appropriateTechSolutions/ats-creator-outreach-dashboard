@@ -3,12 +3,12 @@ import { Card } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
-import { Search, ArrowLeft } from 'lucide-react';
+import { Search, ArrowLeft, ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { getAllCreators, reviewLead } from '../lib/api';
 import type { Creator } from '../types';
 import { LoadingState } from '../components/ui/LoadingState';
-import { Check, X, Instagram, Youtube, Activity } from 'lucide-react';
+import { Check, X, Instagram, Youtube, Activity, Star } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 
@@ -34,7 +34,7 @@ const FILTERS_STORAGE_KEY = 'creators-filters-v1';
 
 type StoredFilters = {
   search?: string;
-  statusFilter?: string;
+  selectedStatuses?: string[];
   followersFilter?: string;
   engagementFilter?: string;
   sortBy?: string;
@@ -56,9 +56,10 @@ export default function Creators() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
 
   const [search, setSearch] = useState(() => loadStoredFilters().search || '');
-  const [statusFilter, setStatusFilter] = useState(() => loadStoredFilters().statusFilter || '');
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(() => loadStoredFilters().selectedStatuses || []);
   const [followersFilter, setFollowersFilter] = useState(() => loadStoredFilters().followersFilter || '');
   const [engagementFilter, setEngagementFilter] = useState(() => loadStoredFilters().engagementFilter || '');
   const [sortBy, setSortBy] = useState(() => loadStoredFilters().sortBy || 'followers_desc');
@@ -78,7 +79,7 @@ export default function Creators() {
   // Sync passed location filters from dashboard
   useEffect(() => {
     if (location.state?.initialStatusFilter) {
-      setStatusFilter(location.state.initialStatusFilter);
+      setSelectedStatuses([location.state.initialStatusFilter]);
     }
   }, [location.state]);
 
@@ -87,19 +88,37 @@ export default function Creators() {
     try {
       sessionStorage.setItem(
         FILTERS_STORAGE_KEY,
-        JSON.stringify({ search, statusFilter, followersFilter, engagementFilter, sortBy })
+        JSON.stringify({ search, selectedStatuses, followersFilter, engagementFilter, sortBy })
       );
     } catch {
       // ignore storage errors (quota / disabled)
     }
-  }, [search, statusFilter, followersFilter, engagementFilter, sortBy]);
+  }, [search, selectedStatuses, followersFilter, engagementFilter, sortBy]);
 
-  const handleReview = async (id: string, action: 'approve' | 'reject' | 'shortlist') => {
+  const handleReview = async (id: string, action: 'approve' | 'reject' | 'shortlist' | 'revoke') => {
     setActionLoading(id);
+    const previousCreators = [...creators];
+
+    // Optimistically update the UI state immediately
+    setCreators(prevCreators => prevCreators.map(c => {
+      if (c.id === id) {
+        if (action === 'revoke') {
+          return { ...c, review_status: 'hold', lifecycle_status: 'new' };
+        } else if (action === 'reject') {
+          return { ...c, review_status: 'rejected' };
+        } else if (action === 'shortlist') {
+          return { ...c, review_status: 'shortlisted' };
+        }
+      }
+      return c;
+    }));
+
     try {
       await reviewLead(id, action);
-      fetchCreators();
+      // Silently refresh the list in the background
+      getAllCreators().then(data => setCreators(data)).catch(console.error);
     } catch (err) {
+      setCreators(previousCreators); // Revert state on error
       alert('Failed to update creator: ' + err);
     } finally {
       setActionLoading(null);
@@ -141,31 +160,32 @@ export default function Creators() {
 
     if (!matchesFollowers || !matchesEngagement) return false;
 
-    // Handle specific status filters
-    if (statusFilter === 'hold') {
-      return matchesSearch && (c.review_status === 'hold' || !c.review_status || c.review_status === 'pending') && c.lifecycle_status !== 'not_respond';
-    }
+    if (selectedStatuses.length === 0) return matchesSearch;
 
-    if (statusFilter === 'pending') {
-      return matchesSearch && (c.review_status === 'pending_review' || c.review_status === 'shortlisted') && c.lifecycle_status !== 'not_respond';
-    }
+    // Check if the creator matches any of the selected statuses
+    return matchesSearch && selectedStatuses.some(statusFilter => {
+      if (statusFilter === 'hold') {
+        return (c.review_status === 'hold' || !c.review_status || c.review_status === 'pending') && c.lifecycle_status !== 'not_respond';
+      }
 
-    if (statusFilter === 'not_respond') {
-      return matchesSearch && c.lifecycle_status === 'not_respond';
-    }
+      if (statusFilter === 'pending') {
+        return (c.review_status === 'pending_review' || c.review_status === 'shortlisted') && c.lifecycle_status !== 'not_respond';
+      }
 
-    if (statusFilter === 'contacted') {
-      return matchesSearch && (c.lifecycle_status === 'contacted' || c.latest_outreach?.delivery_status === 'sent');
-    }
+      if (statusFilter === 'not_respond') {
+        return c.lifecycle_status === 'not_respond';
+      }
 
-    if (statusFilter === 'failed') {
-      return matchesSearch && (c.lifecycle_status === 'failed' || c.latest_outreach?.delivery_status === 'failed');
-    }
+      if (statusFilter === 'contacted') {
+        return c.lifecycle_status === 'contacted' || c.latest_outreach?.delivery_status === 'sent';
+      }
 
-    // Default: If a status filter is selected, match it. If not, show all that match search.
-    if (!statusFilter) return matchesSearch;
+      if (statusFilter === 'failed') {
+        return c.lifecycle_status === 'failed' || c.latest_outreach?.delivery_status === 'failed';
+      }
 
-    return matchesSearch && c.review_status === statusFilter;
+      return c.review_status === statusFilter;
+    });
   });
 
   const sortedCreators = [...filteredCreators];
@@ -211,18 +231,58 @@ export default function Creators() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px]"
-            >
-              <option value="">Any Status</option>
-              <option value="hold">Discovered</option>
-              <option value="pending">Shortlisted</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="not_respond">Not Responsive</option>
-            </select>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px] flex items-center justify-between shadow-sm hover:bg-gray-50"
+              >
+                <span>
+                  {selectedStatuses.length === 0 
+                    ? 'Any Status' 
+                    : `${selectedStatuses.length} Selected`}
+                </span>
+                <ChevronDown size={14} className="text-gray-400 ml-2" />
+              </button>
+
+              {isFilterDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setIsFilterDropdownOpen(false)}
+                  />
+                  <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-150 rounded-xl shadow-xl z-20 py-1.5 animate-[fadeIn_0.15s_ease]">
+                    {[
+                      { id: 'hold', label: 'Discovered' },
+                      { id: 'pending', label: 'Shortlisted' },
+                      { id: 'approved', label: 'Approved' },
+                      { id: 'rejected', label: 'Rejected' },
+                      { id: 'not_respond', label: 'Not Responsive' }
+                    ].map(item => {
+                      const isChecked = selectedStatuses.includes(item.id);
+                      return (
+                        <label 
+                          key={item.id} 
+                          className="flex items-center gap-3 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              setSelectedStatuses(prev => 
+                                isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
+                              );
+                            }}
+                            className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 cursor-pointer"
+                          />
+                          <span>{item.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
 
             <select
               value={followersFilter}
@@ -361,11 +421,19 @@ export default function Creators() {
                     <Td className="text-right">
                       {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                         <div className="flex justify-end gap-2">
+                          {c.review_status === 'rejected' && (
+                            <button
+                              onClick={() => handleReview(c.id, 'revoke')}
+                              className="px-2.5 py-1 rounded text-[11px] font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
+                              title="Revoke Rejection"
+                            >
+                              Revoke
+                            </button>
+                          )}
                           {c.review_status !== 'approved' && c.review_status !== 'rejected' && c.review_status !== 'shortlisted' && c.review_status !== 'pending_review' && c.lifecycle_status !== 'not_respond' && (
                             <>
                               <button
                                 onClick={() => setOutreachModalCreatorId(c.id)}
-                                disabled={!!actionLoading}
                                 className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
                                 title="Approve & Send Outreach"
                               >
@@ -373,7 +441,6 @@ export default function Creators() {
                               </button>
                               <button
                                 onClick={() => handleReview(c.id, 'reject')}
-                                disabled={!!actionLoading}
                                 className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                                 title="Reject"
                               >
@@ -382,11 +449,10 @@ export default function Creators() {
                               {c.review_status !== 'shortlisted' && c.review_status !== 'pending_review' && (
                                 <button
                                   onClick={() => handleReview(c.id, 'shortlist')}
-                                  disabled={!!actionLoading}
-                                  className="px-2.5 py-1 rounded text-[11px] font-normal uppercase tracking-wider bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-outfit"
+                                  className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                                   title="Shortlist → Move to Review Queue"
                                 >
-                                  Shortlist
+                                  <Star size={16} />
                                 </button>
                               )}
                             </>

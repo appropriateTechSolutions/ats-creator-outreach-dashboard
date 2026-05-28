@@ -17,7 +17,7 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
-import { ArrowLeft, Sparkles, Activity, Mail, Info, Check, X, Instagram, Youtube, Edit2, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Sparkles, Activity, Mail, Info, Check, X, Instagram, Youtube, Edit2, Trash2, Loader2, AlertCircle, Star, ChevronDown } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { CampaignForm } from '../components/CampaignForm';
 import { useAuth } from '../contexts/AuthContext';
@@ -65,8 +65,8 @@ export default function CampaignDetail() {
     discovery_channels: ['instagram'] as string[]
   });
   const [isUpdating, setIsUpdating] = useState(false);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
 
   const fetchData = async (silent = false) => {
     if (!id) return;
@@ -202,21 +202,35 @@ export default function CampaignDetail() {
     });
   };
 
-  const handleReview = async (creatorId: string, action: 'approve' | 'reject' | 'shortlist') => {
+  const handleReview = async (creatorId: string, action: 'approve' | 'reject' | 'shortlist' | 'revoke') => {
     if (action === 'approve') {
       setOutreachModalMessageType('initial');
       setOutreachModalCreatorId(creatorId);
       return;
     }
     
-    setActionLoading(creatorId);
+    const previousLeads = [...leads];
+
+    // Optimistically update the UI state immediately
+    setLeads(prevLeads => prevLeads.map(lead => {
+      if (lead.id === creatorId) {
+        if (action === 'revoke') {
+          return { ...lead, review_status: 'hold', lifecycle_status: 'new' };
+        } else if (action === 'reject') {
+          return { ...lead, review_status: 'rejected' };
+        } else if (action === 'shortlist') {
+          return { ...lead, review_status: 'shortlisted' };
+        }
+      }
+      return lead;
+    }));
+
     try {
       await reviewLead(creatorId, action);
-      fetchData(true); // Reload leads to reflect status change silently
+      fetchData(true); // Silently reload in the background
     } catch (err) {
+      setLeads(previousLeads); // Revert state on error
       alert('Failed to review lead: ' + err);
-    } finally {
-      setActionLoading(null);
     }
   };
 
@@ -335,11 +349,16 @@ export default function CampaignDetail() {
   };
 
   const filteredLeads = leads.filter(c => {
-    if (!statusFilter) return true;
-    if (statusFilter === 'pending') {
-      return c.review_status === 'pending_review' || c.review_status === 'shortlisted' || !c.review_status || c.review_status === 'pending';
+    if (selectedStatuses.length > 0) {
+      const actualStatus = ['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status || 'pending');
+      return selectedStatuses.some(s => {
+        if (s === 'pending') {
+          return actualStatus === 'pending_review' || actualStatus === 'shortlisted' || actualStatus === 'pending' || !c.review_status;
+        }
+        return actualStatus === s;
+      });
     }
-    return c.review_status === statusFilter;
+    return true;
   });
 
   return (
@@ -403,17 +422,55 @@ export default function CampaignDetail() {
         <Card className="lg:col-span-2">
           <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-t-[12px]">
             <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Creators Leads ({filteredLeads.length})</h2>
-            <div className="flex items-center gap-4 w-full sm:w-auto">
-              <select 
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-1.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[140px]"
+            <div className="relative">
+              <button 
+                onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                className="w-full sm:w-auto inline-flex items-center justify-between gap-2 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-normal hover:bg-gray-50 transition-all outline-none min-w-[140px]"
               >
-                <option value="">Any Status</option>
-                <option value="pending">Pending Review</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
+                <span className="text-xs uppercase tracking-wider">
+                  {selectedStatuses.length === 0 
+                    ? 'Any Status' 
+                    : `${selectedStatuses.length} Selected`}
+                </span>
+                <ChevronDown size={14} className="text-gray-400 ml-2" />
+              </button>
+
+              {isFilterDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setIsFilterDropdownOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1.5 animate-[fadeIn_0.15s_ease]">
+                    {[
+                      { id: 'pending', label: 'Pending Review' },
+                      { id: 'approved', label: 'Approved' },
+                      { id: 'rejected', label: 'Rejected' },
+                      { id: 'not_respond', label: 'Not Responsive' }
+                    ].map(item => {
+                      const isChecked = selectedStatuses.includes(item.id);
+                      return (
+                        <label 
+                          key={item.id} 
+                          className="flex items-center gap-3 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              setSelectedStatuses(prev => 
+                                isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
+                              );
+                            }}
+                            className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 cursor-pointer"
+                          />
+                          <span>{item.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
           {filteredLeads.length === 0 ? (
@@ -501,11 +558,19 @@ export default function CampaignDetail() {
                     <Td className="text-right">
                       {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                         <div className="flex items-center justify-end gap-2">
+                          {lead.review_status === 'rejected' && (
+                            <button
+                              onClick={() => handleReview(lead.id, 'revoke')}
+                              className="px-2.5 py-1 rounded text-[11px] font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
+                              title="Revoke Rejection"
+                            >
+                              Revoke
+                            </button>
+                          )}
                           {lead.review_status !== 'approved' && lead.review_status !== 'rejected' && lead.review_status !== 'shortlisted' && lead.review_status !== 'pending_review' && lead.lifecycle_status !== 'not_respond' && (
                             <>
                               <button 
                                 onClick={() => handleReview(lead.id, 'approve')}
-                                disabled={!!actionLoading}
                                 className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
                                 title="Approve & Send Outreach"
                               >
@@ -513,7 +578,6 @@ export default function CampaignDetail() {
                               </button>
                               <button 
                                 onClick={() => handleReview(lead.id, 'reject')}
-                                disabled={!!actionLoading}
                                 className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                                 title="Reject"
                               >
@@ -522,11 +586,10 @@ export default function CampaignDetail() {
                               {lead.review_status !== 'shortlisted' && lead.review_status !== 'pending_review' && (
                                 <button
                                   onClick={() => handleReview(lead.id, 'shortlist')}
-                                  disabled={!!actionLoading}
-                                  className="px-2.5 py-1 rounded text-[11px] font-normal uppercase tracking-wider bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-outfit"
+                                  className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                                   title="Shortlist → Move to Review Queue"
                                 >
-                                  Shortlist
+                                  <Star size={16} />
                                 </button>
                               )}
                             </>
@@ -560,44 +623,44 @@ export default function CampaignDetail() {
               <div className="pt-4 border-t border-gray-100">
                 <p className="text-xs font-normal text-gray-500 uppercase tracking-widest mb-4">Metrics Intelligence</p>
                 <button 
-                  onClick={() => setStatusFilter(statusFilter === 'pending' ? '' : 'pending')}
+                  onClick={() => setSelectedStatuses(selectedStatuses.includes('pending') ? [] : ['pending'])}
                   className={`flex justify-between items-center w-full text-sm mb-1.5 px-3 py-2 rounded-xl border transition-all duration-300 ${
-                    statusFilter === 'pending'
+                    selectedStatuses.includes('pending')
                       ? 'bg-primary-50 text-primary-700 border-primary-200 shadow-sm'
                       : 'text-gray-600 border-transparent hover:bg-gray-50 hover:text-gray-900'
                   }`}
                   title="Click to filter by Pending Review"
                 >
                   <span className="font-outfit uppercase tracking-tight text-xs">Pending Review</span>
-                  <span className={`font-normal text-xs ${statusFilter === 'pending' ? 'text-primary-700 font-bold' : 'text-gray-900'}`}>
+                  <span className={`font-normal text-xs ${selectedStatuses.includes('pending') ? 'text-primary-700 font-bold' : 'text-gray-900'}`}>
                     {leads.filter(l => l.review_status === 'shortlisted' || l.review_status === 'pending_review' || !l.review_status || l.review_status === 'pending' || l.review_status === 'reviewed').length}
                   </span>
                 </button>
                 <button 
-                  onClick={() => setStatusFilter(statusFilter === 'approved' ? '' : 'approved')}
+                  onClick={() => setSelectedStatuses(selectedStatuses.includes('approved') ? [] : ['approved'])}
                   className={`flex justify-between items-center w-full text-sm mb-1.5 px-3 py-2 rounded-xl border transition-all duration-300 ${
-                    statusFilter === 'approved'
+                    selectedStatuses.includes('approved')
                       ? 'bg-green-50 text-green-700 border-green-200 shadow-sm'
                       : 'text-gray-600 border-transparent hover:bg-gray-50 hover:text-gray-900'
                   }`}
                   title="Click to filter by Approved"
                 >
                   <span className="font-outfit uppercase tracking-tight text-xs">Approved</span>
-                  <span className={`font-normal text-xs ${statusFilter === 'approved' ? 'text-green-700 font-bold' : 'text-success-600'}`}>
+                  <span className={`font-normal text-xs ${selectedStatuses.includes('approved') ? 'text-green-700 font-bold' : 'text-success-600'}`}>
                     {leads.filter(l => l.review_status === 'approved').length}
                   </span>
                 </button>
                 <button 
-                  onClick={() => setStatusFilter(statusFilter === 'rejected' ? '' : 'rejected')}
+                  onClick={() => setSelectedStatuses(selectedStatuses.includes('rejected') ? [] : ['rejected'])}
                   className={`flex justify-between items-center w-full text-sm px-3 py-2 rounded-xl border transition-all duration-300 ${
-                    statusFilter === 'rejected'
+                    selectedStatuses.includes('rejected')
                       ? 'bg-red-50 text-red-700 border-red-200 shadow-sm'
                       : 'text-gray-600 border-transparent hover:bg-gray-50 hover:text-gray-900'
                   }`}
                   title="Click to filter by Rejected"
                 >
                   <span className="font-outfit uppercase tracking-tight text-xs">Rejected</span>
-                  <span className={`font-normal text-xs ${statusFilter === 'rejected' ? 'text-red-700 font-bold' : 'text-error-600'}`}>
+                  <span className={`font-normal text-xs ${selectedStatuses.includes('rejected') ? 'text-red-700 font-bold' : 'text-error-600'}`}>
                     {leads.filter(l => l.review_status === 'rejected').length}
                   </span>
                 </button>
