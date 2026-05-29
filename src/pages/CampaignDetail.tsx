@@ -724,7 +724,7 @@ export default function CampaignDetail() {
                     <Button
                       onClick={handleGenerateTemplate}
                       disabled={generatingTemplate}
-                      className="w-full bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 shadow-sm"
+                      className="w-full !bg-white hover:!bg-purple-50 !text-purple-700 !border !border-purple-200 shadow-sm"
                       icon={generatingTemplate ? <LoadingState mini /> : <Sparkles size={16} />}
                     >
                       {generatingTemplate ? 'Drafting...' : (templateSubject || templateBody ? 'Regenerate with AI' : 'Draft with AI')}
