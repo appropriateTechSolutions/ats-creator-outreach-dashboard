@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  getCampaignById, 
-  getCampaignLeads, 
+import {
+  getCampaignById,
+  getCampaignLeads,
   updateCampaignTemplate,
+  generateCampaignTemplate,
   reviewLead,
   updateCampaign,
   getBrands,
@@ -42,6 +43,7 @@ export default function CampaignDetail() {
   const [templateSubject, setTemplateSubject] = useState('');
   const [templateBody, setTemplateBody] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [generatingTemplate, setGeneratingTemplate] = useState(false);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [outreachModalMessageType, setOutreachModalMessageType] = useState<string>('initial');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -259,6 +261,26 @@ export default function CampaignDetail() {
       alert('Failed to save template.');
     } finally {
       setSavingTemplate(false);
+    }
+  };
+
+  const handleGenerateTemplate = async () => {
+    if (!id) return;
+    if (templateSubject.trim() || templateBody.trim()) {
+      if (!confirm('Generate a new template with AI? This will replace the current draft (you can still review before saving).')) {
+        return;
+      }
+    }
+    setGeneratingTemplate(true);
+    try {
+      const generated = await generateCampaignTemplate(id);
+      setTemplateSubject(generated.subject_line_template || '');
+      setTemplateBody(generated.body_template || '');
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to generate template';
+      alert(`AI generation failed: ${msg}`);
+    } finally {
+      setGeneratingTemplate(false);
     }
   };
 
@@ -712,14 +734,27 @@ export default function CampaignDetail() {
               </div>
 
               {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
-                <Button 
-                  onClick={handleSaveTemplate}
-                  disabled={savingTemplate}
-                  className="w-full bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-500/20"
-                  icon={savingTemplate ? <LoadingState mini /> : <Check size={16} />}
-                >
-                  {savingTemplate ? 'Saving...' : 'Save Campaign Template'}
-                </Button>
+                <div className="space-y-2">
+                  <Button
+                    onClick={handleGenerateTemplate}
+                    disabled={generatingTemplate || savingTemplate}
+                    className="w-full bg-white text-primary-700 border border-primary-200 hover:bg-primary-50 shadow-sm"
+                    icon={generatingTemplate ? <LoadingState mini /> : <Sparkles size={16} />}
+                  >
+                    {generatingTemplate ? 'Drafting with AI...' : (templateSubject || templateBody ? 'Regenerate with AI' : 'Draft with AI')}
+                  </Button>
+                  <Button
+                    onClick={handleSaveTemplate}
+                    disabled={savingTemplate || generatingTemplate}
+                    className="w-full bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-500/20"
+                    icon={savingTemplate ? <LoadingState mini /> : <Check size={16} />}
+                  >
+                    {savingTemplate ? 'Saving...' : 'Save Campaign Template'}
+                  </Button>
+                  <p className="text-[10px] text-gray-400 text-center italic">
+                    AI uses this campaign's brand, offer, and audience to draft the email. Review and edit before saving.
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>

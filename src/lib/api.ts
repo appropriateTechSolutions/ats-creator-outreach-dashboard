@@ -111,6 +111,8 @@ export const updateCampaign = (id: string, data: Partial<Campaign>): Promise<Cam
 export const deleteCampaign = (id: string): Promise<any> => api.post(`/campaigns/${id}/delete`);
 export const getCampaignTemplate = (id: string): Promise<any> => api.get(`/campaigns/${id}`).then(res => (res as any).template);
 export const updateCampaignTemplate = (id: string, data: any): Promise<any> => api.patch(`/campaigns/${id}/template`, data);
+export const generateCampaignTemplate = (id: string): Promise<{ subject_line_template: string; body_template: string }> =>
+  api.post(`/campaigns/${id}/generate-template`) as any;
 
 // ─── Campaign Leads ───────────────────────────────────
 export const getCampaignLeads = (campaignId: string): Promise<Creator[]> => api.get(`/campaigns/${campaignId}/leads`);
