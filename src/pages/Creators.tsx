@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { Search, ArrowLeft, ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { getAllCreators, reviewLead } from '../lib/api';
+import { getAllCreators, getCampaigns, reviewLead } from '../lib/api';
 import type { Creator } from '../types';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Check, X, Instagram, Youtube, Activity, Star } from 'lucide-react';
@@ -24,10 +23,33 @@ const getEngagement = (c: Creator): number => {
   return fromProfiles.length ? Math.max(...fromProfiles) : 0;
 };
 
+const hasPublicProfileSignal = (c: Creator): boolean => {
+  const hasProfileMetrics = c.profiles?.some(profile =>
+    (profile.followers || 0) > 0 ||
+    (profile.avg_likes || 0) > 0 ||
+    (profile.avg_comments || 0) > 0 ||
+    (profile.engagement_rate || 0) > 0
+  );
+
+  return Boolean(
+    c.bio?.trim() ||
+    getFollowers(c) > 0 ||
+    (c.avg_likes || 0) > 0 ||
+    (c.avg_comments || 0) > 0 ||
+    getEngagement(c) > 0 ||
+    hasProfileMetrics
+  );
+};
+
 const formatFollowers = (n: number): string => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
   return String(n);
+};
+
+const getPlatformHandle = (creator: Creator, platform: string) => {
+  const profileHandle = creator.profiles?.find(p => p.platform.toLowerCase() === platform)?.handle;
+  return (profileHandle || creator.handle || '').replace(/^@/, '');
 };
 
 const FILTERS_STORAGE_KEY = 'creators-filters-v1';
@@ -37,7 +59,13 @@ type StoredFilters = {
   selectedStatuses?: string[];
   followersFilter?: string;
   engagementFilter?: string;
+  campaignFilter?: string;
   sortBy?: string;
+};
+
+type CampaignOption = {
+  id: string;
+  name: string;
 };
 
 const loadStoredFilters = (): StoredFilters => {
@@ -53,6 +81,7 @@ export default function Creators() {
   const { user } = useAuth();
   const location = useLocation();
   const [creators, setCreators] = useState<Creator[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [, setActionLoading] = useState<string | null>(null);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
@@ -62,12 +91,16 @@ export default function Creators() {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(() => loadStoredFilters().selectedStatuses || []);
   const [followersFilter, setFollowersFilter] = useState(() => loadStoredFilters().followersFilter || '');
   const [engagementFilter, setEngagementFilter] = useState(() => loadStoredFilters().engagementFilter || '');
+  const [campaignFilter, setCampaignFilter] = useState(() => loadStoredFilters().campaignFilter || '');
   const [sortBy, setSortBy] = useState(() => loadStoredFilters().sortBy || 'followers_desc');
 
   const fetchCreators = () => {
     setLoading(true);
-    getAllCreators()
-      .then(data => setCreators(data))
+    Promise.all([getAllCreators(), getCampaigns()])
+      .then(([creatorsData, campaignsData]) => {
+        setCreators(creatorsData);
+        setCampaigns(campaignsData.map(c => ({ id: c.id, name: c.name })));
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -88,12 +121,12 @@ export default function Creators() {
     try {
       sessionStorage.setItem(
         FILTERS_STORAGE_KEY,
-        JSON.stringify({ search, selectedStatuses, followersFilter, engagementFilter, sortBy })
+        JSON.stringify({ search, selectedStatuses, followersFilter, engagementFilter, campaignFilter, sortBy })
       );
     } catch {
       // ignore storage errors (quota / disabled)
     }
-  }, [search, selectedStatuses, followersFilter, engagementFilter, sortBy]);
+  }, [search, selectedStatuses, followersFilter, engagementFilter, campaignFilter, sortBy]);
 
   const handleReview = async (id: string, action: 'approve' | 'reject' | 'shortlist' | 'revoke') => {
     setActionLoading(id);
@@ -137,6 +170,8 @@ export default function Creators() {
   };
 
   const filteredCreators = creators.filter(c => {
+    if (!hasPublicProfileSignal(c)) return false;
+
     const matchesSearch =
       c.handle?.toLowerCase().includes(search.toLowerCase()) ||
       c.full_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -158,7 +193,10 @@ export default function Creators() {
       (engagementFilter === '3-6' && engagement >= 3 && engagement < 6) ||
       (engagementFilter === '6+' && engagement >= 6);
 
-    if (!matchesFollowers || !matchesEngagement) return false;
+    const campaignIds = new Set([c.campaign_id, ...(c.campaign_ids || [])].filter(Boolean));
+    const matchesCampaign = !campaignFilter || campaignIds.has(campaignFilter);
+
+    if (!matchesFollowers || !matchesEngagement || !matchesCampaign) return false;
 
     if (selectedStatuses.length === 0) return matchesSearch;
 
@@ -194,8 +232,6 @@ export default function Creators() {
     case 'followers_asc':   sortedCreators.sort((a, b) => getFollowers(a) - getFollowers(b)); break;
     case 'engagement_desc': sortedCreators.sort((a, b) => getEngagement(b) - getEngagement(a)); break;
     case 'engagement_asc':  sortedCreators.sort((a, b) => getEngagement(a) - getEngagement(b)); break;
-    case 'relevance_desc':  sortedCreators.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0)); break;
-    case 'readiness_desc':  sortedCreators.sort((a, b) => (b.outreach_readiness_score || 0) - (a.outreach_readiness_score || 0)); break;
   }
 
   return (
@@ -309,6 +345,17 @@ export default function Creators() {
             </select>
 
             <select
+              value={campaignFilter}
+              onChange={e => setCampaignFilter(e.target.value)}
+              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[210px]"
+            >
+              <option value="">Any Campaign</option>
+              {campaigns.map(campaign => (
+                <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+              ))}
+            </select>
+
+            <select
               value={sortBy}
               onChange={e => setSortBy(e.target.value)}
               className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[200px] sm:ml-auto"
@@ -317,8 +364,6 @@ export default function Creators() {
               <option value="followers_asc">Sort: Followers (Low→High)</option>
               <option value="engagement_desc">Sort: Engagement (High→Low)</option>
               <option value="engagement_asc">Sort: Engagement (Low→High)</option>
-              <option value="relevance_desc">Sort: Relevance (High→Low)</option>
-              <option value="readiness_desc">Sort: Readiness (High→Low)</option>
             </select>
           </div>
         </div>
@@ -333,11 +378,8 @@ export default function Creators() {
               <Thead>
                 <Tr>
                   <Th>Creator Details</Th>
-                  <Th>Category</Th>
                   <Th className="text-center">Followers</Th>
                   <Th className="text-center">Engagement</Th>
-                  <Th className="text-center">Relevance</Th>
-                  <Th className="text-center">Readiness</Th>
                   <Th>Status</Th>
                   <Th className="text-right">Actions</Th>
                 </Tr>
@@ -360,10 +402,11 @@ export default function Creators() {
                                 href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="text-[#E1306C] hover:scale-110 transition-transform"
+                                className="inline-flex items-center gap-1 text-[#E1306C] hover:scale-[1.02] transition-transform"
                                 title="Instagram"
                               >
                                 <Instagram size={14} />
+                                <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(c, 'instagram')}</span>
                               </a>
                             )}
                             {c.has_youtube && (
@@ -371,10 +414,11 @@ export default function Creators() {
                                 href={c.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${c.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="text-[#FF0000] hover:scale-110 transition-transform"
+                                className="inline-flex items-center gap-1 text-[#FF0000] hover:scale-[1.02] transition-transform"
                                 title="YouTube"
                               >
                                 <Youtube size={14} />
+                                <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(c, 'youtube')}</span>
                               </a>
                             )}
                             {c.has_tiktok && (
@@ -382,21 +426,15 @@ export default function Creators() {
                                 href={c.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="text-gray-900 hover:scale-110 transition-transform"
+                                className="inline-flex items-center gap-1 text-gray-900 hover:scale-[1.02] transition-transform"
                                 title="TikTok"
                               >
                                 <Activity size={14} />
+                                <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(c, 'tiktok')}</span>
                               </a>
                             )}
                           </div>
                         </div>
-                      </div>
-                    </Td>
-                    <Td>
-                      <div className="flex gap-1 flex-wrap max-w-[150px]">
-                        {c.category?.split(',').slice(0, 2).map((cat, i) => (
-                           <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-normal uppercase tracking-wider">{cat.trim().substring(0,10)}</span>
-                        ))}
                       </div>
                     </Td>
                     <Td className="text-center">
@@ -410,12 +448,6 @@ export default function Creators() {
                         const e = getEngagement(c);
                         return <span className="text-sm text-gray-700 font-normal">{e > 0 ? `${e.toFixed(1)}%` : '—'}</span>;
                       })()}
-                    </Td>
-                    <Td className="text-center">
-                      <ScoreBadge score={c.relevance_score || 0} />
-                    </Td>
-                    <Td className="text-center">
-                      <ScoreBadge score={c.outreach_readiness_score || 0} />
                     </Td>
                     <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
                     <Td className="text-right">
@@ -464,7 +496,7 @@ export default function Creators() {
                 ))}
                 {sortedCreators.length === 0 && (
                   <Tr>
-                    <Td colSpan={9} className="text-center py-16 text-gray-500">
+                    <Td colSpan={5} className="text-center py-16 text-gray-500">
                       <div className="flex justify-center mb-3">
                         <Search size={32} className="text-gray-300" />
                       </div>

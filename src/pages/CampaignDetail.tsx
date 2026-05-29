@@ -15,7 +15,6 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { TemplateEditModal } from '../components/ui/TemplateEditModal';
 import { LoadingState } from '../components/ui/LoadingState';
@@ -29,6 +28,54 @@ import { CreatorPreviewDrawer } from '../components/CreatorPreviewDrawer';
 const COUNTRIES = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
 ];
+
+const toNumber = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getFollowers = (c: Creator): number => {
+  const direct = toNumber(c.followers_count ?? (c as any).followers);
+  if (direct > 0) return direct;
+  const fromProfiles = c.profiles?.map(p => toNumber(p.followers)) ?? [];
+  return fromProfiles.length ? Math.max(...fromProfiles) : 0;
+};
+
+const getEngagement = (c: Creator): number => {
+  const direct = toNumber(c.engagement_rate);
+  if (direct > 0) return direct;
+  const fromProfiles = c.profiles?.map(p => toNumber(p.engagement_rate)) ?? [];
+  return fromProfiles.length ? Math.max(...fromProfiles) : 0;
+};
+
+const hasPublicProfileSignal = (c: Creator): boolean => {
+  const hasProfileMetrics = c.profiles?.some(profile =>
+    toNumber(profile.followers) > 0 ||
+    toNumber(profile.avg_likes) > 0 ||
+    toNumber(profile.avg_comments) > 0 ||
+    toNumber(profile.engagement_rate) > 0
+  );
+
+  return Boolean(
+    c.bio?.trim() ||
+    getFollowers(c) > 0 ||
+    toNumber(c.avg_likes) > 0 ||
+    toNumber(c.avg_comments) > 0 ||
+    getEngagement(c) > 0 ||
+    hasProfileMetrics
+  );
+};
+
+const formatFollowers = (n: number): string => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+  return String(n);
+};
+
+const getPlatformHandle = (creator: Creator, platform: string) => {
+  const profileHandle = creator.profiles?.find(p => p.platform.toLowerCase() === platform)?.handle;
+  return (profileHandle || creator.handle || '').replace(/^@/, '');
+};
 
 export default function CampaignDetail() {
   const { user } = useAuth();
@@ -369,6 +416,8 @@ export default function CampaignDetail() {
   };
 
   const filteredLeads = leads.filter(c => {
+    if (!hasPublicProfileSignal(c)) return false;
+
     if (selectedStatuses.length > 0) {
       const actualStatus = ['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status || 'pending');
       return selectedStatuses.some(s => {
@@ -506,8 +555,8 @@ export default function CampaignDetail() {
               <Thead>
                 <Tr>
                   <Th>Creator</Th>
-                  <Th className="text-center">Relevance</Th>
-                  <Th className="text-center">Readiness</Th>
+                  <Th className="text-center">Followers</Th>
+                  <Th className="text-center">Engagement</Th>
                   <Th>Review Status</Th>
                   <Th className="text-right">Actions</Th>
                 </Tr>
@@ -536,10 +585,11 @@ export default function CampaignDetail() {
                                 href={lead.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${lead.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="text-[#E1306C] hover:scale-110 transition-transform"
+                                className="inline-flex items-center gap-1 text-[#E1306C] hover:scale-[1.02] transition-transform"
                                 title="Instagram"
                               >
                                 <Instagram size={14} />
+                                <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(lead, 'instagram')}</span>
                               </a>
                             )}
                             {((lead.primary_platform)?.toLowerCase() === 'youtube' || lead.has_youtube) && (
@@ -547,10 +597,11 @@ export default function CampaignDetail() {
                                 href={lead.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${lead.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="text-[#FF0000] hover:scale-110 transition-transform"
+                                className="inline-flex items-center gap-1 text-[#FF0000] hover:scale-[1.02] transition-transform"
                                 title="YouTube"
                               >
                                 <Youtube size={14} />
+                                <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(lead, 'youtube')}</span>
                               </a>
                             )}
                             {((lead.primary_platform)?.toLowerCase() === 'tiktok' || lead.has_tiktok) && (
@@ -558,10 +609,11 @@ export default function CampaignDetail() {
                                 href={lead.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${lead.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="text-gray-900 hover:scale-110 transition-transform"
+                                className="inline-flex items-center gap-1 text-gray-900 hover:scale-[1.02] transition-transform"
                                 title="TikTok"
                               >
                                 <Activity size={14} />
+                                <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(lead, 'tiktok')}</span>
                               </a>
                             )}
                             {/* Fallback if no icon matches but platform info exists */}
@@ -572,8 +624,18 @@ export default function CampaignDetail() {
                         </div>
                       </div>
                     </Td>
-                    <Td><ScoreBadge score={lead.relevance_score || 0} /></Td>
-                    <Td><ScoreBadge score={lead.outreach_readiness_score || 0} /></Td>
+                    <Td className="text-center">
+                      {(() => {
+                        const followers = getFollowers(lead);
+                        return <span className="text-sm text-gray-700 font-normal">{followers > 0 ? formatFollowers(followers) : '—'}</span>;
+                      })()}
+                    </Td>
+                    <Td className="text-center">
+                      {(() => {
+                        const engagement = getEngagement(lead);
+                        return <span className="text-sm text-gray-700 font-normal">{engagement > 0 ? `${engagement.toFixed(1)}%` : '—'}</span>;
+                      })()}
+                    </Td>
                     <Td><StatusBadge status={['not_respond'].includes(lead.lifecycle_status || '') ? lead.lifecycle_status : (lead.review_status as any || 'pending')} /></Td>
                     <Td className="text-right">
                       {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (

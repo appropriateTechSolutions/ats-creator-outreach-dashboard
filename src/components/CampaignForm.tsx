@@ -46,7 +46,10 @@ const standardCategories = [
   'Local Experiences',
   'Events',
   'Luxury Lifestyle',
-  'Tequila'
+  'Tequila',
+  'Costco',
+  'CostcoFinds',
+  'Costco Buy'
 ];
 
 const US_STATES = [
@@ -424,7 +427,7 @@ export function CampaignForm({
       </div>
 
       <div>
-        <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Search Keywords</label>
+        <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Optional Search Keywords</label>
         <Input
           value={formData.keywords}
           onChange={e => setFormData({ ...formData, keywords: e.target.value })}
