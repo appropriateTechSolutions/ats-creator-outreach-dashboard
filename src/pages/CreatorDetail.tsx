@@ -470,19 +470,19 @@ export default function CreatorDetail() {
                   <Button
                     className={`w-full ${
                       isFollowUpDue()
-                        ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/40 animate-pulse'
+                        ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/40 animate-pulse text-white'
                         : isWaitingForFollowUp()
-                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300'
+                          ? 'bg-emerald-50 text-emerald-700 cursor-not-allowed border border-emerald-200'
                           : 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/20 text-white'
                     } flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all shadow-sm`}
                     onClick={handleSendOutreach}
                     disabled={sendingEmail || creator.review_status === 'rejected' || isWaitingForFollowUp()}
                   >
-                    {sendingEmail ? <LoadingState mini /> : (isFollowUpDue() ? <Clock size={13} /> : isWaitingForFollowUp() ? <Clock size={13} className="text-gray-400" /> : <Send size={13} />)}
+                    {sendingEmail ? <LoadingState mini /> : (isFollowUpDue() ? <Clock size={13} /> : isWaitingForFollowUp() ? <Check size={13} className="text-emerald-600" /> : <Send size={13} />)}
                     {isFollowUpDue()
                       ? `Follow-up #${(creator.latest_outreach?.follow_up_count || 0) + 1}`
                       : isWaitingForFollowUp()
-                        ? 'Waiting...'
+                        ? 'Sent · Awaiting Reply'
                         : (creator.latest_outreach ? 'Resend' : 'Send Outreach')}
                   </Button>
                 )}

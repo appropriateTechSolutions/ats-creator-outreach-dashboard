@@ -153,7 +153,7 @@ export const sendCampaignOutreach = (campaignId: string): Promise<{ sent: number
 export const sendSingleOutreach = (creatorId: string, campaignId?: string, customSubject?: string, customBody?: string, message_type?: string): Promise<any> =>
   api.post('/outreach/send-single', { creator_id: creatorId, campaign_id: campaignId, customSubject, customBody, message_type });
 
-export const previewOutreach = (creatorId: string, campaignId?: string, message_type?: string): Promise<{ subject: string; body: string }> =>
+export const previewOutreach = (creatorId: string, campaignId?: string, message_type?: string): Promise<{ subject: string; body: string; to: string | null }> =>
   api.get('/outreach/preview', { params: { creator_id: creatorId, campaign_id: campaignId, message_type } }) as any;
 
 export const getOutreachLogs = (): Promise<any[]> => api.get('/outreach/logs');

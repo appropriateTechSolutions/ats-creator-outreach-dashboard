@@ -385,22 +385,22 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
                 Send DM
               </Button>
               {activeCreator.email && (
-                <Button 
+                <Button
                   className={`flex-1 ${
-                    isFollowUpDue() 
-                      ? 'bg-amber-600 hover:bg-amber-700 shadow-lg shadow-amber-500/40 animate-pulse' 
+                    isFollowUpDue()
+                      ? 'bg-amber-600 hover:bg-amber-700 shadow-lg shadow-amber-500/40 animate-pulse text-white'
                       : isWaitingForFollowUp()
-                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed shadow-none border border-gray-300'
+                        ? 'bg-emerald-50 text-emerald-700 cursor-not-allowed shadow-none border border-emerald-200'
                         : 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/20 text-white'
                   } shadow-xl flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all`}
                   onClick={handleSendOutreach}
                   disabled={sendingEmail || activeCreator.review_status === 'rejected' || isWaitingForFollowUp()}
                 >
-                  {sendingEmail ? <RefreshCw size={14} className="animate-spin text-white" /> : (isFollowUpDue() ? <Clock size={14} /> : isWaitingForFollowUp() ? <Clock size={14} className="text-gray-400" /> : <Send size={14} />)} 
-                  {isFollowUpDue() 
-                    ? `Follow-up #${((activeCreator.latest_outreach || (activeCreator as any).latestOutreach)?.follow_up_count || 0) + 1}` 
+                  {sendingEmail ? <RefreshCw size={14} className="animate-spin text-white" /> : (isFollowUpDue() ? <Clock size={14} /> : isWaitingForFollowUp() ? <Check size={14} className="text-emerald-600" /> : <Send size={14} />)}
+                  {isFollowUpDue()
+                    ? `Follow-up #${((activeCreator.latest_outreach || (activeCreator as any).latestOutreach)?.follow_up_count || 0) + 1}`
                     : isWaitingForFollowUp()
-                      ? 'Waiting Reply'
+                      ? 'Sent · Awaiting Reply'
                       : ((activeCreator.latest_outreach || (activeCreator as any).latestOutreach) ? 'Resend' : 'Send Outreach')}
                 </Button>
               )}
