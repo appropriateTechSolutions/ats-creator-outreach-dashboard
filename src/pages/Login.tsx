@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
-import { Activity } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -31,12 +30,14 @@ export default function Login() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-primary-600 flex items-center justify-center shadow-lg shadow-primary-600/30">
-            <Activity className="text-white" size={28} />
-          </div>
+          <img
+            src="/qui-logo.png"
+            alt="Qui Tequila"
+            className="h-28 w-auto object-contain"
+          />
         </div>
         <h2 className="text-center text-3xl font-normal text-gray-900 tracking-tight font-outfit uppercase">
-          Welcome to ATS Hub
+          Welcome to Qui Tequila Creator Outreach
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
           Sign in to manage your influencer campaigns

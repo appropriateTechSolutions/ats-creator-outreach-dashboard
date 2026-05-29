@@ -37,7 +37,137 @@ interface CampaignFormProps {
   onAddCustomCategory?: () => void | Promise<void>; // Add this prop
 }
 
-const standardCategories = ['Fashion', 'Beauty', 'Fitness', 'Food', 'Travel', 'Tech', 'Lifestyle', 'Health'];
+const standardCategories = [
+  'Food & Beverage',
+  'Cocktails & Mixology',
+  'Lifestyle',
+  'Nightlife',
+  'Restaurants',
+  'Local Experiences',
+  'Events',
+  'Luxury Lifestyle',
+  'Tequila'
+];
+
+const US_STATES = [
+  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware',
+  'District of Columbia', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa',
+  'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota',
+  'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey',
+  'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon',
+  'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah',
+  'Vermont', 'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
+];
+
+const US_STATE_ABBREVIATIONS: Record<string, string> = {
+  AL: 'Alabama',
+  AK: 'Alaska',
+  AZ: 'Arizona',
+  AR: 'Arkansas',
+  CA: 'California',
+  CO: 'Colorado',
+  CT: 'Connecticut',
+  DE: 'Delaware',
+  DC: 'District of Columbia',
+  FL: 'Florida',
+  GA: 'Georgia',
+  HI: 'Hawaii',
+  ID: 'Idaho',
+  IL: 'Illinois',
+  IN: 'Indiana',
+  IA: 'Iowa',
+  KS: 'Kansas',
+  KY: 'Kentucky',
+  LA: 'Louisiana',
+  ME: 'Maine',
+  MD: 'Maryland',
+  MA: 'Massachusetts',
+  MI: 'Michigan',
+  MN: 'Minnesota',
+  MS: 'Mississippi',
+  MO: 'Missouri',
+  MT: 'Montana',
+  NE: 'Nebraska',
+  NV: 'Nevada',
+  NH: 'New Hampshire',
+  NJ: 'New Jersey',
+  NM: 'New Mexico',
+  NY: 'New York',
+  NC: 'North Carolina',
+  ND: 'North Dakota',
+  OH: 'Ohio',
+  OK: 'Oklahoma',
+  OR: 'Oregon',
+  PA: 'Pennsylvania',
+  RI: 'Rhode Island',
+  SC: 'South Carolina',
+  SD: 'South Dakota',
+  TN: 'Tennessee',
+  TX: 'Texas',
+  UT: 'Utah',
+  VT: 'Vermont',
+  VA: 'Virginia',
+  WA: 'Washington',
+  WV: 'West Virginia',
+  WI: 'Wisconsin',
+  WY: 'Wyoming'
+};
+
+const US_CITIES_BY_STATE: Record<string, string[]> = {
+  Alabama: ['Birmingham', 'Huntsville', 'Mobile', 'Montgomery'],
+  Alaska: ['Anchorage', 'Fairbanks', 'Juneau'],
+  Arizona: ['Phoenix', 'Scottsdale', 'Tempe', 'Tucson'],
+  Arkansas: ['Fayetteville', 'Little Rock', 'Rogers'],
+  California: ['Los Angeles', 'San Diego', 'San Francisco', 'San Jose', 'Sacramento', 'Napa', 'Palm Springs'],
+  Colorado: ['Denver', 'Boulder', 'Aspen', 'Colorado Springs'],
+  Connecticut: ['Hartford', 'New Haven', 'Stamford'],
+  Delaware: ['Dover', 'Wilmington'],
+  'District of Columbia': ['Washington'],
+  Florida: ['Miami', 'Fort Lauderdale', 'Orlando', 'Tampa', 'West Palm Beach', 'Key West'],
+  Georgia: ['Atlanta', 'Savannah', 'Athens'],
+  Hawaii: ['Honolulu', 'Kailua-Kona', 'Lahaina'],
+  Idaho: ['Boise', 'Sun Valley'],
+  Illinois: ['Chicago', 'Evanston', 'Naperville'],
+  Indiana: ['Indianapolis', 'Bloomington', 'Fort Wayne'],
+  Iowa: ['Des Moines', 'Iowa City'],
+  Kansas: ['Kansas City', 'Overland Park', 'Wichita'],
+  Kentucky: ['Louisville', 'Lexington'],
+  Louisiana: ['New Orleans', 'Baton Rouge', 'Lafayette'],
+  Maine: ['Portland', 'Bar Harbor'],
+  Maryland: ['Baltimore', 'Annapolis', 'Bethesda'],
+  Massachusetts: ['Boston', 'Cambridge', 'Nantucket'],
+  Michigan: ['Detroit', 'Ann Arbor', 'Grand Rapids'],
+  Minnesota: ['Minneapolis', 'Saint Paul'],
+  Mississippi: ['Jackson', 'Oxford'],
+  Missouri: ['Kansas City', 'St. Louis', 'Springfield'],
+  Montana: ['Bozeman', 'Missoula'],
+  Nebraska: ['Omaha', 'Lincoln'],
+  Nevada: ['Las Vegas', 'Reno'],
+  'New Hampshire': ['Manchester', 'Portsmouth'],
+  'New Jersey': ['Jersey City', 'Hoboken', 'Newark', 'Atlantic City'],
+  'New Mexico': ['Albuquerque', 'Santa Fe'],
+  'New York': ['New York City', 'Brooklyn', 'Buffalo', 'The Hamptons'],
+  'North Carolina': ['Charlotte', 'Raleigh', 'Asheville'],
+  'North Dakota': ['Fargo', 'Bismarck'],
+  Ohio: ['Columbus', 'Cleveland', 'Cincinnati'],
+  Oklahoma: ['Oklahoma City', 'Tulsa'],
+  Oregon: ['Portland', 'Bend', 'Eugene'],
+  Pennsylvania: ['Philadelphia', 'Pittsburgh'],
+  'Rhode Island': ['Providence', 'Newport'],
+  'South Carolina': ['Charleston', 'Columbia', 'Greenville'],
+  'South Dakota': ['Sioux Falls', 'Rapid City'],
+  Tennessee: ['Nashville', 'Memphis', 'Knoxville'],
+  Texas: ['Austin', 'Dallas', 'Houston', 'San Antonio', 'Fort Worth'],
+  Utah: ['Salt Lake City', 'Park City'],
+  Vermont: ['Burlington', 'Stowe'],
+  Virginia: ['Richmond', 'Arlington', 'Virginia Beach'],
+  Washington: ['Seattle', 'Bellevue', 'Spokane'],
+  'West Virginia': ['Charleston', 'Morgantown'],
+  Wisconsin: ['Milwaukee', 'Madison'],
+  Wyoming: ['Jackson', 'Cheyenne']
+};
+
+const US_CITY_OPTIONS = Array.from(new Set(Object.values(US_CITIES_BY_STATE).flat())).sort();
 
 const platforms = [
   {
@@ -78,6 +208,14 @@ const getCommaValues = (value: string) =>
     .map(item => item.trim())
     .filter(Boolean);
 
+const canonicalizeState = (value: string) => {
+  const trimmed = value.trim();
+  const byName = US_STATES.find(state => state.toLowerCase() === trimmed.toLowerCase());
+  if (byName) return byName;
+
+  return US_STATE_ABBREVIATIONS[trimmed.toUpperCase()] || trimmed;
+};
+
 export function CampaignForm({
   formData,
   setFormData,
@@ -99,6 +237,8 @@ export function CampaignForm({
   dbCustomCategories = [],
   onAddCustomCategory // Add this
 }: CampaignFormProps) {
+  void countries;
+
   const toggleCategory = (cat: string) => {
     setFormData(prev => ({
       ...prev,
@@ -128,7 +268,7 @@ export function CampaignForm({
   };
 
   const addCommaValues = (field: 'state' | 'city', value: string) => {
-    const nextValues = getCommaValues(value);
+    const nextValues = getCommaValues(value).map(item => field === 'state' ? canonicalizeState(item) : item);
     if (!nextValues.length) return;
 
     setFormData(prev => {
@@ -152,6 +292,11 @@ export function CampaignForm({
       [field]: getCommaValues(prev[field]).filter(item => item !== value).join(', ')
     }));
   };
+
+  const selectedStates = getCommaValues(formData.state).map(canonicalizeState);
+  const citySuggestions = selectedStates.length
+    ? Array.from(new Set(selectedStates.flatMap(state => US_CITIES_BY_STATE[state] || []))).sort()
+    : US_CITY_OPTIONS;
 
   const toggleChannel = (id: string) => {
     setFormData(prev => ({
@@ -288,22 +433,6 @@ export function CampaignForm({
       </div>
 
       <div>
-        <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Target Country *</label>
-        <select
-          required
-          value={formData.country}
-          onChange={e => setFormData({ ...formData, country: e.target.value })}
-          className="w-full h-11 px-4 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
-        >
-          <option value="">Select Country</option>
-          <option value="Global">Global</option>
-          {countries.map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-      </div>
-
-      <div>
         <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-2.5">Target State</label>
         {getCommaValues(formData.state).length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
@@ -320,14 +449,20 @@ export function CampaignForm({
             ))}
           </div>
         )}
-        <div className="flex gap-2">
+        <div className="grid grid-cols-[1fr_auto] gap-2">
           <Input
             value={customState}
+            list="us-state-options"
             onChange={e => setCustomState(e.target.value)}
             onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), addCommaValues('state', customState))}
-            placeholder="California, Nevada"
+            placeholder="Start typing a US state"
             className="h-10 text-xs bg-gray-50/50"
           />
+          <datalist id="us-state-options">
+            {US_STATES.map(state => (
+              <option key={state} value={state} />
+            ))}
+          </datalist>
           <Button
             type="button"
             variant="outline"
@@ -356,14 +491,20 @@ export function CampaignForm({
             ))}
           </div>
         )}
-        <div className="flex gap-2">
+        <div className="grid grid-cols-[1fr_auto] gap-2">
           <Input
             value={customCity}
+            list="us-city-options"
             onChange={e => setCustomCity(e.target.value)}
             onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), addCommaValues('city', customCity))}
-            placeholder="Los Angeles, New York"
+            placeholder={selectedStates.length ? 'Start typing a city from selected state' : 'Start typing a US city'}
             className="h-10 text-xs bg-gray-50/50"
           />
+          <datalist id="us-city-options">
+            {citySuggestions.map(city => (
+              <option key={city} value={city} />
+            ))}
+          </datalist>
           <Button
             type="button"
             variant="outline"
