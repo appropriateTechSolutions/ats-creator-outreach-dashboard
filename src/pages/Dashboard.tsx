@@ -5,7 +5,7 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { Users, Mail, MessageSquare, Target, CheckCircle, Activity, Clock, Sparkles, Instagram, Youtube } from 'lucide-react';
+import { Users, Mail, MessageSquare, Target, CheckCircle, Activity, Clock, Sparkles, Instagram, Youtube, ChevronDown } from 'lucide-react';
 import { LoadingState } from '../components/ui/LoadingState';
 import { getCampaigns, getAllCreators, getDashboardStats } from '../lib/api';
 import type { Campaign, Creator } from '../types';
@@ -19,6 +19,18 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClose = () => setDropdownOpen(false);
+    window.addEventListener('click', handleClose);
+    return () => window.removeEventListener('click', handleClose);
+  }, []);
+
+  const toggleDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDropdownOpen(!dropdownOpen);
+  };
 
   const fetchStats = (campaignId?: string) => {
     setLoading(true);
@@ -41,11 +53,6 @@ export default function Dashboard() {
     fetchStats();
   }, []);
 
-  const handleCampaignChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    setSelectedCampaignId(val);
-    fetchStats(val || undefined);
-  };
 
   // Filter creators based on selectedCampaignId first
   const filteredCreatorsForStats = creators.filter(c => {
@@ -121,14 +128,50 @@ export default function Dashboard() {
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Dashboard</h1>
-        <select 
-          value={selectedCampaignId}
-          onChange={handleCampaignChange}
-          className="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block px-4 py-2 shadow-sm font-normal outline-none"
-        >
-          <option value="">All Campaigns ({campaigns.length})</option>
-          {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <div className="relative w-full sm:w-72 z-20">
+          <button
+            onClick={toggleDropdown}
+            className="w-full flex items-center justify-between bg-white border border-gray-300 text-gray-900 text-sm rounded-lg px-4 py-2.5 shadow-sm font-normal outline-none text-left"
+          >
+            <span className="truncate">
+              {selectedCampaignId 
+                ? (campaigns.find(c => c.id === selectedCampaignId)?.name || 'Campaign')
+                : `All Campaigns (${campaigns.length})`
+              }
+            </span>
+            <ChevronDown size={16} className="text-gray-500 ml-2 flex-shrink-0" />
+          </button>
+          
+          {dropdownOpen && (
+            <div className="absolute right-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-30 max-h-60 overflow-y-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCampaignId('');
+                  fetchStats(undefined);
+                  setDropdownOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors truncate ${!selectedCampaignId ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-gray-700'}`}
+              >
+                All Campaigns ({campaigns.length})
+              </button>
+              {campaigns.map(c => (
+                <button
+                  type="button"
+                  key={c.id}
+                  onClick={() => {
+                    setSelectedCampaignId(c.id);
+                    fetchStats(c.id);
+                    setDropdownOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors truncate ${selectedCampaignId === c.id ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-gray-700'}`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {loading || !stats ? (

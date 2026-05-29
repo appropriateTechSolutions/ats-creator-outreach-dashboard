@@ -298,7 +298,7 @@ export default function Campaigns() {
         {['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
           <Button 
             onClick={() => setIsModalOpen(true)} 
-            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
+            className="hidden sm:inline-flex bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
             icon={<Plus size={20} />}
           >
             Launch Campaign
@@ -328,77 +328,139 @@ export default function Campaigns() {
             <LoadingState message="Synchronizing Outreach Data..." />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-                  <th className="px-8 py-5">Campaign Identity</th>
-                  <th className="px-8 py-5">Brand</th>
-                  {user?.user_type === 'internal' && <th className="px-8 py-5">Client</th>}
-                  <th className="px-8 py-5 text-center">City</th>
-                  <th className="px-8 py-5 text-center">Status</th>
-                  <th className="px-8 py-5 text-right">Launch Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filteredCampaigns.map(c => (
-                  <tr key={c.id} 
-                    onClick={() => navigate(`/campaigns/${c.id}`, {
-                      state: {
-                        fromBrandsList: location.state?.fromBrandsList,
-                        fromBrandId: selectedBrandIdFilter,
-                        fromBrandName: selectedBrandNameFilter
-                      }
-                    })}
-                    className="hover:bg-primary-50/30 transition-all group cursor-pointer"
-                  >
-                    <td className="px-8 py-6 align-top">
-                      <div className="text-sm font-normal text-gray-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight font-outfit">
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
+                    <th className="px-8 py-5">Campaign Identity</th>
+                    <th className="px-8 py-5">Brand</th>
+                    {user?.user_type === 'internal' && <th className="px-8 py-5">Client</th>}
+                    <th className="px-8 py-5 text-center">City</th>
+                    <th className="px-8 py-5 text-center">Status</th>
+                    <th className="px-8 py-5 text-right">Launch Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredCampaigns.map(c => (
+                    <tr key={c.id} 
+                      onClick={() => navigate(`/campaigns/${c.id}`, {
+                        state: {
+                          fromBrandsList: location.state?.fromBrandsList,
+                          fromBrandId: selectedBrandIdFilter,
+                          fromBrandName: selectedBrandNameFilter
+                        }
+                      })}
+                      className="hover:bg-primary-50/30 transition-all group cursor-pointer"
+                    >
+                      <td className="px-8 py-6 align-top">
+                        <div className="text-sm font-normal text-gray-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight font-outfit">
+                          {c.name}
+                        </div>
+                        <div className="flex gap-1 mt-2 flex-wrap">
+                          {[...new Set(c.category?.split(',').map(cat => cat.trim()).filter(Boolean))].map((cat, index) => (
+                            <span key={`${cat}-${index}`} className="px-2 py-0.5 rounded text-[9px] font-normal uppercase tracking-widest bg-gray-100 text-gray-600 border border-gray-200">
+                              {cat}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-8 py-6 align-top">
+                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                          {c.Brand?.name || '---'}
+                        </div>
+                      </td>
+                      {user?.user_type === 'internal' && (
+                        <td className="px-8 py-6 align-top">
+                          <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                            {c.Client?.name || '---'}
+                          </div>
+                        </td>
+                      )}
+                      <td className="px-8 py-6 text-center align-top">
+                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                          {c.city || 'Global'}
+                        </div>
+                      </td>
+                      <td className="px-8 py-6 text-center align-top">
+                        <StatusBadge status={c.status as any} />
+                      </td>
+                      <td className="px-8 py-6 text-right align-top">
+                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
+                          {(c.created_at || (c as any).createdAt) ? format(new Date(c.created_at || (c as any).createdAt), 'MMM d, yyyy') : '---'}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredCampaigns.length === 0 && (
+                    <tr>
+                      <td colSpan={user?.user_type === 'internal' ? 6 : 5} className="text-center py-20 text-gray-400 italic">No active campaigns configured yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-gray-100 bg-white">
+              {filteredCampaigns.map(c => (
+                <div 
+                  key={c.id}
+                  onClick={() => navigate(`/campaigns/${c.id}`, {
+                    state: {
+                      fromBrandsList: location.state?.fromBrandsList,
+                      fromBrandId: selectedBrandIdFilter,
+                      fromBrandName: selectedBrandNameFilter
+                    }
+                  })}
+                  className="p-5 active:bg-gray-50 transition-all cursor-pointer space-y-4"
+                >
+                  <div className="flex justify-between items-start gap-4">
+                    <div>
+                      <h4 className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
                         {c.name}
-                      </div>
-                      <div className="flex gap-1 mt-2 flex-wrap">
+                      </h4>
+                      <div className="flex gap-1 mt-1.5 flex-wrap">
                         {[...new Set(c.category?.split(',').map(cat => cat.trim()).filter(Boolean))].map((cat, index) => (
                           <span key={`${cat}-${index}`} className="px-2 py-0.5 rounded text-[9px] font-normal uppercase tracking-widest bg-gray-100 text-gray-600 border border-gray-200">
                             {cat}
                           </span>
                         ))}
                       </div>
-                    </td>
-                    <td className="px-8 py-6 align-top">
-                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
-                        {c.Brand?.name || '---'}
-                      </div>
-                    </td>
+                    </div>
+                    <StatusBadge status={c.status as any} />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 pt-1 text-xs">
+                    <div>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Brand</span>
+                      <span className="font-normal text-gray-800 uppercase tracking-tight font-outfit">{c.Brand?.name || '---'}</span>
+                    </div>
                     {user?.user_type === 'internal' && (
-                      <td className="px-8 py-6 align-top">
-                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
-                          {c.Client?.name || '---'}
-                        </div>
-                      </td>
+                      <div>
+                        <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Client</span>
+                        <span className="font-normal text-gray-800 uppercase tracking-tight font-outfit">{c.Client?.name || '---'}</span>
+                      </div>
                     )}
-                    <td className="px-8 py-6 text-center align-top">
-                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
-                        {c.city || 'Global'}
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-center align-top">
-                      <StatusBadge status={c.status as any} />
-                    </td>
-                    <td className="px-8 py-6 text-right align-top">
-                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
+                    <div>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">City</span>
+                      <span className="font-normal text-gray-800 uppercase tracking-tight font-outfit">{c.city || 'Global'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Launch Date</span>
+                      <span className="font-normal text-gray-800 uppercase tracking-tight font-outfit">
                         {(c.created_at || (c as any).createdAt) ? format(new Date(c.created_at || (c as any).createdAt), 'MMM d, yyyy') : '---'}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredCampaigns.length === 0 && (
-                  <tr>
-                    <td colSpan={user?.user_type === 'internal' ? 6 : 5} className="text-center py-20 text-gray-400 italic">No outreach initiatives mapped.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {filteredCampaigns.length === 0 && (
+                <div className="text-center py-20 text-gray-400 italic bg-white rounded-xl">No active campaigns configured.</div>
+              )}
+            </div>
+          </>
         )}
       </Card>
 
@@ -429,6 +491,17 @@ export default function Campaigns() {
           onAddCustomCategory={handleAddCustomCategory}
         />
       </Modal>
+
+      {/* Floating Action Button for Mobile */}
+      {['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="sm:hidden fixed bottom-6 right-6 z-50 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-4 shadow-2xl shadow-primary-500/40 flex items-center justify-center transition-transform active:scale-95 border border-primary-500/20"
+          aria-label="Launch Campaign"
+        >
+          <Plus size={24} />
+        </button>
+      )}
     </div>
   );
 }

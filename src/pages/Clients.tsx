@@ -116,7 +116,7 @@ export default function Clients() {
         {['super_admin', 'admin'].includes(user?.role || '') && (
           <Button 
             onClick={() => setIsModalOpen(true)}
-            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
+            className="hidden sm:inline-flex bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
             icon={<Plus size={20} />}
           >
             Register New Client
@@ -141,7 +141,8 @@ export default function Clients() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gray-50/50 text-gray-400 text-[10px] font-normal uppercase tracking-widest border-b border-gray-100">
@@ -214,6 +215,67 @@ export default function Clients() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-gray-100 bg-white">
+          {loading ? (
+            <div className="py-20">
+              <LoadingState message="Synchronizing Agency Infrastructure..." />
+            </div>
+          ) : filteredClients.length === 0 ? (
+            <div className="px-8 py-20 text-center text-gray-400 italic bg-white rounded-xl">
+              No agency tenants found in the directory.
+            </div>
+          ) : (
+            filteredClients.map((client) => (
+              <div 
+                key={client.id} 
+                onClick={() => navigate(`/clients/${client.id}`)}
+                className="p-5 active:bg-gray-50 transition-all cursor-pointer space-y-4"
+              >
+                <div className="flex justify-between items-start gap-4">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit truncate">{client.name}</h4>
+                    <p className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1 truncate">{client.industry || 'General Sector'}</p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <StatusBadge status={client.status as any} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 pt-1 text-xs">
+                  <div>
+                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Service Tier</span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-primary-50 text-primary-600 border border-primary-100 text-[10px] font-normal uppercase tracking-widest font-outfit">
+                      {client.plan_type}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Joined</span>
+                    <span className="font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                      {client.created_at || (client as any).createdAt ? format(new Date(client.created_at || (client as any).createdAt), 'MMM d, yyyy') : '---'}
+                    </span>
+                  </div>
+                  
+                  <div className="col-span-2 pt-2 border-t border-slate-50 flex gap-6">
+                    <div>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Brands</span>
+                      <span className="text-base font-normal text-gray-900 font-outfit">{client.brands?.length || 0}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Campaigns</span>
+                      <span className="text-base font-normal text-gray-900 font-outfit">{client.campaign_count || 0}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Users</span>
+                      <span className="text-base font-normal text-gray-900 font-outfit">{client.users?.length || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </Card>
 
@@ -394,6 +456,16 @@ export default function Clients() {
             </div>
           </Card>
         </div>
+      )}
+      {/* Floating Action Button for Mobile */}
+      {['super_admin', 'admin'].includes(user?.role || '') && (
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="sm:hidden fixed bottom-6 right-6 z-50 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-4 shadow-2xl shadow-primary-500/40 flex items-center justify-center transition-transform active:scale-95 border border-primary-500/20"
+          aria-label="Register New Client"
+        >
+          <Plus size={24} />
+        </button>
       )}
     </div>
   );

@@ -104,7 +104,7 @@ export default function Users() {
         </div>
         <Button 
           onClick={() => setIsModalOpen(true)} 
-          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 font-normal uppercase tracking-widest text-[10px] h-11 whitespace-nowrap"
+          className="hidden sm:inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 font-normal uppercase tracking-widest text-[10px] h-11 whitespace-nowrap"
         >
           <UserPlus size={16} /> Invite New User
         </Button>
@@ -128,7 +128,8 @@ export default function Users() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50">
@@ -225,6 +226,93 @@ export default function Users() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-gray-100 bg-white">
+          {loading ? (
+            <div className="py-20">
+              <LoadingState message="Retrieving User Access..." />
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="px-8 py-20 text-center text-gray-400 font-normal uppercase tracking-widest text-[10px]">
+              No users found matching your search.
+            </div>
+          ) : (
+            filteredUsers.map((u) => (
+              <div 
+                key={u.id} 
+                onClick={() => navigate(`/users/${u.id}`)}
+                className="p-5 active:bg-gray-50 transition-all cursor-pointer space-y-4"
+              >
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-lg shadow-sm font-outfit">
+                      {u.full_name?.charAt(0) || 'U'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-normal text-gray-900 uppercase tracking-tight text-sm leading-tight font-outfit truncate">{u.full_name}</p>
+                      <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mt-1 font-outfit truncate">{u.email}</p>
+                    </div>
+                  </div>
+                  <span className={`flex-shrink-0 inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-normal uppercase tracking-widest border ${
+                    u.status === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 
+                    u.status === 'inactive' ? 'bg-gray-100 text-gray-600 border-gray-200' :
+                    'bg-amber-50 text-amber-600 border-amber-100'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      u.status === 'active' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 
+                      u.status === 'inactive' ? 'bg-gray-400' :
+                      'bg-amber-500 animate-pulse'
+                    }`} />
+                    {u.status === 'inactive' ? 'deactive' : u.status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 pt-1 text-xs">
+                  <div>
+                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Identity Type</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-normal uppercase tracking-widest border font-outfit ${
+                      u.user_type === 'internal' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                    }`}>
+                      {u.user_type}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Role</span>
+                    <span className="flex items-center gap-1 font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                      <Shield className="w-3.5 h-3.5 text-primary-400" />
+                      {u.role.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Client</span>
+                    <span className="font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                      {u.Client?.name || (u.user_type === 'internal' ? 'Internal Team' : '---')}
+                    </span>
+                  </div>
+                </div>
+
+                {u.status === 'invited' && (
+                  <div className="pt-3 border-t border-gray-50 flex justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => handleResendInvite(e, u.id)}
+                      disabled={actionLoading === u.id}
+                      className="text-primary-600 border-primary-100 hover:bg-primary-50 px-4 py-2 rounded-lg transition-all font-normal uppercase tracking-widest text-[9px]"
+                    >
+                      {actionLoading === u.id ? (
+                        <LoadingState mini />
+                      ) : (
+                        "Resend Invite"
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </Card>
 
@@ -404,6 +492,14 @@ export default function Users() {
           </Card>
         </div>
       )}
+      {/* Floating Action Button for Mobile */}
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className="sm:hidden fixed bottom-6 right-6 z-50 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-4 shadow-2xl shadow-primary-500/40 flex items-center justify-center transition-transform active:scale-95 border border-primary-500/20"
+        aria-label="Invite New User"
+      >
+        <UserPlus size={24} />
+      </button>
     </div>
   );
 }

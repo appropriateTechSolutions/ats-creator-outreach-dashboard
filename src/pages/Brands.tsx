@@ -160,7 +160,7 @@ export default function Brands() {
         {['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
           <Button 
             onClick={() => setIsModalOpen(true)}
-            className="bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
+            className="hidden sm:inline-flex bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
             icon={<Plus size={20} />}
           >
             Register New Brand
@@ -490,6 +490,17 @@ export default function Brands() {
                 </div>
           </Card>
         </div>
+      )}
+
+      {/* Floating Action Button for Mobile */}
+      {['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="sm:hidden fixed bottom-6 right-6 z-50 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-4 shadow-2xl shadow-primary-500/40 flex items-center justify-center transition-transform active:scale-95 border border-primary-500/20"
+          aria-label="Register New Brand"
+        >
+          <Plus size={24} />
+        </button>
       )}
     </div>
   );
