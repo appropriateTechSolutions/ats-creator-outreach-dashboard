@@ -320,7 +320,7 @@ export default function Brands() {
                   </h3>
                   
                   {/* Row 1: Agency & Industry */}
-                  <div className="grid grid-cols-2 gap-8 items-start">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                     <div className="space-y-1.5">
                       <label className="text-xs font-light text-slate-500 block font-outfit uppercase tracking-widest">Client</label>
                       <select
@@ -342,7 +342,7 @@ export default function Brands() {
                   </div>
 
                   {/* Row 2: Brand Name & Category */}
-                  <div className="grid grid-cols-2 gap-8 items-start">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                     <Input
                       label="Brand Name"
                       required
@@ -359,7 +359,7 @@ export default function Brands() {
                   </div>
 
                   {/* Row 3: Website & (Commission/Status) */}
-                  <div className="grid grid-cols-2 gap-8 items-start">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                     <Input
                       label="Primary Website"
                       value={formData.website}
@@ -367,7 +367,7 @@ export default function Brands() {
                       placeholder="https://example.com"
                       icon={<Globe size={16} />}
                     />
-                    <div className="grid grid-cols-2 gap-4 items-start">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
                       <div className="space-y-1.5">
                         <label className="text-xs font-light text-slate-500 block font-outfit uppercase tracking-widest">Commission (%)</label>
                         <div className="relative">
@@ -401,7 +401,7 @@ export default function Brands() {
                       <h3 className="text-xs font-light text-slate-400 font-outfit uppercase tracking-widest flex items-center gap-2 mb-4">
                         <Target size={14} className="text-primary-600" /> Brand Intelligence
                       </h3>
-                      <div className="grid grid-cols-2 gap-8 items-start">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                         <div className="space-y-1.5">
                           <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Brand Description</label>
                           <textarea
@@ -428,7 +428,7 @@ export default function Brands() {
                       <h3 className="text-xs font-normal text-slate-400 font-outfit uppercase tracking-widest flex items-center gap-2 mb-4">
                         <Megaphone size={14} className="text-primary-600" /> Operational Parameters
                       </h3>
-                      <div className="grid grid-cols-2 gap-8 items-start">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                         <Input
                           label="Brand Voice"
                           value={formData.brand_voice}
@@ -442,7 +442,7 @@ export default function Brands() {
                           placeholder="e.g. No profanity, specific mentions"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-8 items-start">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                         <div className="space-y-1.5">
                           <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Affiliate & Commission Terms</label>
                           <textarea
@@ -493,7 +493,7 @@ export default function Brands() {
       )}
 
       {/* Floating Action Button for Mobile */}
-      {['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
+      {!isModalOpen && ['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
         <button
           onClick={() => setIsModalOpen(true)}
           className="sm:hidden fixed bottom-6 right-6 z-50 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-4 shadow-2xl shadow-primary-500/40 flex items-center justify-center transition-transform active:scale-95 border border-primary-500/20"

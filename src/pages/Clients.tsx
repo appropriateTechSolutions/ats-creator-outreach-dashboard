@@ -304,7 +304,7 @@ export default function Clients() {
                   </h3>
                   
                   {/* Row 1: Display Name & Legal Name */}
-                  <div className="grid grid-cols-2 gap-8 items-start">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                     <Input
                       label="Display Name (Agency Name)"
                       required
@@ -321,7 +321,7 @@ export default function Clients() {
                   </div>
 
                   {/* Row 2: Website & Industry */}
-                  <div className="grid grid-cols-2 gap-8 items-start">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                     <div className="space-y-1.5">
                       <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Website URL</label>
                       <input
@@ -351,7 +351,7 @@ export default function Clients() {
                     <User size={14} className="text-primary-600" /> Primary Contact Person
                   </h3>
                   <div className="p-6 bg-slate-50/50 rounded-2xl border border-slate-100/50 space-y-6">
-                    <div className="grid grid-cols-2 gap-8 items-start">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                       <Input
                         label="Full Name"
                         placeholder="Contact person name"
@@ -367,7 +367,7 @@ export default function Clients() {
                         onChange={e => setFormData({ ...formData, primary_contact_email: e.target.value })}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-8 items-start">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                       <Input
                         label="Phone Number"
                         placeholder="e.g. +1234567890"
@@ -385,7 +385,7 @@ export default function Clients() {
                   <h3 className="text-xs font-normal text-slate-400 font-outfit uppercase tracking-widest flex items-center gap-2 mb-4">
                     <Shield size={14} className="text-primary-600" /> Service Configuration
                   </h3>
-                  <div className="grid grid-cols-3 gap-6 items-start">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
                     <div className="space-y-1.5">
                       <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Plan Type</label>
                       <select

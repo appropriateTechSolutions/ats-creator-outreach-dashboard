@@ -54,7 +54,6 @@ export default function Creators() {
   const location = useLocation();
   const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -98,7 +97,6 @@ export default function Creators() {
   }, [search, selectedStatuses, followersFilter, engagementFilter, sortBy]);
 
   const handleReview = async (id: string, action: 'approve' | 'reject' | 'shortlist' | 'revoke') => {
-    setActionLoading(id);
     const previousCreators = [...creators];
 
     // Optimistically update the UI state immediately
@@ -123,7 +121,6 @@ export default function Creators() {
       setCreators(previousCreators); // Revert state on error
       alert('Failed to update creator: ' + err);
     } finally {
-      setActionLoading(null);
     }
   };
 
