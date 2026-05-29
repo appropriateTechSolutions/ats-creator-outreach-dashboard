@@ -207,7 +207,8 @@ export default function Brands() {
         </div>
 
         {/* Brands Table */}
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
@@ -290,6 +291,80 @@ export default function Brands() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-gray-100 bg-white">
+          {loading ? (
+            <div className="py-20">
+              <LoadingState message="Retrieving Brand Portfolio..." />
+            </div>
+          ) : filteredBrands.length === 0 ? (
+            <div className="px-8 py-20 text-center text-gray-400 italic bg-white rounded-xl">
+              No brands found matching your criteria.
+            </div>
+          ) : (
+            filteredBrands.map((brand) => (
+              <div 
+                key={brand.id} 
+                onClick={() => navigate(`/brands/${brand.id}`)}
+                className="p-5 active:bg-gray-50 transition-all cursor-pointer space-y-4"
+              >
+                <div className="flex justify-between items-start gap-4">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit truncate">{brand.name}</h4>
+                    <p className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1 truncate">{brand.product_category || 'General Category'}</p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <StatusBadge status={brand.status as any} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 pt-1 text-xs">
+                  {user?.user_type === 'internal' && (
+                    <div>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Client</span>
+                      <span className="font-normal text-gray-900 uppercase tracking-tight font-outfit truncate block">
+                        {brand.Client?.name || 'Internal'}
+                      </span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Registration</span>
+                    <span className="font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                      {(brand.created_at || (brand as any).createdAt) ? format(new Date(brand.created_at || (brand as any).createdAt), 'MMM d, yyyy') : '---'}
+                    </span>
+                  </div>
+                  
+                  <div className="col-span-2 pt-2 border-t border-slate-50">
+                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-1">Campaigns</span>
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const campaignList = brand.campaigns || [];
+                        if (campaignList.length === 0) return;
+                        
+                        navigate('/campaigns', { 
+                          state: { 
+                            selectedBrandId: brand.id, 
+                            selectedBrandName: brand.name, 
+                            fromBrandsList: true 
+                          } 
+                        });
+                      }}
+                      className={`inline-flex text-xs font-normal px-2.5 py-1 rounded transition-all select-none border ${
+                        brand.campaigns?.length 
+                          ? 'bg-primary-50 text-primary-700 hover:bg-primary-100/80 border-primary-200/50 cursor-pointer hover:scale-105 active:scale-95' 
+                          : 'bg-gray-100 text-gray-400 border-gray-200/50 cursor-not-allowed'
+                      }`}
+                    >
+                      {brand.campaigns?.length || 0} Campaigns
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </Card>
 

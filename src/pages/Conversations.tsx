@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { RefreshCw, MessageSquare, Mail, Search } from 'lucide-react';
+import { RefreshCw, MessageSquare, Mail, Search, ArrowLeft } from 'lucide-react';
 import { getConversations, syncConversations, getConversationThread } from '../lib/api';
 import type { Creator, ConversationMessage } from '../types';
 import { format } from 'date-fns';
@@ -28,7 +28,7 @@ export default function Conversations() {
         return dateB - dateA;
       });
       setConversations(filtered);
-      if (filtered.length > 0 && !activeId) setActiveId(filtered[0].id);
+      if (window.innerWidth >= 768 && filtered.length > 0 && !activeId) setActiveId(filtered[0].id);
     } catch (err) {
       console.error(err);
     } finally {
@@ -127,7 +127,7 @@ export default function Conversations() {
 
       <Card className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Thread List */}
-        <div className="w-1/4 border-r border-gray-200 bg-gray-50 flex flex-col h-[70vh]">
+        <div className={`w-full md:w-1/3 lg:w-1/4 border-r border-gray-200 bg-gray-50 flex flex-col h-[70vh] ${activeId ? 'hidden md:flex' : 'flex'}`}>
           <div className="p-4 border-b border-gray-200 bg-white">
             <div className="relative w-full">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -179,12 +179,18 @@ export default function Conversations() {
         </div>
 
         {/* Right Main Area - Thread View */}
-        <div className="w-3/4 bg-white flex flex-col h-[70vh]">
+        <div className={`w-full md:w-2/3 lg:w-3/4 bg-white flex flex-col h-[70vh] ${!activeId ? 'hidden md:flex' : 'flex'}`}>
           {activeConvo ? (
             <>
               {/* Header */}
               <div className="p-5 border-b border-gray-100 flex justify-between items-center shadow-sm z-10">
                 <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => setActiveId(null)}
+                    className="md:hidden p-2 -ml-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-900 transition-colors"
+                  >
+                    <ArrowLeft size={20} />
+                  </button>
                   <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-normal uppercase font-outfit">
                     {activeConvo.handle?.charAt(0).toUpperCase()}
                   </div>
