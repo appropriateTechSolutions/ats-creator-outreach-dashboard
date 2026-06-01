@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { Search, ArrowLeft, ChevronDown } from 'lucide-react';
+import { Search, ArrowLeft, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { getAllCreators, getCampaigns, reviewLead } from '../lib/api';
 import type { Creator } from '../types';
@@ -83,9 +83,10 @@ export default function Creators() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [, setActionLoading] = useState<string | null>(null);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [openMobileDropdown, setOpenMobileDropdown] = useState<'followers' | 'engagement' | 'campaign' | 'sort' | null>(null);
 
   const [search, setSearch] = useState(() => loadStoredFilters().search || '');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(() => loadStoredFilters().selectedStatuses || []);
@@ -129,7 +130,6 @@ export default function Creators() {
   }, [search, selectedStatuses, followersFilter, engagementFilter, campaignFilter, sortBy]);
 
   const handleReview = async (id: string, action: 'approve' | 'reject' | 'shortlist' | 'revoke') => {
-    setActionLoading(id);
     const previousCreators = [...creators];
 
     // Optimistically update the UI state immediately
@@ -153,8 +153,6 @@ export default function Creators() {
     } catch (err) {
       setCreators(previousCreators); // Revert state on error
       alert('Failed to update creator: ' + err);
-    } finally {
-      setActionLoading(null);
     }
   };
 
@@ -251,22 +249,33 @@ export default function Creators() {
       <Card>
         <div className="p-6 border-b border-gray-100 bg-gray-50/30 flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="relative flex-1 sm:max-w-md">
-              <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search global identities..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
-              />
+            <div className="flex gap-2 w-full sm:max-w-md">
+              <div className="relative flex-1">
+                <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search global identities..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileFiltersOpen(true)}
+                className="sm:hidden flex items-center justify-center p-3 bg-white border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors shadow-sm w-12"
+                aria-label="Toggle Filters"
+              >
+                <SlidersHorizontal size={18} />
+              </button>
             </div>
             <div className="text-sm text-gray-500 font-normal sm:ml-auto">
               {filteredCreators.length} records found
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Desktop Filters (hidden on mobile) */}
+          <div className="hidden sm:flex flex-wrap items-center gap-3">
             <div className="relative">
               <button
                 type="button"
@@ -373,30 +382,158 @@ export default function Creators() {
             <LoadingState message="Scouring Creator Database..." />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <Thead>
-                <Tr>
-                  <Th>Creator Details</Th>
-                  <Th className="text-center">Followers</Th>
-                  <Th className="text-center">Engagement</Th>
-                  <Th>Status</Th>
-                  <Th className="text-right">Actions</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {sortedCreators.map(c => (
-                  <Tr key={c.id}>
-                    <Td>
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <Table>
+                <Thead>
+                  <Tr>
+                    <Th>Creator Details</Th>
+                    <Th className="text-center">Followers</Th>
+                    <Th className="text-center">Engagement</Th>
+                    <Th>Status</Th>
+                    <Th className="text-right">Actions</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {sortedCreators.map(c => (
+                    <Tr key={c.id}>
+                      <Td>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm">
+                            {(c.full_name || c.handle)?.charAt(0)}
+                          </div>
+                          <div>
+                            <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit">
+                              {c.full_name || `@${c.handle}`}
+                            </Link>
+                            <div className="flex gap-2 mt-1.5">
+                              {c.has_instagram && (
+                                <a 
+                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="inline-flex items-center gap-1 text-[#E1306C] hover:scale-[1.02] transition-transform"
+                                  title="Instagram"
+                                >
+                                  <Instagram size={14} />
+                                  <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(c, 'instagram')}</span>
+                                </a>
+                              )}
+                              {c.has_youtube && (
+                                <a 
+                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${c.handle?.replace(/^@/, '')}`} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="inline-flex items-center gap-1 text-[#FF0000] hover:scale-[1.02] transition-transform"
+                                  title="YouTube"
+                                >
+                                  <Youtube size={14} />
+                                  <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(c, 'youtube')}</span>
+                                </a>
+                              )}
+                              {c.has_tiktok && (
+                                <a 
+                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="inline-flex items-center gap-1 text-gray-900 hover:scale-[1.02] transition-transform"
+                                  title="TikTok"
+                                >
+                                  <Activity size={14} />
+                                  <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(c, 'tiktok')}</span>
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </Td>
+                      <Td className="text-center">
+                        {(() => {
+                          const f = getFollowers(c);
+                          return <span className="text-sm text-gray-700 font-normal">{f > 0 ? formatFollowers(f) : '—'}</span>;
+                        })()}
+                      </Td>
+                      <Td className="text-center">
+                        {(() => {
+                          const e = getEngagement(c);
+                          return <span className="text-sm text-gray-700 font-normal">{e > 0 ? `${e.toFixed(1)}%` : '—'}</span>;
+                        })()}
+                      </Td>
+                      <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
+                      <Td className="text-right">
+                        {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
+                          <div className="flex justify-end gap-2">
+                            {c.review_status === 'rejected' && (
+                              <button
+                                onClick={() => handleReview(c.id, 'revoke')}
+                                className="px-2.5 py-1 rounded text-[11px] font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
+                                title="Revoke Rejection"
+                              >
+                                Revoke
+                              </button>
+                            )}
+                            {c.review_status !== 'approved' && c.review_status !== 'rejected' && c.lifecycle_status !== 'not_respond' && (
+                              <>
+                                <button
+                                  onClick={() => setOutreachModalCreatorId(c.id)}
+                                  className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                  title="Approve & Send Outreach"
+                                >
+                                  <Check size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleReview(c.id, 'reject')}
+                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                  title="Reject"
+                                >
+                                  <X size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleReview(c.id, (c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? 'revoke' : 'shortlist')}
+                                  className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                  title={(c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? "Remove from Shortlist" : "Shortlist → Move to Review Queue"}
+                                >
+                                  <Star size={16} fill={(c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? "currentColor" : "none"} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </Td>
+                    </Tr>
+                  ))}
+                  {sortedCreators.length === 0 && (
+                    <Tr>
+                      <Td colSpan={5} className="text-center py-16 text-gray-500">
+                        <div className="flex justify-center mb-3">
+                          <Search size={32} className="text-gray-300" />
+                        </div>
+                        No creators match your search.
+                      </Td>
+                    </Tr>
+                  )}
+                </Tbody>
+              </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-gray-100 bg-white">
+              {sortedCreators.map(c => {
+                const followers = getFollowers(c);
+                const engagement = getEngagement(c);
+                return (
+                  <div key={c.id} className="p-5 active:bg-gray-50 transition-all space-y-4">
+                    <div className="flex justify-between items-start gap-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm">
+                        <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm">
                           {(c.full_name || c.handle)?.charAt(0)}
                         </div>
                         <div>
-                          <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit">
+                          <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit block">
                             {c.full_name || `@${c.handle}`}
                           </Link>
-                          <div className="flex gap-2 mt-1.5">
+                          <div className="flex gap-2.5 mt-1.5">
                             {c.has_instagram && (
                               <a 
                                 href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`} 
@@ -436,77 +573,63 @@ export default function Creators() {
                           </div>
                         </div>
                       </div>
-                    </Td>
-                    <Td className="text-center">
-                      {(() => {
-                        const f = getFollowers(c);
-                        return <span className="text-sm text-gray-700 font-normal">{f > 0 ? formatFollowers(f) : '—'}</span>;
-                      })()}
-                    </Td>
-                    <Td className="text-center">
-                      {(() => {
-                        const e = getEngagement(c);
-                        return <span className="text-sm text-gray-700 font-normal">{e > 0 ? `${e.toFixed(1)}%` : '—'}</span>;
-                      })()}
-                    </Td>
-                    <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
-                    <Td className="text-right">
-                      {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
-                        <div className="flex justify-end gap-2">
-                          {c.review_status === 'rejected' && (
-                            <button
-                              onClick={() => handleReview(c.id, 'revoke')}
-                              className="px-2.5 py-1 rounded text-[11px] font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
-                              title="Revoke Rejection"
-                            >
-                              Revoke
-                            </button>
-                          )}
-                          {c.review_status !== 'approved' && c.review_status !== 'rejected' && c.review_status !== 'shortlisted' && c.review_status !== 'pending_review' && c.lifecycle_status !== 'not_respond' && (
-                            <>
-                              <button
-                                onClick={() => setOutreachModalCreatorId(c.id)}
-                                className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                                title="Approve & Send Outreach"
-                              >
-                                <Check size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleReview(c.id, 'reject')}
-                                className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                                title="Reject"
-                              >
-                                <X size={16} />
-                              </button>
-                              {c.review_status !== 'shortlisted' && c.review_status !== 'pending_review' && (
-                                <button
-                                  onClick={() => handleReview(c.id, 'shortlist')}
-                                  className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                                  title="Shortlist → Move to Review Queue"
-                                >
-                                  <Star size={16} />
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </Td>
-                  </Tr>
-                ))}
-                {sortedCreators.length === 0 && (
-                  <Tr>
-                    <Td colSpan={5} className="text-center py-16 text-gray-500">
-                      <div className="flex justify-center mb-3">
-                        <Search size={32} className="text-gray-300" />
+                      <StatusBadge status={['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-y-3 gap-x-4 pt-1 text-xs">
+                      <div>
+                        <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Followers</span>
+                        <span className="font-normal text-gray-700">{followers > 0 ? formatFollowers(followers) : '—'}</span>
                       </div>
-                      No creators match your search.
-                    </Td>
-                  </Tr>
-                )}
-              </Tbody>
-            </Table>
-          </div>
+                      <div>
+                        <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Engagement</span>
+                        <span className="font-normal text-gray-700">{engagement > 0 ? `${engagement.toFixed(1)}%` : '—'}</span>
+                      </div>
+                    </div>
+
+                    {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
+                      <div className="pt-3 border-t border-gray-50 flex gap-2 justify-center">
+                        {c.review_status === 'rejected' && (
+                          <button
+                            onClick={() => handleReview(c.id, 'revoke')}
+                            className="px-3 py-1.5 rounded-lg text-xs font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
+                          >
+                            Revoke Rejection
+                          </button>
+                        )}
+                        {c.review_status !== 'approved' && c.review_status !== 'rejected' && c.lifecycle_status !== 'not_respond' && (
+                          <>
+                            <button
+                              onClick={() => setOutreachModalCreatorId(c.id)}
+                              className="px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 transition-colors text-xs font-normal flex items-center gap-1 font-outfit rounded-lg"
+                            >
+                              <Check size={14} /> Approve & Send
+                            </button>
+                            <button
+                              onClick={() => handleReview(c.id, 'reject')}
+                              className="px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 transition-colors text-xs font-normal flex items-center gap-1 font-outfit rounded-lg"
+                            >
+                              <X size={14} /> Reject
+                            </button>
+                            <button
+                              onClick={() => handleReview(c.id, (c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? 'revoke' : 'shortlist')}
+                              className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-xs font-normal flex items-center gap-1 font-outfit rounded-lg"
+                            >
+                              <Star size={14} fill={(c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? "currentColor" : "none"} /> 
+                              {(c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? "Shortlisted" : "Shortlist"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {sortedCreators.length === 0 && (
+                <div className="text-center py-20 text-gray-400 italic bg-white rounded-xl">No creators match your search.</div>
+              )}
+            </div>
+          </>
         )}
       </Card>
 
@@ -517,6 +640,276 @@ export default function Creators() {
         onClose={() => setOutreachModalCreatorId(null)}
         onSend={handleConfirmApprove}
       />
+
+      {/* Mobile Filters Modal */}
+      {isMobileFiltersOpen && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-end justify-center p-0">
+          <div 
+            className="fixed inset-0" 
+            onClick={() => setIsMobileFiltersOpen(false)}
+          />
+          <div className="relative w-full bg-white rounded-t-3xl shadow-3xl flex flex-col max-h-[85vh] z-10 animate-in slide-in-from-bottom duration-250">
+            {/* Drag Handle */}
+            <div className="w-12 h-1 bg-gray-200 rounded-full mx-auto my-3 shrink-0" />
+            
+            {/* Header */}
+            <div className="px-6 pb-4 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
+              <h3 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight flex items-center gap-2">
+                <SlidersHorizontal size={18} className="text-primary-600" /> Filters
+              </h3>
+              <button 
+                type="button"
+                onClick={() => {
+                  setSelectedStatuses([]);
+                  setFollowersFilter('');
+                  setEngagementFilter('');
+                  setCampaignFilter('');
+                  setSortBy('followers_desc');
+                }}
+                className="text-xs text-primary-600 hover:text-primary-700 font-normal uppercase tracking-widest font-outfit"
+              >
+                Clear all
+              </button>
+            </div>
+
+             {/* Scrollable Body */}
+             <div 
+               className="flex-1 overflow-y-auto p-6 space-y-6"
+               onClick={() => setOpenMobileDropdown(null)}
+             >
+               {/* Status Section */}
+               <div className="space-y-2.5">
+                 <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Status</label>
+                 <div className="grid grid-cols-2 gap-2">
+                   {[
+                     { id: 'hold', label: 'Discovered' },
+                     { id: 'pending', label: 'Shortlisted' },
+                     { id: 'approved', label: 'Approved' },
+                     { id: 'rejected', label: 'Rejected' },
+                     { id: 'not_respond', label: 'Not Responsive' }
+                   ].map(item => {
+                     const isChecked = selectedStatuses.includes(item.id);
+                     return (
+                       <button
+                         type="button"
+                         key={item.id}
+                         onClick={() => {
+                           setSelectedStatuses(prev => 
+                             isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
+                           );
+                         }}
+                         className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-xs text-left transition-all ${
+                           isChecked 
+                             ? 'border-primary-500 bg-primary-50/30 text-primary-700 font-medium' 
+                             : 'border-slate-100 bg-slate-50/50 text-slate-700'
+                         }`}
+                       >
+                         <input
+                           type="checkbox"
+                           checked={isChecked}
+                           readOnly
+                           className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 pointer-events-none"
+                         />
+                         <span>{item.label}</span>
+                       </button>
+                     );
+                   })}
+                 </div>
+               </div>
+ 
+               {/* Followers Section */}
+               <div className="space-y-1.5 relative">
+                 <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Followers</label>
+                 <button
+                   type="button"
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     setOpenMobileDropdown(openMobileDropdown === 'followers' ? null : 'followers');
+                   }}
+                   className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
+                 >
+                   <span>
+                     {followersFilter === '' ? 'Any Followers' :
+                      followersFilter === '<10k' ? '< 10K' :
+                      followersFilter === '10k-100k' ? '10K – 100K' :
+                      followersFilter === '100k-1m' ? '100K – 1M' :
+                      followersFilter === '1m+' ? '1M+' : 'Any Followers'}
+                   </span>
+                   <ChevronDown size={16} className="text-gray-400" />
+                 </button>
+                 {openMobileDropdown === 'followers' && (
+                   <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
+                     {[
+                       { val: '', label: 'Any Followers' },
+                       { val: '<10k', label: '< 10K' },
+                       { val: '10k-100k', label: '10K – 100K' },
+                       { val: '100k-1m', label: '100K – 1M' },
+                       { val: '1m+', label: '1M+' }
+                     ].map(opt => (
+                       <button
+                         type="button"
+                         key={opt.val}
+                         onClick={() => {
+                           setFollowersFilter(opt.val);
+                           setOpenMobileDropdown(null);
+                         }}
+                         className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${followersFilter === opt.val ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                       >
+                         {opt.label}
+                       </button>
+                     ))}
+                   </div>
+                 )}
+               </div>
+ 
+               {/* Engagement Section */}
+               <div className="space-y-1.5 relative">
+                 <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Engagement</label>
+                 <button
+                   type="button"
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     setOpenMobileDropdown(openMobileDropdown === 'engagement' ? null : 'engagement');
+                   }}
+                   className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
+                 >
+                   <span>
+                     {engagementFilter === '' ? 'Any Engagement' :
+                      engagementFilter === '<1' ? '< 1%' :
+                      engagementFilter === '1-3' ? '1 – 3%' :
+                      engagementFilter === '3-6' ? '3 – 6%' :
+                      engagementFilter === '6+' ? '6%+' : 'Any Engagement'}
+                   </span>
+                   <ChevronDown size={16} className="text-gray-400" />
+                 </button>
+                 {openMobileDropdown === 'engagement' && (
+                   <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
+                     {[
+                       { val: '', label: 'Any Engagement' },
+                       { val: '<1', label: '< 1%' },
+                       { val: '1-3', label: '1 – 3%' },
+                       { val: '3-6', label: '3 – 6%' },
+                       { val: '6+', label: '6%+' }
+                     ].map(opt => (
+                       <button
+                         type="button"
+                         key={opt.val}
+                         onClick={() => {
+                           setEngagementFilter(opt.val);
+                           setOpenMobileDropdown(null);
+                         }}
+                         className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${engagementFilter === opt.val ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                       >
+                         {opt.label}
+                       </button>
+                     ))}
+                   </div>
+                 )}
+               </div>
+
+               {/* Campaign Section */}
+               <div className="space-y-1.5 relative">
+                 <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Campaign</label>
+                 <button
+                   type="button"
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     setOpenMobileDropdown(openMobileDropdown === 'campaign' ? null : 'campaign');
+                   }}
+                   className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
+                 >
+                   <span>
+                     {campaignFilter === '' ? 'Any Campaign' :
+                      campaigns.find(camp => camp.id === campaignFilter)?.name || 'Any Campaign'}
+                   </span>
+                   <ChevronDown size={16} className="text-gray-400" />
+                 </button>
+                 {openMobileDropdown === 'campaign' && (
+                   <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
+                     <button
+                       type="button"
+                       onClick={() => {
+                         setCampaignFilter('');
+                         setOpenMobileDropdown(null);
+                       }}
+                       className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${campaignFilter === '' ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                     >
+                       Any Campaign
+                     </button>
+                     {campaigns.map(camp => (
+                       <button
+                         type="button"
+                         key={camp.id}
+                         onClick={() => {
+                           setCampaignFilter(camp.id);
+                           setOpenMobileDropdown(null);
+                         }}
+                         className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${campaignFilter === camp.id ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                       >
+                         {camp.name}
+                       </button>
+                     ))}
+                   </div>
+                 )}
+               </div>
+ 
+               {/* Sort By Section */}
+               <div className="space-y-1.5 relative">
+                 <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Sort By</label>
+                 <button
+                   type="button"
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     setOpenMobileDropdown(openMobileDropdown === 'sort' ? null : 'sort');
+                   }}
+                   className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
+                 >
+                   <span>
+                     {sortBy === 'followers_desc' ? 'Followers (High→Low)' :
+                      sortBy === 'followers_asc' ? 'Followers (Low→High)' :
+                      sortBy === 'engagement_desc' ? 'Engagement (High→Low)' :
+                      sortBy === 'engagement_asc' ? 'Engagement (Low→High)' : 'Followers (High→Low)'}
+                   </span>
+                   <ChevronDown size={16} className="text-gray-400" />
+                 </button>
+                 {openMobileDropdown === 'sort' && (
+                   <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
+                     {[
+                       { val: 'followers_desc', label: 'Followers (High→Low)' },
+                       { val: 'followers_asc', label: 'Followers (Low→High)' },
+                       { val: 'engagement_desc', label: 'Engagement (High→Low)' },
+                       { val: 'engagement_asc', label: 'Engagement (Low→High)' }
+                     ].map(opt => (
+                       <button
+                         type="button"
+                         key={opt.val}
+                         onClick={() => {
+                           setSortBy(opt.val);
+                           setOpenMobileDropdown(null);
+                         }}
+                         className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${sortBy === opt.val ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                       >
+                         {opt.label}
+                       </button>
+                     ))}
+                   </div>
+                 )}
+               </div>
+             </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-100 bg-white rounded-b-3xl shrink-0">
+              <button 
+                type="button"
+                onClick={() => setIsMobileFiltersOpen(false)}
+                className="w-full bg-primary-600 hover:bg-primary-700 text-white rounded-xl py-3 text-center text-xs font-normal uppercase tracking-widest font-outfit shadow-xl shadow-primary-500/20 transition-all active:scale-[0.98]"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

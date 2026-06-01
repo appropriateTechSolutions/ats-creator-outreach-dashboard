@@ -6,7 +6,7 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock } from 'lucide-react';
+import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Star, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock } from 'lucide-react';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
 import { useAuth } from '../contexts/AuthContext';
@@ -403,38 +403,38 @@ export default function CreatorDetail() {
               </div>
 
               {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
-                <div className="flex items-center gap-2 mt-4">
+                <div className="flex items-center gap-2.5 mt-4">
                   {creator.review_status === 'rejected' && (
                     <button
                       onClick={() => handleReview('revoke')}
-                      className="px-3 py-1.5 rounded text-xs font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
+                      className="px-3 py-1.5 rounded-lg text-xs font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
                       title="Revoke Rejection"
                     >
-                      Revoke
+                      Revoke Rejection
                     </button>
                   )}
-                  {creator.review_status !== 'approved' && creator.review_status !== 'rejected' && creator.review_status !== 'shortlisted' && creator.review_status !== 'pending_review' && creator.lifecycle_status !== 'not_respond' && (
+                  {creator.review_status !== 'approved' && creator.review_status !== 'rejected' && creator.lifecycle_status !== 'not_respond' && (
                     <>
                       <button 
                         onClick={() => handleReview('approve')}
-                        className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors flex items-center justify-center gap-1.5 text-xs font-normal font-outfit uppercase tracking-wider px-3"
+                        className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors flex items-center justify-center shadow-sm"
                         title="Approve & Send Outreach"
                       >
-                        <Check size={14} /> Approve
+                        <Check size={18} />
                       </button>
                       <button 
                         onClick={() => handleReview('reject')}
-                        className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5 text-xs font-normal font-outfit uppercase tracking-wider px-3"
+                        className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center justify-center shadow-sm"
                         title="Reject"
                       >
-                        <X size={14} /> Reject
+                        <X size={18} />
                       </button>
                       <button
-                        onClick={() => handleReview('shortlist')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-normal uppercase tracking-wider bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-outfit"
-                        title="Shortlist"
+                        onClick={() => handleReview((creator.review_status === 'shortlisted' || creator.review_status === 'pending_review') ? 'revoke' : 'shortlist')}
+                        className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center justify-center shadow-sm"
+                        title={(creator.review_status === 'shortlisted' || creator.review_status === 'pending_review') ? "Remove from Shortlist" : "Shortlist → Move to Review Queue"}
                       >
-                        Shortlist
+                        <Star size={18} fill={(creator.review_status === 'shortlisted' || creator.review_status === 'pending_review') ? "currentColor" : "none"} />
                       </button>
                     </>
                   )}

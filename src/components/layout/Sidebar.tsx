@@ -78,7 +78,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     // Internal only pages (Review Queue)
     if (item.internalOnly && !isInternal) {
-      return false;
+      if (item.path === '/review' && user?.role === 'client_admin') {
+        // Allow client_admin for review queue
+      } else {
+        return false;
+      }
     }
 
     return true;
