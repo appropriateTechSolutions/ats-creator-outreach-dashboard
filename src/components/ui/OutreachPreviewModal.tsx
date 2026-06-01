@@ -22,6 +22,7 @@ export function OutreachPreviewModal({
 }: OutreachPreviewModalProps) {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [toEmail, setToEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
 
@@ -32,6 +33,7 @@ export function OutreachPreviewModal({
         .then((data) => {
           setSubject(data.subject || '');
           setBody(data.body || '');
+          setToEmail(data.to || null);
         })
         .catch((err) => {
           console.error('Failed to load preview:', err);
@@ -77,6 +79,15 @@ export function OutreachPreviewModal({
             </div>
           ) : (
             <>
+              <div>
+                <label className="block text-[10px] font-normal text-gray-700 mb-1 uppercase tracking-widest">
+                  To
+                </label>
+                <div className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 font-mono">
+                  {toEmail || <span className="text-gray-400 italic">No email on record</span>}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-normal text-gray-700 mb-1 uppercase tracking-widest">
                   Subject Line

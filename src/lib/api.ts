@@ -111,6 +111,8 @@ export const updateCampaign = (id: string, data: Partial<Campaign>): Promise<Cam
 export const deleteCampaign = (id: string): Promise<any> => api.post(`/campaigns/${id}/delete`);
 export const getCampaignTemplate = (id: string): Promise<any> => api.get(`/campaigns/${id}`).then(res => (res as any).template);
 export const updateCampaignTemplate = (id: string, data: any): Promise<any> => api.patch(`/campaigns/${id}/template`, data);
+export const generateCampaignTemplate = (id: string): Promise<{ subject_line_template: string; body_template: string }> =>
+  api.post(`/campaigns/${id}/generate-template`) as any;
 
 // ─── Campaign Leads ───────────────────────────────────
 export const getCampaignLeads = (campaignId: string): Promise<Creator[]> => api.get(`/campaigns/${campaignId}/leads`);
@@ -128,8 +130,11 @@ export const getDashboardStats = (campaignId?: string): Promise<any> =>
 export const triggerDiscovery = (categories: string[], city: string, campaignId: string, keywords: string[] = []): Promise<unknown> => 
   api.post('/creators/ai-discovery', { categories, city, campaign_id: campaignId, keywords });
 
-export const findSimilarCreators = (creatorId: string, campaignId: string): Promise<any> => 
+export const findSimilarCreators = (creatorId: string, campaignId: string): Promise<any> =>
   api.post(`/creators/${creatorId}/similar?campaignId=${campaignId}`);
+
+export const regenerateCreatorSummary = (creatorId: string): Promise<{ notes: string }> =>
+  api.post(`/creators/${creatorId}/regenerate-summary`);
 
 export const bookMeeting = (creatorId: string, campaignId: string, date: string, notes: string): Promise<unknown> => 
   api.post('/conversions/book-meeting', { creator_id: creatorId, campaign_id: campaignId, date, notes });
@@ -150,7 +155,7 @@ export const sendCampaignOutreach = (campaignId: string): Promise<{ sent: number
 export const sendSingleOutreach = (creatorId: string, campaignId?: string, customSubject?: string, customBody?: string, message_type?: string): Promise<any> =>
   api.post('/outreach/send-single', { creator_id: creatorId, campaign_id: campaignId, customSubject, customBody, message_type });
 
-export const previewOutreach = (creatorId: string, campaignId?: string, message_type?: string): Promise<{ subject: string; body: string }> =>
+export const previewOutreach = (creatorId: string, campaignId?: string, message_type?: string): Promise<{ subject: string; body: string; to: string | null }> =>
   api.get('/outreach/preview', { params: { creator_id: creatorId, campaign_id: campaignId, message_type } }) as any;
 
 export const getOutreachLogs = (): Promise<any[]> => api.get('/outreach/logs');

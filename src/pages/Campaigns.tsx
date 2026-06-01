@@ -54,7 +54,7 @@ export default function Campaigns() {
     brand_id: '',
     campaign_description: '',
     category: [] as string[],
-    country: '',
+    country: 'US',
     state: '',
     city: '',
     keywords: '',
@@ -157,7 +157,7 @@ export default function Campaigns() {
         client_id: selectedBrand?.client_id,
         description: formData.campaign_description,
         category: formData.category.join(','),
-        country: formData.country,
+        country: 'US',
         state: getCommaValues(formData.state).join(', '),
         city: getCommaValues(formData.city).join(', '),
         keywords: formData.keywords.split(',').map(k => k.trim()).filter(Boolean),
@@ -171,7 +171,7 @@ export default function Campaigns() {
       setIsModalOpen(false);
       // Reset form after a small delay to avoid triggering useEffect while modal is still visible
       setTimeout(() => {
-        setFormData({ name: '', brand_id: '', campaign_description: '', category: [], country: '', state: '', city: '', keywords: '', product_offer_notes: '', discovery_channels: ['instagram'] });
+        setFormData({ name: '', brand_id: '', campaign_description: '', category: [], country: 'US', state: '', city: '', keywords: '', product_offer_notes: '', discovery_channels: ['instagram'] });
         setCustomCat('');
         setCustomState('');
         setCustomCity('');
@@ -189,8 +189,13 @@ export default function Campaigns() {
     if (!customCat.trim()) return;
     const catName = customCat.trim();
     
-    // Don't add to form state yet - let it come from the database fetch
-    // This prevents duplicate keys
+    if (!formData.category.includes(catName)) {
+      setFormData(prev => ({
+        ...prev,
+        category: [...prev.category, catName]
+      }));
+    }
+    setCustomCat('');
     
     // Try to save it to the database for this client
     try {
@@ -200,27 +205,11 @@ export default function Campaigns() {
       // Only try to save if we have a brand selected
       if (!formData.brand_id) {
         console.warn('⚠️ No brand selected - category added locally only');
-        // Only add locally if we can't save to DB
-        if (!formData.category.includes(catName)) {
-          setFormData(prev => ({
-            ...prev,
-            category: [...prev.category, catName]
-          }));
-        }
-        setCustomCat('');
         return;
       }
       
       if (!clientId) {
         console.warn('⚠️ Selected brand has no client_id - category added locally only');
-        // Only add locally if we can't save to DB
-        if (!formData.category.includes(catName)) {
-          setFormData(prev => ({
-            ...prev,
-            category: [...prev.category, catName]
-          }));
-        }
-        setCustomCat('');
         return;
       }
       
@@ -234,29 +223,10 @@ export default function Campaigns() {
       const updatedCats = await getCustomCategories(clientId);
       setDbCustomCategories(updatedCats || []);
       
-      // Now add to form state after successful save
-      if (!formData.category.includes(catName)) {
-        setFormData(prev => ({
-          ...prev,
-          category: [...prev.category, catName]
-        }));
-      }
-      
     } catch (err: any) {
       console.error('❌ Failed to save custom category:', err);
-      // Show user-friendly error message
-      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to save category';
-      alert(`Failed to save category: ${errorMsg}`);
-      // Still add locally even if save failed
-      if (!formData.category.includes(catName)) {
-        setFormData(prev => ({
-          ...prev,
-          category: [...prev.category, catName]
-        }));
-      }
+      console.warn('Category added locally, but database persistence failed.');
     }
-    
-    setCustomCat('');
   };
 
   const getCommaValues = (value: string) =>

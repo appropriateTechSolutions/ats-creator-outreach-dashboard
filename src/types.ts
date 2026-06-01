@@ -97,6 +97,9 @@ export interface Creator {
   // Optional fields populated from various API responses
   platform?: string | null
   followers_count?: number | null
+  followers?: number | null
+  avg_likes?: number | null
+  avg_comments?: number | null
   engagement_rate?: number | null
   research_summary?: string | null
   affiliate_code?: string | null

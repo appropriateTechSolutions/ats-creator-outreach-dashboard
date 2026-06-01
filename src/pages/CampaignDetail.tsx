@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  getCampaignById, 
-  getCampaignLeads, 
+import {
+  getCampaignById,
+  getCampaignLeads,
   updateCampaignTemplate,
+  generateCampaignTemplate,
   reviewLead,
   updateCampaign,
   getBrands,
@@ -14,10 +15,10 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
+import { TemplateEditModal } from '../components/ui/TemplateEditModal';
 import { LoadingState } from '../components/ui/LoadingState';
-import { ArrowLeft, Sparkles, Activity, Mail, Info, Check, X, Instagram, Youtube, Edit2, Trash2, Loader2, AlertCircle, Star, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Sparkles, Activity, Mail, Check, X, Instagram, Youtube, Edit2, Trash2, Loader2, AlertCircle, Star, ChevronDown } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { CampaignForm } from '../components/CampaignForm';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,6 +28,54 @@ import { CreatorPreviewDrawer } from '../components/CreatorPreviewDrawer';
 const COUNTRIES = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
 ];
+
+const toNumber = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getFollowers = (c: Creator): number => {
+  const direct = toNumber(c.followers_count ?? (c as any).followers);
+  if (direct > 0) return direct;
+  const fromProfiles = c.profiles?.map(p => toNumber(p.followers)) ?? [];
+  return fromProfiles.length ? Math.max(...fromProfiles) : 0;
+};
+
+const getEngagement = (c: Creator): number => {
+  const direct = toNumber(c.engagement_rate);
+  if (direct > 0) return direct;
+  const fromProfiles = c.profiles?.map(p => toNumber(p.engagement_rate)) ?? [];
+  return fromProfiles.length ? Math.max(...fromProfiles) : 0;
+};
+
+const hasPublicProfileSignal = (c: Creator): boolean => {
+  const hasProfileMetrics = c.profiles?.some(profile =>
+    toNumber(profile.followers) > 0 ||
+    toNumber(profile.avg_likes) > 0 ||
+    toNumber(profile.avg_comments) > 0 ||
+    toNumber(profile.engagement_rate) > 0
+  );
+
+  return Boolean(
+    c.bio?.trim() ||
+    getFollowers(c) > 0 ||
+    toNumber(c.avg_likes) > 0 ||
+    toNumber(c.avg_comments) > 0 ||
+    getEngagement(c) > 0 ||
+    hasProfileMetrics
+  );
+};
+
+const formatFollowers = (n: number): string => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+  return String(n);
+};
+
+const getPlatformHandle = (creator: Creator, platform: string) => {
+  const profileHandle = creator.profiles?.find(p => p.platform.toLowerCase() === platform)?.handle;
+  return (profileHandle || creator.handle || '').replace(/^@/, '');
+};
 
 export default function CampaignDetail() {
   const { user } = useAuth();
@@ -41,7 +90,10 @@ export default function CampaignDetail() {
   const [discovering, setDiscovering] = useState(false);
   const [templateSubject, setTemplateSubject] = useState('');
   const [templateBody, setTemplateBody] = useState('');
-  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [generatingTemplate, setGeneratingTemplate] = useState(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [modalInitialSubject, setModalInitialSubject] = useState('');
+  const [modalInitialBody, setModalInitialBody] = useState('');
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [outreachModalMessageType, setOutreachModalMessageType] = useState<string>('initial');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -57,7 +109,7 @@ export default function CampaignDetail() {
     brand_id: '',
     campaign_description: '',
     category: [] as string[],
-    country: '',
+    country: 'US',
     state: '',
     city: '',
     keywords: '',
@@ -85,7 +137,7 @@ export default function CampaignDetail() {
         brand_id: camp.brand_id || '',
         campaign_description: camp.description || '',
         category: camp.category ? camp.category.split(',').map(c => c.trim()).filter(Boolean) : [],
-        country: camp.country || '',
+        country: camp.country || 'US',
         state: camp.state || '',
         city: camp.city || '',
         keywords: Array.isArray(camp.keywords) ? camp.keywords.join(', ') : '',
@@ -245,20 +297,35 @@ export default function CampaignDetail() {
     }
   };
   
-  const handleSaveTemplate = async () => {
+  const persistTemplate = async (subject: string, body: string) => {
     if (!id) return;
-    setSavingTemplate(true);
+    await updateCampaignTemplate(id, {
+      subject_line_template: subject,
+      body_template: body
+    });
+    setTemplateSubject(subject);
+    setTemplateBody(body);
+  };
+
+  const handleEditTemplate = () => {
+    setModalInitialSubject(templateSubject);
+    setModalInitialBody(templateBody);
+    setIsTemplateModalOpen(true);
+  };
+
+  const handleGenerateTemplate = async () => {
+    if (!id) return;
+    setGeneratingTemplate(true);
     try {
-      await updateCampaignTemplate(id, {
-        subject_line_template: templateSubject,
-        body_template: templateBody
-      });
-      alert('Outreach template saved successfully!');
-    } catch (err) {
-      console.error(err);
-      alert('Failed to save template.');
+      const generated = await generateCampaignTemplate(id);
+      setModalInitialSubject(generated.subject_line_template || '');
+      setModalInitialBody(generated.body_template || '');
+      setIsTemplateModalOpen(true);
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to generate template';
+      alert(`AI generation failed: ${msg}`);
     } finally {
-      setSavingTemplate(false);
+      setGeneratingTemplate(false);
     }
   };
 
@@ -278,7 +345,7 @@ export default function CampaignDetail() {
         brand_id: editFormData.brand_id,
         description: editFormData.campaign_description,
         category: editFormData.category.join(','),
-        country: editFormData.country,
+        country: editFormData.country || 'US',
         state: getCommaValues(editFormData.state).join(', '),
         city: getCommaValues(editFormData.city).join(', '),
         keywords: editFormData.keywords.split(',').map(k => k.trim()).filter(Boolean),
@@ -349,6 +416,8 @@ export default function CampaignDetail() {
   };
 
   const filteredLeads = leads.filter(c => {
+    if (!hasPublicProfileSignal(c)) return false;
+
     if (selectedStatuses.length > 0) {
       const actualStatus = ['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status || 'pending');
       return selectedStatuses.some(s => {
@@ -486,8 +555,8 @@ export default function CampaignDetail() {
               <Thead>
                 <Tr>
                   <Th>Creator</Th>
-                  <Th className="text-center">Relevance</Th>
-                  <Th className="text-center">Readiness</Th>
+                  <Th className="text-center">Followers</Th>
+                  <Th className="text-center">Engagement</Th>
                   <Th>Review Status</Th>
                   <Th className="text-right">Actions</Th>
                 </Tr>
@@ -516,10 +585,11 @@ export default function CampaignDetail() {
                                 href={lead.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${lead.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="text-[#E1306C] hover:scale-110 transition-transform"
+                                className="inline-flex items-center gap-1 text-[#E1306C] hover:scale-[1.02] transition-transform"
                                 title="Instagram"
                               >
                                 <Instagram size={14} />
+                                <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(lead, 'instagram')}</span>
                               </a>
                             )}
                             {((lead.primary_platform)?.toLowerCase() === 'youtube' || lead.has_youtube) && (
@@ -527,10 +597,11 @@ export default function CampaignDetail() {
                                 href={lead.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${lead.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="text-[#FF0000] hover:scale-110 transition-transform"
+                                className="inline-flex items-center gap-1 text-[#FF0000] hover:scale-[1.02] transition-transform"
                                 title="YouTube"
                               >
                                 <Youtube size={14} />
+                                <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(lead, 'youtube')}</span>
                               </a>
                             )}
                             {((lead.primary_platform)?.toLowerCase() === 'tiktok' || lead.has_tiktok) && (
@@ -538,10 +609,11 @@ export default function CampaignDetail() {
                                 href={lead.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${lead.handle?.replace(/^@/, '')}`} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="text-gray-900 hover:scale-110 transition-transform"
+                                className="inline-flex items-center gap-1 text-gray-900 hover:scale-[1.02] transition-transform"
                                 title="TikTok"
                               >
                                 <Activity size={14} />
+                                <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(lead, 'tiktok')}</span>
                               </a>
                             )}
                             {/* Fallback if no icon matches but platform info exists */}
@@ -552,8 +624,18 @@ export default function CampaignDetail() {
                         </div>
                       </div>
                     </Td>
-                    <Td><ScoreBadge score={lead.relevance_score || 0} /></Td>
-                    <Td><ScoreBadge score={lead.outreach_readiness_score || 0} /></Td>
+                    <Td className="text-center">
+                      {(() => {
+                        const followers = getFollowers(lead);
+                        return <span className="text-sm text-gray-700 font-normal">{followers > 0 ? formatFollowers(followers) : '—'}</span>;
+                      })()}
+                    </Td>
+                    <Td className="text-center">
+                      {(() => {
+                        const engagement = getEngagement(lead);
+                        return <span className="text-sm text-gray-700 font-normal">{engagement > 0 ? `${engagement.toFixed(1)}%` : '—'}</span>;
+                      })()}
+                    </Td>
                     <Td><StatusBadge status={['not_respond'].includes(lead.lifecycle_status || '') ? lead.lifecycle_status : (lead.review_status as any || 'pending')} /></Td>
                     <Td className="text-right">
                       {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
@@ -675,51 +757,53 @@ export default function CampaignDetail() {
               </h2>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Email Subject</label>
-                <input 
-                  type="text" 
-                  value={templateSubject}
-                  onChange={(e) => setTemplateSubject(e.target.value)}
-                  placeholder="e.g. Partnership Request for {{handle}}"
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Message Body</label>
-                <textarea 
-                  rows={8}
-                  value={templateBody}
-                  onChange={(e) => setTemplateBody(e.target.value)}
-                  placeholder="Hi {{handle}}, we loved your content in {{city}}..."
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all resize-none"
-                />
-              </div>
-
-              <div className="bg-white/50 border border-primary-100 rounded-lg p-3 space-y-2">
-                 <div className="flex items-center gap-2 text-primary-700">
-                   <Info size={14} />
-                   <span className="text-[10px] font-normal uppercase tracking-widest">Placeholders</span>
-                 </div>
-                 <div className="flex flex-wrap gap-1.5">
-                   {['handle', 'display_name', 'city', 'campaign_name'].map(p => (
-                     <code key={p} className="text-[10px] bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded font-normal uppercase tracking-tighter">
-                       {`{{${p}}}`}
-                     </code>
-                   ))}
-                 </div>
-              </div>
+              {templateSubject || templateBody ? (
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">Subject</div>
+                    <div className="text-sm text-gray-900 bg-white border border-gray-100 rounded-lg px-3 py-2">
+                      {templateSubject || <span className="text-gray-400 italic">No subject yet</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">Body</div>
+                    <div className="text-sm text-gray-800 bg-white border border-gray-100 rounded-lg px-3 py-3 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
+                      {templateBody || <span className="text-gray-400 italic">No body yet</span>}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 px-4 bg-white/60 border border-dashed border-primary-200 rounded-lg">
+                  <Sparkles size={20} className="mx-auto text-primary-400 mb-2" />
+                  <p className="text-sm text-gray-600 mb-1">No outreach template yet</p>
+                  <p className="text-[11px] text-gray-400">Draft one with AI, or click Edit to write from scratch.</p>
+                </div>
+              )}
 
               {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
-                <Button 
-                  onClick={handleSaveTemplate}
-                  disabled={savingTemplate}
-                  className="w-full bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-500/20"
-                  icon={savingTemplate ? <LoadingState mini /> : <Check size={16} />}
-                >
-                  {savingTemplate ? 'Saving...' : 'Save Campaign Template'}
-                </Button>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      onClick={handleGenerateTemplate}
+                      disabled={generatingTemplate}
+                      className="w-full !bg-white hover:!bg-purple-50 !text-purple-700 !border !border-purple-200 shadow-sm"
+                      icon={generatingTemplate ? <LoadingState mini /> : <Sparkles size={16} />}
+                    >
+                      {generatingTemplate ? 'Drafting...' : (templateSubject || templateBody ? 'Regenerate with AI' : 'Draft with AI')}
+                    </Button>
+                    <Button
+                      onClick={handleEditTemplate}
+                      disabled={generatingTemplate}
+                      className="w-full bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-500/20"
+                      icon={<Edit2 size={14} />}
+                    >
+                      Edit Template
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-gray-400 text-center italic">
+                    AI uses this campaign's brand, offer, and audience to draft the email. Review in the editor and save when you're happy.
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -733,6 +817,14 @@ export default function CampaignDetail() {
         isOpen={!!outreachModalCreatorId}
         onClose={() => setOutreachModalCreatorId(null)}
         onSend={handleConfirmApprove}
+      />
+
+      <TemplateEditModal
+        isOpen={isTemplateModalOpen}
+        initialSubject={modalInitialSubject}
+        initialBody={modalInitialBody}
+        onSave={persistTemplate}
+        onClose={() => setIsTemplateModalOpen(false)}
       />
 
       <Modal
