@@ -75,9 +75,9 @@ export default function CreatorDetail() {
     return cleanedLines.join('\n').trim();
   };
 
-  const loadData = () => {
+  const loadData = (silent = false) => {
     if (!id) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     
     getCreatorById(id)
       .then(async (data) => {
@@ -105,7 +105,9 @@ export default function CreatorDetail() {
         console.error(err);
         setError(err.toString());
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -137,7 +139,7 @@ export default function CreatorDetail() {
 
     try {
       await reviewLead(creator.id, action);
-      loadData();
+      loadData(true);
     } catch (err) {
       setCreator(previousCreator); // Revert state on error
       alert('Action failed: ' + err);
