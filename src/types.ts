@@ -67,6 +67,7 @@ export interface Creator {
   has_tiktok?: boolean;
   primary_platform?: string | null;
   profile_url?: string | null;
+  profile_pic?: string | null;
   latest_outreach?: OutreachLog | null;
   outreach_readiness_score: number | null
   relevance_score: number | null
@@ -105,6 +106,48 @@ export interface Creator {
   affiliate_code?: string | null
   affiliate_link?: string | null
   AffiliateTracking?: AffiliateTracking | null
+  media_kit_url?: string | null
+  media_kit_parsed_at?: string | null
+}
+
+export interface CreatorPlatformAudienceLocation {
+  id: string
+  platform_profile_id: string
+  data_source: string
+  location_type: 'country' | 'state' | 'city' | 'region'
+  slug: string | null
+  name: string
+  percentage: number
+  captured_at: string
+}
+
+export interface CreatorPlatformAudienceDemographic {
+  id: string
+  platform_profile_id: string
+  data_source: string
+  demographic_type: 'gender' | 'age' | 'gender_age'
+  gender: 'male' | 'female' | null
+  age_range: string | null
+  percentage: number
+  captured_at: string
+}
+
+export interface CreatorPlatformAudienceQuality {
+  id: string
+  platform_profile_id: string
+  data_source: string
+  real_percent: number | null
+  influencer_percent: number | null
+  suspicious_percent: number | null
+  massfollowers_percent: number | null
+  fake_followers_percent: number | null
+  reachability_0_500: number | null
+  reachability_500_1000: number | null
+  reachability_1000_1500: number | null
+  reachability_1500_plus: number | null
+  quality_score: number | null
+  brand_safety: any | null
+  captured_at: string
 }
 
 export interface CreatorPlatformProfile {
@@ -117,6 +160,10 @@ export interface CreatorPlatformProfile {
   avg_likes: number | null
   avg_comments: number | null
   engagement_rate: number | null
+  media_count?: number | null
+  audience_locations?: CreatorPlatformAudienceLocation[]
+  audience_demographics?: CreatorPlatformAudienceDemographic[]
+  audience_qualities?: CreatorPlatformAudienceQuality[]
 }
 
 export interface Meeting {

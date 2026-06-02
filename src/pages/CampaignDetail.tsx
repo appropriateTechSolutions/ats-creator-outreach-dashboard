@@ -48,6 +48,38 @@ const getEngagement = (c: Creator): number => {
   return fromProfiles.length ? Math.max(...fromProfiles) : 0;
 };
 
+export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
+  if (followers <= 0 || er <= 0) return null;
+  
+  let goodThreshold = 0;
+  let avgLower = 0;
+  
+  if (followers < 10000) {
+    goodThreshold = 6.0;
+    avgLower = 3.0;
+  } else if (followers < 100000) {
+    goodThreshold = 4.0;
+    avgLower = 1.5;
+  } else if (followers < 500000) {
+    goodThreshold = 2.0;
+    avgLower = 0.7;
+  } else if (followers < 1000000) {
+    goodThreshold = 1.5;
+    avgLower = 0.5;
+  } else {
+    goodThreshold = 1.0;
+    avgLower = 0.3;
+  }
+  
+  if (er >= goodThreshold) {
+    return { label: 'Good ER', colorClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+  } else if (er >= avgLower) {
+    return { label: 'Avg ER', colorClass: 'bg-blue-50 text-blue-700 border border-blue-200' };
+  } else {
+    return { label: 'Below Avg', colorClass: 'bg-rose-50 text-rose-700 border border-rose-200' };
+  }
+};
+
 const hasPublicProfileSignal = (c: Creator): boolean => {
   const hasProfileMetrics = c.profiles?.some(profile =>
     toNumber(profile.followers) > 0 ||
@@ -566,8 +598,12 @@ export default function CampaignDetail() {
                   <Tr key={lead.id}>
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-normal text-xs">
-                          {(lead.full_name || lead.handle)?.charAt(0).toUpperCase()}
+                        <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-normal text-xs overflow-hidden">
+                          {lead.profile_pic ? (
+                            <img src={lead.profile_pic} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            (lead.full_name || lead.handle)?.charAt(0).toUpperCase()
+                          )}
                         </div>
                         <div>
                           <button 
@@ -633,7 +669,18 @@ export default function CampaignDetail() {
                     <Td className="text-center">
                       {(() => {
                         const engagement = getEngagement(lead);
-                        return <span className="text-sm text-gray-700 font-normal">{engagement > 0 ? `${engagement.toFixed(1)}%` : '—'}</span>;
+                        const followers = getFollowers(lead);
+                        const rating = getErRating(followers, engagement);
+                        return (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-sm text-gray-700 font-normal">{engagement > 0 ? `${engagement.toFixed(1)}%` : '—'}</span>
+                            {rating && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${rating.colorClass}`}>
+                                {rating.label}
+                              </span>
+                            )}
+                          </div>
+                        );
                       })()}
                     </Td>
                     <Td><StatusBadge status={['not_respond'].includes(lead.lifecycle_status || '') ? lead.lifecycle_status : (lead.review_status as any || 'pending')} /></Td>

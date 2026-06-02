@@ -20,7 +20,39 @@ const getFollowers = (c: Creator): number => {
 const getEngagement = (c: Creator): number => {
   if (typeof c.engagement_rate === 'number') return c.engagement_rate;
   const fromProfiles = c.profiles?.map(p => p.engagement_rate || 0) ?? [];
-  return fromProfiles.length ? Math.max(...fromProfiles) : 0;
+  return fromProfiles.length > 0 ? Math.max(...fromProfiles) : 0;
+};
+
+export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
+  if (followers <= 0 || er <= 0) return null;
+  
+  let goodThreshold = 0;
+  let avgLower = 0;
+  
+  if (followers < 10000) {
+    goodThreshold = 6.0;
+    avgLower = 3.0;
+  } else if (followers < 100000) {
+    goodThreshold = 4.0;
+    avgLower = 1.5;
+  } else if (followers < 500000) {
+    goodThreshold = 2.0;
+    avgLower = 0.7;
+  } else if (followers < 1000000) {
+    goodThreshold = 1.5;
+    avgLower = 0.5;
+  } else {
+    goodThreshold = 1.0;
+    avgLower = 0.3;
+  }
+  
+  if (er >= goodThreshold) {
+    return { label: 'Good ER', colorClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+  } else if (er >= avgLower) {
+    return { label: 'Avg ER', colorClass: 'bg-blue-50 text-blue-700 border border-blue-200' };
+  } else {
+    return { label: 'Below Avg', colorClass: 'bg-rose-50 text-rose-700 border border-rose-200' };
+  }
 };
 
 const hasPublicProfileSignal = (c: Creator): boolean => {
@@ -400,8 +432,12 @@ export default function Creators() {
                     <Tr key={c.id}>
                       <Td>
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm">
-                            {(c.full_name || c.handle)?.charAt(0)}
+                          <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
+                            {c.profile_pic ? (
+                              <img src={c.profile_pic} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              (c.full_name || c.handle)?.charAt(0)
+                            )}
                           </div>
                           <div>
                             <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit">
@@ -457,7 +493,18 @@ export default function Creators() {
                       <Td className="text-center">
                         {(() => {
                           const e = getEngagement(c);
-                          return <span className="text-sm text-gray-700 font-normal">{e > 0 ? `${e.toFixed(1)}%` : '—'}</span>;
+                          const f = getFollowers(c);
+                          const rating = getErRating(f, e);
+                          return (
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="text-sm text-gray-700 font-normal">{e > 0 ? `${e.toFixed(1)}%` : '—'}</span>
+                              {rating && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${rating.colorClass}`}>
+                                  {rating.label}
+                                </span>
+                              )}
+                            </div>
+                          );
                         })()}
                       </Td>
                       <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
@@ -526,8 +573,12 @@ export default function Creators() {
                   <div key={c.id} className="p-5 active:bg-gray-50 transition-all space-y-4">
                     <div className="flex justify-between items-start gap-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm">
-                          {(c.full_name || c.handle)?.charAt(0)}
+                        <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
+                          {c.profile_pic ? (
+                            <img src={c.profile_pic} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            (c.full_name || c.handle)?.charAt(0)
+                          )}
                         </div>
                         <div>
                           <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit block">
@@ -583,7 +634,17 @@ export default function Creators() {
                       </div>
                       <div>
                         <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Engagement</span>
-                        <span className="font-normal text-gray-700">{engagement > 0 ? `${engagement.toFixed(1)}%` : '—'}</span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span className="font-normal text-gray-700">{engagement > 0 ? `${engagement.toFixed(1)}%` : '—'}</span>
+                          {(() => {
+                            const rating = getErRating(followers, engagement);
+                            return rating && (
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${rating.colorClass}`}>
+                                {rating.label}
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
 

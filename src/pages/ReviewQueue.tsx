@@ -105,8 +105,12 @@ export default function ReviewQueue() {
                   <Tr key={c.id}>
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm">
-                          {(c.full_name || c.handle)?.charAt(0)}
+                        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
+                          {c.profile_pic ? (
+                            <img src={c.profile_pic} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            (c.full_name || c.handle)?.charAt(0)
+                          )}
                         </div>
                         <div>
                           <RouterLink to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit">

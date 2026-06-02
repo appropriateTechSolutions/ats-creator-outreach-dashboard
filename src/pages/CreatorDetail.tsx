@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary } from '../lib/api';
+import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
@@ -10,6 +10,38 @@ import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Star, Mai
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
 import { useAuth } from '../contexts/AuthContext';
+
+export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
+  if (followers <= 0 || er <= 0) return null;
+  
+  let goodThreshold = 0;
+  let avgLower = 0;
+  
+  if (followers < 10000) {
+    goodThreshold = 6.0;
+    avgLower = 3.0;
+  } else if (followers < 100000) {
+    goodThreshold = 4.0;
+    avgLower = 1.5;
+  } else if (followers < 500000) {
+    goodThreshold = 2.0;
+    avgLower = 0.7;
+  } else if (followers < 1000000) {
+    goodThreshold = 1.5;
+    avgLower = 0.5;
+  } else {
+    goodThreshold = 1.0;
+    avgLower = 0.3;
+  }
+  
+  if (er >= goodThreshold) {
+    return { label: 'Good ER', colorClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+  } else if (er >= avgLower) {
+    return { label: 'Avg ER', colorClass: 'bg-blue-50 text-blue-700 border border-blue-200' };
+  } else {
+    return { label: 'Below Avg', colorClass: 'bg-rose-50 text-rose-700 border border-rose-200' };
+  }
+};
 
 export default function CreatorDetail() {
   const { user: currentUser } = useAuth();
@@ -27,6 +59,11 @@ export default function CreatorDetail() {
   const [matchExpanded, setMatchExpanded] = useState(false);
   const [findingSimilar, setFindingSimilar] = useState(false);
   const [regeneratingSummary, setRegeneratingSummary] = useState(false);
+
+  // Audience Analytics States
+  const [audienceData, setAudienceData] = useState<any>(null);
+  const [loadingAudience, setLoadingAudience] = useState(false);
+  const [uploadingMediaKit, setUploadingMediaKit] = useState(false);
 
   // Affiliate Form State
   const [isAffiliateModalOpen, setIsAffiliateModalOpen] = useState(false);
@@ -75,10 +112,28 @@ export default function CreatorDetail() {
     return cleanedLines.join('\n').trim();
   };
 
+  const loadAudienceData = (silent = false) => {
+    if (!id) return;
+    if (!silent) setLoadingAudience(true);
+    getAudienceAnalytics(id)
+      .then((res) => {
+        setAudienceData(res);
+      })
+      .catch((err) => {
+        console.error('Error loading audience analytics:', err);
+      })
+      .finally(() => {
+        if (!silent) setLoadingAudience(false);
+      });
+  };
+
   const loadData = (silent = false) => {
     if (!id) return;
     if (!silent) setLoading(true);
     
+    // Also load audience analytics
+    loadAudienceData(silent);
+
     getCreatorById(id)
       .then(async (data) => {
         setCreator(data);
@@ -157,6 +212,28 @@ export default function CreatorDetail() {
 
     setOutreachModalMessageType(type);
     setOutreachModalOpen(true);
+  };
+
+  const handleMediaKitUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !creator) return;
+
+    if (file.type !== 'application/pdf') {
+      alert('Only PDF reports or media kits are supported.');
+      return;
+    }
+
+    setUploadingMediaKit(true);
+    try {
+      await uploadMediaKit(creator.id, file);
+      alert('Media kit PDF uploaded and parsed successfully!');
+      loadData(true);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Failed to parse media kit PDF.');
+    } finally {
+      setUploadingMediaKit(false);
+    }
   };
 
   const getInstagramHandle = () => {
@@ -324,12 +401,71 @@ export default function CreatorDetail() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
+      <style>{`
+        @media print {
+          /* Hide non-printable layout items */
+          aside,
+          header,
+          nav,
+          .no-print,
+          .hide-on-print,
+          button,
+          label,
+          input,
+          a[href^="http"]:after {
+            display: none !important;
+          }
+
+          /* Reset layout padding when printing */
+          div[class*="lg:pl-64"],
+          div[class*="pl-0"],
+          main,
+          .main-content {
+            padding-left: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: transparent !important;
+          }
+
+          body {
+            background: white !important;
+            color: black !important;
+            font-size: 11pt !important;
+          }
+
+          .max-w-5xl {
+            max-width: 100% !important;
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
+          /* Force backgrounds/colors to render on print */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      `}</style>
+
+      {/* Print-only Branded Header */}
+      <div className="hidden print:flex items-center justify-between border-b-2 border-gray-900 pb-4 mb-6">
+        <div className="flex items-center gap-3">
+          <span className="text-3xl font-extrabold tracking-widest text-primary-600 font-outfit">ATS</span>
+          <span className="text-xs text-gray-400 uppercase tracking-widest border-l pl-3 border-gray-300 font-medium">Outreach Platform</span>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-bold text-gray-800 uppercase tracking-wider">Influencer Demographics Report</p>
+          <p className="text-xs text-gray-400">{new Date().toLocaleDateString()}</p>
+        </div>
+      </div>
+
       {fromCampaignId ? (
-        <Link to={`/campaigns/${fromCampaignId}`} className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
+        <Link to={`/campaigns/${fromCampaignId}`} className="no-print inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
           <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO CAMPAIGN
         </Link>
       ) : (
-        <Link to="/creators" className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
+        <Link to="/creators" className="no-print inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
           <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO DIRECTORY
         </Link>
       )}
@@ -337,8 +473,12 @@ export default function CreatorDetail() {
       <Card>
         <div className="bg-gradient-to-r from-gray-50 to-white px-6 sm:px-8 py-8 border-b border-gray-100 flex flex-col lg:flex-row items-start gap-6 rounded-t-[12px]">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 min-w-0 flex-1">
-             <div className="w-20 h-20 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-4xl uppercase shadow-lg shadow-primary-500/30 ring-4 ring-white font-outfit shrink-0">
-               {creator.handle?.charAt(0)}
+             <div className="w-20 h-20 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-4xl uppercase shadow-lg shadow-primary-500/30 ring-4 ring-white font-outfit shrink-0 overflow-hidden">
+               {creator.profile_pic ? (
+                 <img src={creator.profile_pic} alt="" className="w-full h-full object-cover" />
+               ) : (
+                 creator.handle?.charAt(0)
+               )}
              </div>
             <div className="min-w-0">
                <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight truncate leading-tight">
@@ -405,7 +545,7 @@ export default function CreatorDetail() {
               </div>
 
               {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
-                <div className="flex items-center gap-2.5 mt-4">
+                <div className="no-print flex items-center gap-2.5 mt-4">
                   {creator.review_status === 'rejected' && (
                     <button
                       onClick={() => handleReview('revoke')}
@@ -451,7 +591,7 @@ export default function CreatorDetail() {
                <ScoreBadge score={creator.outreach_readiness_score || 0} />
             </div>
             {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
-              <div className="flex flex-col gap-2 w-full mt-1">
+              <div className="no-print flex flex-col gap-2 w-full mt-1">
                 <Button
                   variant="outline"
                   className="w-full border-primary-100 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal"
@@ -505,7 +645,7 @@ export default function CreatorDetail() {
                     type="button"
                     onClick={handleRegenerateSummary}
                     disabled={regeneratingSummary}
-                    className="text-[10px] font-normal text-gray-400 hover:text-primary-600 uppercase tracking-widest flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="no-print text-[10px] font-normal text-gray-400 hover:text-primary-600 uppercase tracking-widest flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Regenerate summary using the latest enriched data"
                   >
                     <RefreshCw size={11} className={regeneratingSummary ? 'animate-spin' : ''} />
@@ -610,15 +750,29 @@ export default function CreatorDetail() {
                             {profile.followers?.toLocaleString() || 'N/A'}
                           </p>
                           <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Avg Likes</p>
-                          <p className="text-sm font-normal text-gray-900 flex items-center gap-1">
+                          <p className="text-sm font-normal text-gray-900 flex items-center gap-1 mb-3">
                             {profile.avg_likes?.toLocaleString() || 'N/A'}
+                          </p>
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Posts / Media</p>
+                          <p className="text-sm font-normal text-gray-900 flex items-center gap-1">
+                            {profile.media_count?.toLocaleString() || 'N/A'}
                           </p>
                         </div>
                         <div className="flex-1">
                           <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Engagement</p>
-                          <p className="text-sm font-normal text-gray-900 mb-3">
-                            {profile.engagement_rate ? `${Number(profile.engagement_rate).toFixed(2)}%` : 'N/A'}
-                          </p>
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-sm font-normal text-gray-900">
+                              {profile.engagement_rate ? `${Number(profile.engagement_rate).toFixed(2)}%` : 'N/A'}
+                            </span>
+                            {profile.engagement_rate && (() => {
+                              const rating = getErRating(profile.followers || 0, Number(profile.engagement_rate));
+                              return rating && (
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${rating.colorClass}`}>
+                                  {rating.label}
+                                </span>
+                              );
+                            })()}
+                          </div>
                           <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Avg Comments</p>
                           <p className="text-sm font-normal text-gray-900">
                             {profile.avg_comments?.toLocaleString() || 'N/A'}
@@ -750,8 +904,263 @@ export default function CreatorDetail() {
         </div>
       </Card>
 
-      {/* Conversation History Section */}
+      {/* Audience Demographics & Media Kit Section */}
       <Card>
+        <CardHeader className="border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-4">
+          <div className="flex items-center gap-2 font-normal text-gray-900 uppercase tracking-widest text-sm font-outfit">
+            <Activity size={18} className="text-primary-600" />
+            Audience Demographics & Media Kit
+          </div>
+          <div className="flex items-center gap-3">
+            {audienceData?.profile && (
+              <button 
+                type="button"
+                onClick={() => window.print()}
+                className="no-print inline-flex items-center gap-1.5 text-xs font-normal text-primary-600 hover:text-primary-700 transition-colors uppercase tracking-widest font-outfit"
+              >
+                <FileText size={14} /> Download Media Kit
+              </button>
+            )}
+            <label className="no-print cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 text-white text-xs font-normal rounded-lg hover:bg-primary-700 transition-colors uppercase tracking-widest font-outfit shadow-sm disabled:opacity-50">
+              {uploadingMediaKit ? (
+                <>
+                  <RefreshCw size={12} className="animate-spin" />
+                  Parsing...
+                </>
+              ) : (
+                <>
+                  <Send size={12} />
+                  Upload Media Kit
+                </>
+              )}
+              <input 
+                type="file" 
+                accept=".pdf" 
+                className="hidden" 
+                onChange={handleMediaKitUpload} 
+                disabled={uploadingMediaKit} 
+              />
+            </label>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          {loadingAudience ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+              <RefreshCw size={24} className="animate-spin text-primary-600 mb-2" />
+              <p className="text-sm font-normal">Loading audience analytics...</p>
+            </div>
+          ) : audienceData?.profile ? (
+            <div className="space-y-8">
+              {/* Top Row: Gender and Fake Followers */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Gender Split */}
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 shadow-sm">
+                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">Gender Distribution</h4>
+                  {(() => {
+                    const demos = audienceData.profile.audience_demographics || [];
+                    const male = demos.find((d: any) => d.demographic_type === 'gender' && d.gender === 'male');
+                    const female = demos.find((d: any) => d.demographic_type === 'gender' && d.gender === 'female');
+                    
+                    const malePct = male ? Number(male.percentage) * 100 : 0;
+                    const femalePct = female ? Number(female.percentage) * 100 : 0;
+                    
+                    if (malePct === 0 && femalePct === 0) {
+                      return <p className="text-sm text-gray-500 italic">No gender data found</p>;
+                    }
+                    
+                    return (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center text-sm font-normal text-gray-700">
+                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Male: {malePct.toFixed(1)}%</span>
+                          <span className="flex items-center gap-1.5">Female: {femalePct.toFixed(1)}% <span className="w-2.5 h-2.5 rounded-full bg-pink-500"></span></span>
+                        </div>
+                        <div className="w-full h-3 rounded-full bg-pink-500 overflow-hidden flex">
+                          <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${malePct}%` }}></div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Audience Quality / Fake Followers */}
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 shadow-sm">
+                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">Audience Credibility</h4>
+                  {(() => {
+                    const quality = audienceData.profile.audience_qualities?.[0];
+                    if (!quality) return <p className="text-sm text-gray-500 italic">No quality data found</p>;
+                    
+                    const fakePct = quality.fake_followers_percent ? Number(quality.fake_followers_percent) * 100 : 0;
+                    const realPct = quality.real_percent ? Number(quality.real_percent) * 100 : 0;
+                    
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="text-center p-3 bg-white border border-gray-200/50 rounded-lg shadow-sm">
+                          <p className="text-xs font-normal text-gray-400 uppercase">Fake Followers</p>
+                          <p className={`text-xl font-normal mt-1 ${fakePct > 25 ? 'text-red-600' : fakePct > 15 ? 'text-amber-600' : 'text-green-600'}`}>
+                            {fakePct.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="text-center p-3 bg-white border border-gray-200/50 rounded-lg shadow-sm">
+                          <p className="text-xs font-normal text-gray-400 uppercase">Real Audience</p>
+                          <p className="text-xl font-normal text-green-600 mt-1">
+                            {realPct.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Middle Row: Age Split & Reachability */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Age Split */}
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 shadow-sm">
+                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">Age Distribution</h4>
+                  <div className="space-y-3">
+                    {(() => {
+                      const demos = audienceData.profile.audience_demographics || [];
+                      const ages = demos.filter((d: any) => d.demographic_type === 'age')
+                        .sort((a: any, b: any) => (a.age_range || '').localeCompare(b.age_range || ''));
+                      
+                      if (ages.length === 0) return <p className="text-sm text-gray-500 italic">No age data found</p>;
+                      
+                      return ages.map((age: any) => {
+                        const pct = Number(age.percentage) * 100;
+                        return (
+                          <div key={age.id} className="space-y-1">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-500 font-normal">{age.age_range}</span>
+                              <span className="font-semibold text-gray-700">{pct.toFixed(1)}%</span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                              <div className="h-full bg-primary-600 rounded-full" style={{ width: `${pct}%` }}></div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+
+                {/* Reachability */}
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 shadow-sm">
+                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">Audience Reachability</h4>
+                  <div className="space-y-3">
+                    {(() => {
+                      const quality = audienceData.profile.audience_qualities?.[0];
+                      if (!quality) return <p className="text-sm text-gray-500 italic">No reachability data found</p>;
+                      
+                      const reachMetrics = [
+                        { label: '< 500 followers', val: quality.reachability_0_500 },
+                        { label: '500 - 1,000 followers', val: quality.reachability_500_1000 },
+                        { label: '1,000 - 1,500 followers', val: quality.reachability_1000_1500 },
+                        { label: '> 1,500 followers', val: quality.reachability_1500_plus }
+                      ];
+
+                      return reachMetrics.map((r, idx) => {
+                        const pct = r.val ? Number(r.val) * 100 : 0;
+                        return (
+                          <div key={idx} className="space-y-1">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-500 font-normal">{r.label}</span>
+                              <span className="font-semibold text-gray-700">{pct.toFixed(1)}%</span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }}></div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Row: Locations */}
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 shadow-sm">
+                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">Audience Locations (Top Countries & Cities)</h4>
+                {(() => {
+                  const locs = audienceData.profile.audience_locations || [];
+                  const countries = locs.filter((l: any) => l.location_type === 'country').slice(0, 5);
+                  const cities = locs.filter((l: any) => l.location_type === 'city').slice(0, 5);
+
+                  if (countries.length === 0 && cities.length === 0) {
+                    return <p className="text-sm text-gray-500 italic">No location data found</p>;
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {/* Top Countries */}
+                      <div>
+                        <h5 className="text-xs font-semibold text-gray-700 uppercase mb-3">Countries</h5>
+                        <div className="space-y-2">
+                          {countries.map((c: any) => {
+                            const pct = Number(c.percentage) * 100;
+                            return (
+                              <div key={c.id} className="flex justify-between items-center text-xs border-b border-gray-200/50 pb-1.5">
+                                <span className="text-gray-600 font-normal">{c.name}</span>
+                                <span className="font-semibold text-gray-900">{pct.toFixed(2)}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Top Cities */}
+                      <div>
+                        <h5 className="text-xs font-semibold text-gray-700 uppercase mb-3">Cities</h5>
+                        <div className="space-y-2">
+                          {cities.map((c: any) => {
+                            const pct = Number(c.percentage) * 100;
+                            return (
+                              <div key={c.id} className="flex justify-between items-center text-xs border-b border-gray-200/50 pb-1.5">
+                                <span className="text-gray-600 font-normal">{c.name}</span>
+                                <span className="font-semibold text-gray-900">{pct.toFixed(2)}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+              <Activity size={32} className="text-gray-300 mb-3" />
+              <p className="text-sm font-semibold text-gray-700 uppercase">No Demographics Data Uploaded</p>
+              <p className="text-xs text-gray-400 max-w-sm mt-1 mb-4">
+                Upload a media kit PDF report (e.g. Modash Report) to automatically parse locations, age ranges, gender distribution, and audience quality using Gemini AI.
+              </p>
+              <label className="cursor-pointer inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-normal rounded-lg uppercase tracking-wider font-outfit shadow-md transition-colors disabled:opacity-50">
+                {uploadingMediaKit ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" />
+                    Parsing Report...
+                  </>
+                ) : (
+                  <>
+                    <Send size={13} />
+                    Upload & Parse PDF
+                  </>
+                )}
+                <input 
+                  type="file" 
+                  accept=".pdf" 
+                  className="hidden" 
+                  onChange={handleMediaKitUpload} 
+                  disabled={uploadingMediaKit} 
+                />
+              </label>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Conversation History Section */}
+      <Card className="no-print">
         <CardHeader className="border-b border-gray-100 flex flex-row items-center justify-between py-4">
           <div className="flex items-center gap-2 font-normal text-gray-900 uppercase tracking-widest text-sm font-outfit">
             <MessageCircle size={18} className="text-primary-600" />
@@ -837,7 +1246,7 @@ export default function CreatorDetail() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+      <div className="no-print grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
         {/* Meeting Option */}
         <Card className="p-6 flex flex-col">
           <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-1 flex items-center gap-2">
@@ -926,7 +1335,7 @@ export default function CreatorDetail() {
 
 
       {/* ROI Performance Metrics at the bottom */}
-      <Card className="p-8 bg-gradient-to-br from-white to-gray-50 border-none shadow-xl">
+      <Card className="no-print p-8 bg-gradient-to-br from-white to-gray-50 border-none shadow-xl">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2">

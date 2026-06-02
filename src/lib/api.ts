@@ -174,3 +174,17 @@ export const linkAffiliate = (data: { campaign_id: string; creator_id: string; a
 
 export const updateAffiliateStatus = (id: string, status: string): Promise<any> =>
   api.patch(`/affiliates/${id}/status`, { status });
+
+// ─── Media Kit Upload & Analytics ─────────────────────
+export const uploadMediaKit = async (creatorId: string, file: File): Promise<{ success: boolean; media_kit_url: string; message: string }> => {
+  const formData = new FormData();
+  formData.append('media_kit', file);
+  return api.post(`/media-kits/${creatorId}/upload-media-kit`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  }) as any;
+};
+
+export const getAudienceAnalytics = (creatorId: string): Promise<{ profile: any; media_kit_url: string | null; media_kit_parsed_at: string | null } | null> =>
+  api.get(`/media-kits/${creatorId}/audience-analytics`) as any;
