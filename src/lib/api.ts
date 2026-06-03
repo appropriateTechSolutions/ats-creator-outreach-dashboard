@@ -17,8 +17,56 @@ api.interceptors.request.use(config => {
   return config;
 });
 
+// ─── Lightweight GET cache + in-flight dedup ──────────────────────────
+// The dashboard talks to a US-hosted API; every request is a long-haul round
+// trip. This layer (a) collapses concurrent/duplicate identical GETs into one
+// network call (kills StrictMode double-fire and overlapping fetches) and
+// (b) serves repeat reads from memory for a short window so switching tabs is
+// instant instead of re-fetching the same lists. Any write clears the cache.
+const CACHE_TTL = 30000; // 30s — sits under the backend's 60s cache horizon
+const responseCache = new Map<string, { data: any; ts: number }>();
+const inFlight = new Map<string, Promise<any>>();
+
+function cachedGet<T>(key: string, fetcher: () => Promise<T>, ttl = CACHE_TTL): Promise<T> {
+  const hit = responseCache.get(key);
+  if (hit && Date.now() - hit.ts < ttl) {
+    return Promise.resolve(hit.data as T);
+  }
+  const pending = inFlight.get(key);
+  if (pending) return pending as Promise<T>;
+
+  const p = fetcher()
+    .then(data => {
+      responseCache.set(key, { data, ts: Date.now() });
+      inFlight.delete(key);
+      return data;
+    })
+    .catch(err => {
+      inFlight.delete(key);
+      throw err;
+    });
+  inFlight.set(key, p);
+  return p;
+}
+
+// Clear cached reads. Called automatically after any write (see interceptor).
+export function invalidateCache(prefix?: string) {
+  if (!prefix) {
+    responseCache.clear();
+    return;
+  }
+  for (const k of Array.from(responseCache.keys())) {
+    if (k.startsWith(prefix)) responseCache.delete(k);
+  }
+}
+
 api.interceptors.response.use(
   response => {
+    // Any successful mutation invalidates cached reads so stale lists aren't served.
+    const method = (response.config.method || 'get').toLowerCase();
+    if (method !== 'get') {
+      invalidateCache();
+    }
     if (!response.data.success && response.data.error) {
       return Promise.reject(new Error(response.data.error));
     }
@@ -68,7 +116,7 @@ export const logout = async (): Promise<void> => {
 export const inviteUser = (data: { full_name: string, email: string, role: string, client_id?: string, user_type?: string }) => 
   api.post('/users/invite', data);
 
-export const getUsers = (): Promise<any[]> => api.get('/users');
+export const getUsers = (): Promise<any[]> => cachedGet('users', () => api.get('/users'));
 export const getUserById = (id: string): Promise<any> => api.get(`/users/${id}`);
 
 export const verifyInvite = (token: string): Promise<any> => 
@@ -82,14 +130,15 @@ export const disableUser = (id: string): Promise<any> => api.post(`/users/${id}/
 export const deleteUser = (id: string): Promise<any> => api.post(`/users/${id}/delete`);
 
 // Clients
-export const getClients = (): Promise<any[]> => api.get('/clients');
+export const getClients = (): Promise<any[]> => cachedGet('clients', () => api.get('/clients'));
 export const getClientById = (id: string): Promise<any> => api.get(`/clients/${id}`);
 export const createClient = (data: any): Promise<any> => api.post('/clients', data);
 export const updateClient = (id: string, data: any): Promise<any> => api.patch(`/clients/${id}`, data);
 export const deleteClient = (id: string): Promise<any> => api.post(`/clients/${id}/delete`);
 
 // Brands
-export const getBrands = (clientId?: string): Promise<any[]> => api.get('/brands', { params: { client_id: clientId } });
+export const getBrands = (clientId?: string): Promise<any[]> =>
+  cachedGet(`brands:${clientId || ''}`, () => api.get('/brands', { params: { client_id: clientId } }));
 export const getBrandById = (id: string): Promise<any> => api.get(`/brands/${id}`);
 export const createBrand = (data: any): Promise<any> => api.post('/brands', data);
 export const updateBrand = (id: string, data: any): Promise<any> => api.patch(`/brands/${id}`, data);
@@ -98,13 +147,13 @@ export const deleteBrand = (id: string): Promise<any> => api.post(`/brands/${id}
 // ─── Categories ───────────────────────────────────────
 export const getCustomCategories = (clientId?: string): Promise<any[]> => {
   const params = clientId ? { client_id: clientId } : {};
-  return api.get('/categories', { params });
+  return cachedGet(`categories:${clientId || ''}`, () => api.get('/categories', { params }));
 };
 export const createCustomCategory = (name: string, clientId?: string, brandId?: string): Promise<any> => 
   api.post('/categories', { name, client_id: clientId, brand_id: brandId });
 
 // ─── Campaigns ────────────────────────────────────────
-export const getCampaigns = (): Promise<Campaign[]> => api.get('/campaigns');
+export const getCampaigns = (): Promise<Campaign[]> => cachedGet('campaigns', () => api.get('/campaigns'));
 export const getCampaignById = (id: string): Promise<Campaign> => api.get(`/campaigns/${id}`);
 export const createCampaign = (data: Partial<Campaign>): Promise<Campaign> => api.post('/campaigns', data);
 export const updateCampaign = (id: string, data: Partial<Campaign>): Promise<Campaign> => api.patch(`/campaigns/${id}`, data);
@@ -120,11 +169,11 @@ export const getCampaignLeads = (campaignId: string): Promise<Creator[]> => api.
 // ─── Global Dashboard (NEW ENDPOINTS) ──────────────────
 // Note: For testing the Dashboard pipeline UI, we fetch all campaigns and creators across the system
 // to sum up the totals on the frontend until a dedicated /stats endpoint is built.
-export const getAllCreators = (): Promise<Creator[]> => api.get('/creators');
+export const getAllCreators = (): Promise<Creator[]> => cachedGet('creators', () => api.get('/creators'));
 export const getCreatorById = (creatorId: string): Promise<Creator> => api.get(`/creators/${creatorId}`);
 // ─── Statistics ───────────────────────────────────────
-export const getDashboardStats = (campaignId?: string): Promise<any> => 
-  api.get('/stats/dashboard', { params: { campaignId } });
+export const getDashboardStats = (campaignId?: string): Promise<any> =>
+  cachedGet(`stats:${campaignId || ''}`, () => api.get('/stats/dashboard', { params: { campaignId } }));
 
 // ─── AI Discovery ─────────────────────────────────────
 export const triggerDiscovery = (categories: string[], city: string, campaignId: string, keywords: string[] = []): Promise<unknown> => 
@@ -139,7 +188,7 @@ export const regenerateCreatorSummary = (creatorId: string): Promise<{ notes: st
 export const bookMeeting = (creatorId: string, campaignId: string, date: string, notes: string): Promise<unknown> => 
   api.post('/conversions/book-meeting', { creator_id: creatorId, campaign_id: campaignId, date, notes });
 
-export const getMeetings = (): Promise<any[]> => api.get('/conversions/meetings');
+export const getMeetings = (): Promise<any[]> => cachedGet('meetings', () => api.get('/conversions/meetings'));
 
 export const approvePartner = (meetingId: string): Promise<unknown> => 
   api.post('/conversions/approve-partner', { meeting_id: meetingId, outcome: 'approved' });
@@ -158,16 +207,16 @@ export const sendSingleOutreach = (creatorId: string, campaignId?: string, custo
 export const previewOutreach = (creatorId: string, campaignId?: string, message_type?: string): Promise<{ subject: string; body: string; to: string | null }> =>
   api.get('/outreach/preview', { params: { creator_id: creatorId, campaign_id: campaignId, message_type } }) as any;
 
-export const getOutreachLogs = (): Promise<any[]> => api.get('/outreach/logs');
+export const getOutreachLogs = (): Promise<any[]> => cachedGet('outreach-logs', () => api.get('/outreach/logs'));
 
 // ─── Conversations ────────────────────────────────────
-export const getConversations = (): Promise<Creator[]> => api.get('/conversations');
+export const getConversations = (): Promise<Creator[]> => cachedGet('conversations', () => api.get('/conversations'));
 export const syncConversations = (): Promise<{ synced: number }> => api.post('/conversations/sync');
 export const getConversationThread = (id: string): Promise<any[]> => api.get(`/conversations/${id}`);
 
 // ─── Affiliate Tracking ───────────────────────────────
-export const getAffiliatePerformance = (campaign_id?: string): Promise<any[]> => 
-  api.get('/affiliates/performance', { params: { campaign_id } });
+export const getAffiliatePerformance = (campaign_id?: string): Promise<any[]> =>
+  cachedGet(`affiliates:${campaign_id || ''}`, () => api.get('/affiliates/performance', { params: { campaign_id } }));
 
 export const linkAffiliate = (data: { campaign_id: string; creator_id: string; affiliate_code?: string; affiliate_link?: string }): Promise<any> =>
   api.post('/affiliates/link', data);
@@ -188,3 +237,10 @@ export const uploadMediaKit = async (creatorId: string, file: File): Promise<{ s
 
 export const getAudienceAnalytics = (creatorId: string): Promise<{ profile: any; media_kit_url: string | null; media_kit_parsed_at: string | null } | null> =>
   api.get(`/media-kits/${creatorId}/audience-analytics`) as any;
+
+// Returns a short-lived signed URL for the stored media kit PDF.
+// download=true forces a save dialog; otherwise the PDF opens inline (preview).
+export const getMediaKitUrl = (creatorId: string, download = false): Promise<{ success: boolean; url: string }> =>
+  api.get(`/media-kits/${creatorId}/media-kit-url`, {
+    params: download ? { download: 1 } : undefined
+  }) as any;

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit } from '../lib/api';
+import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit, getMediaKitUrl } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Star, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock } from 'lucide-react';
+import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Star, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock, Info, Eye, Download } from 'lucide-react';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
 import { useAuth } from '../contexts/AuthContext';
@@ -43,6 +43,19 @@ export const getErRating = (followers: number, er: number): { label: string; col
   }
 };
 
+// Small info icon with a hover/focus tooltip for contextual helper text
+const InfoTip = ({ text }: { text: string }) => (
+  <span className="no-print group relative inline-flex align-middle">
+    <Info size={13} className="text-gray-400 hover:text-gray-600 cursor-help" tabIndex={0} />
+    <span
+      role="tooltip"
+      className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-2 w-56 -translate-x-1/2 rounded-lg bg-gray-900 px-3 py-2 text-left text-xs font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+    >
+      {text}
+    </span>
+  </span>
+);
+
 export default function CreatorDetail() {
   const { user: currentUser } = useAuth();
   const { id } = useParams<{ id: string }>();
@@ -64,6 +77,7 @@ export default function CreatorDetail() {
   const [audienceData, setAudienceData] = useState<any>(null);
   const [loadingAudience, setLoadingAudience] = useState(false);
   const [uploadingMediaKit, setUploadingMediaKit] = useState(false);
+  const [mediaKitAction, setMediaKitAction] = useState<null | 'view' | 'download'>(null);
 
   // Affiliate Form State
   const [isAffiliateModalOpen, setIsAffiliateModalOpen] = useState(false);
@@ -230,9 +244,49 @@ export default function CreatorDetail() {
       loadData(true);
     } catch (err: any) {
       console.error(err);
-      alert(err.message || 'Failed to parse media kit PDF.');
+      alert(err?.error || err?.message || 'Failed to parse media kit PDF.');
     } finally {
       setUploadingMediaKit(false);
+    }
+  };
+
+  // Open the stored media kit PDF inline in a new tab (preview)
+  const handleViewMediaKit = async () => {
+    if (!creator || mediaKitAction) return;
+    // Open the tab synchronously so the browser doesn't block it as a popup,
+    // then point it at the signed URL once we have it.
+    const previewWindow = window.open('', '_blank');
+    setMediaKitAction('view');
+    try {
+      const { url } = await getMediaKitUrl(creator.id, false);
+      if (previewWindow) previewWindow.location.href = url;
+      else window.open(url, '_blank');
+    } catch (err: any) {
+      previewWindow?.close();
+      console.error(err);
+      alert(err?.error || err?.message || 'Could not open the media kit.');
+    } finally {
+      setMediaKitAction(null);
+    }
+  };
+
+  // Download the stored media kit PDF (forces a save dialog via the signed URL)
+  const handleDownloadMediaKit = async () => {
+    if (!creator || mediaKitAction) return;
+    setMediaKitAction('download');
+    try {
+      const { url } = await getMediaKitUrl(creator.id, true);
+      const a = document.createElement('a');
+      a.href = url;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.error || err?.message || 'Could not download the media kit.');
+    } finally {
+      setMediaKitAction(null);
     }
   };
 
@@ -918,22 +972,35 @@ export default function CreatorDetail() {
         </div>
       </Card>
 
-      {/* Audience Demographics & Media Kit Section */}
+      {/* Audience Demographics Section */}
       <Card>
         <CardHeader className="border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-4">
           <div className="flex items-center gap-2 font-normal text-gray-900 uppercase tracking-widest text-sm font-outfit">
             <Activity size={18} className="text-primary-600" />
-            Audience Demographics & Media Kit
+            Audience Demographics
           </div>
           <div className="flex items-center gap-3">
-            {audienceData?.profile && (
-              <button 
-                type="button"
-                onClick={() => window.print()}
-                className="no-print inline-flex items-center gap-1.5 text-xs font-normal text-primary-600 hover:text-primary-700 transition-colors uppercase tracking-widest font-outfit"
-              >
-                <FileText size={14} /> Download Media Kit
-              </button>
+            {audienceData?.media_kit_url && !audienceData.media_kit_url.startsWith('/uploads/') && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleViewMediaKit}
+                  disabled={mediaKitAction !== null}
+                  title="Open the uploaded media kit PDF in a new tab"
+                  className="no-print inline-flex items-center gap-1.5 text-xs font-normal text-gray-500 hover:text-gray-700 transition-colors uppercase tracking-widest font-outfit disabled:opacity-50"
+                >
+                  {mediaKitAction === 'view' ? <RefreshCw size={14} className="animate-spin" /> : <Eye size={14} />} View
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadMediaKit}
+                  disabled={mediaKitAction !== null}
+                  title="Download the uploaded media kit PDF"
+                  className="no-print inline-flex items-center gap-1.5 text-xs font-normal text-primary-600 hover:text-primary-700 transition-colors uppercase tracking-widest font-outfit disabled:opacity-50"
+                >
+                  {mediaKitAction === 'download' ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />} Download Profile
+                </button>
+              </>
             )}
             <label className="no-print cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 text-white text-xs font-normal rounded-lg hover:bg-primary-700 transition-colors uppercase tracking-widest font-outfit shadow-sm disabled:opacity-50">
               {uploadingMediaKit ? (
@@ -944,7 +1011,7 @@ export default function CreatorDetail() {
               ) : (
                 <>
                   <Send size={12} />
-                  Upload Media Kit
+                  Upload Demographics Data
                 </>
               )}
               <input 
@@ -969,7 +1036,10 @@ export default function CreatorDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Gender Split */}
                 <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 shadow-sm">
-                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">Gender Distribution</h4>
+                  <h4 className="flex items-center gap-1.5 text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">
+                    Gender Distribution
+                    <InfoTip text="The estimated male / female split of this creator's audience, based on their follower profiles." />
+                  </h4>
                   {(() => {
                     const demos = audienceData.profile.audience_demographics || [];
                     const male = demos.find((d: any) => d.demographic_type === 'gender' && d.gender === 'male');
@@ -998,7 +1068,10 @@ export default function CreatorDetail() {
 
                 {/* Audience Quality / Fake Followers */}
                 <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 shadow-sm">
-                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">Audience Credibility</h4>
+                  <h4 className="flex items-center gap-1.5 text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">
+                    Audience Credibility
+                    <InfoTip text="An estimate of how genuine this audience is — the share of real, active followers versus fake or inactive accounts." />
+                  </h4>
                   {(() => {
                     const quality = audienceData.profile.audience_qualities?.[0];
                     if (!quality) return <p className="text-sm text-gray-500 italic">No quality data found</p>;
@@ -1009,13 +1082,19 @@ export default function CreatorDetail() {
                     return (
                       <div className="grid grid-cols-2 gap-4">
                         <div className="text-center p-3 bg-white border border-gray-200/50 rounded-lg shadow-sm">
-                          <p className="text-xs font-normal text-gray-400 uppercase">Fake Followers</p>
+                          <p className="flex items-center justify-center gap-1 text-xs font-normal text-gray-400 uppercase">
+                            Fake Followers
+                            <InfoTip text="Everyone has fake followers. Up to 25% is perfectly normal." />
+                          </p>
                           <p className={`text-xl font-normal mt-1 ${fakePct > 25 ? 'text-red-600' : fakePct > 15 ? 'text-amber-600' : 'text-green-600'}`}>
                             {fakePct.toFixed(1)}%
                           </p>
                         </div>
                         <div className="text-center p-3 bg-white border border-gray-200/50 rounded-lg shadow-sm">
-                          <p className="text-xs font-normal text-gray-400 uppercase">Real Audience</p>
+                          <p className="flex items-center justify-center gap-1 text-xs font-normal text-gray-400 uppercase">
+                            Real Audience
+                            <InfoTip text="The share of followers that appear to be real, active people — higher is better." />
+                          </p>
                           <p className="text-xl font-normal text-green-600 mt-1">
                             {realPct.toFixed(1)}%
                           </p>
@@ -1030,7 +1109,10 @@ export default function CreatorDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Age Split */}
                 <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 shadow-sm">
-                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">Age Distribution</h4>
+                  <h4 className="flex items-center gap-1.5 text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">
+                    Age Distribution
+                    <InfoTip text="How this creator's audience breaks down across age ranges. Look for overlap with your target customer." />
+                  </h4>
                   <div className="space-y-3">
                     {(() => {
                       const demos = audienceData.profile.audience_demographics || [];
@@ -1059,7 +1141,10 @@ export default function CreatorDetail() {
 
                 {/* Reachability */}
                 <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 shadow-sm">
-                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">Audience Reachability</h4>
+                  <h4 className="flex items-center gap-1.5 text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">
+                    Audience Reachability
+                    <InfoTip text="How many accounts each follower follows. People who follow fewer accounts are more likely to actually see this creator's posts." />
+                  </h4>
                   <div className="space-y-3">
                     {(() => {
                       const quality = audienceData.profile.audience_qualities?.[0];
@@ -1093,7 +1178,10 @@ export default function CreatorDetail() {
 
               {/* Bottom Row: Locations */}
               <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 shadow-sm">
-                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">Audience Locations (Top Countries & Cities)</h4>
+                <h4 className="flex items-center gap-1.5 text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4">
+                  Audience Locations (Top Countries &amp; Cities)
+                  <InfoTip text="Where this audience is based. Make sure the top locations match the markets you want to reach." />
+                </h4>
                 {(() => {
                   const locs = audienceData.profile.audience_locations || [];
                   const countries = locs.filter((l: any) => l.location_type === 'country').slice(0, 5);
