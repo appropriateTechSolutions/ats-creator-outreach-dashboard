@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Sparkles, Loader2 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { suggestCampaignDescription, suggestCampaignKeywords } from '../lib/api';
 
 export interface CampaignFormData {
   name: string;
@@ -193,15 +195,6 @@ const platforms = [
         <polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"></polygon>
       </svg>
     )
-  },
-  {
-    id: 'tiktok',
-    label: 'TikTok',
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-900">
-        <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path>
-      </svg>
-    )
   }
 ];
 
@@ -241,6 +234,74 @@ export function CampaignForm({
   onAddCustomCategory // Add this
 }: CampaignFormProps) {
   void countries;
+
+  const [suggestingDesc, setSuggestingDesc] = useState(false);
+  const [suggestingKeywords, setSuggestingKeywords] = useState(false);
+
+  // Auto-grow the campaign name field so long names wrap onto additional lines
+  const nameRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = nameRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [formData.name]);
+
+  // Default to the only available brand when none is selected yet (e.g. single-brand clients)
+  useEffect(() => {
+    if (!formData.brand_id && brands.length === 1) {
+      setFormData(prev => (prev.brand_id ? prev : { ...prev, brand_id: brands[0].id }));
+    }
+  }, [brands, formData.brand_id, setFormData]);
+
+  const brandName = brands.find(b => b.id === formData.brand_id)?.name;
+
+  const handleSuggestDescription = async () => {
+    if (!formData.name.trim() || formData.category.length === 0) {
+      alert('Add a campaign name and at least one category first.');
+      return;
+    }
+    setSuggestingDesc(true);
+    try {
+      const { description } = await suggestCampaignDescription({
+        name: formData.name.trim(),
+        categories: formData.category,
+        brand_name: brandName,
+        keywords: getCommaValues(formData.keywords),
+      });
+      if (description) setFormData(prev => ({ ...prev, campaign_description: description }));
+    } catch (err: any) {
+      alert('Could not generate a description: ' + (err?.response?.data?.error || err?.message || 'Unknown error'));
+    } finally {
+      setSuggestingDesc(false);
+    }
+  };
+
+  const handleSuggestKeywords = async () => {
+    if (!formData.name.trim() || formData.category.length === 0) {
+      alert('Add a campaign name and at least one category first.');
+      return;
+    }
+    setSuggestingKeywords(true);
+    try {
+      const { keywords } = await suggestCampaignKeywords({
+        name: formData.name.trim(),
+        description: formData.campaign_description,
+        categories: formData.category,
+      });
+      if (keywords?.length) {
+        setFormData(prev => {
+          const existing = getCommaValues(prev.keywords);
+          const merged = Array.from(new Set([...existing, ...keywords.map(k => k.trim()).filter(Boolean)]));
+          return { ...prev, keywords: merged.join(', ') };
+        });
+      }
+    } catch (err: any) {
+      alert('Could not suggest keywords: ' + (err?.response?.data?.error || err?.message || 'Unknown error'));
+    } finally {
+      setSuggestingKeywords(false);
+    }
+  };
 
   const toggleCategory = (cat: string) => {
     setFormData(prev => ({
@@ -316,11 +377,12 @@ export function CampaignForm({
         <div>
           <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Campaign Name *</label>
           <textarea
+            ref={nameRef}
             required
-            rows={2}
+            rows={1}
             value={formData.name}
             onChange={e => setFormData({ ...formData, name: e.target.value })}
-            className="w-full px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm resize-y"
+            className="w-full min-h-[44px] px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl text-sm font-normal text-gray-900 leading-snug focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm resize-none overflow-hidden"
             placeholder="Summer Skincare 2026"
           />
         </div>
@@ -350,7 +412,18 @@ export function CampaignForm({
       </div>
 
       <div>
-        <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Campaign Description</label>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest">Campaign Description</label>
+          <button
+            type="button"
+            onClick={handleSuggestDescription}
+            disabled={suggestingDesc}
+            className="inline-flex items-center gap-1.5 text-[10px] font-normal uppercase tracking-widest text-primary-600 hover:text-primary-700 disabled:opacity-50 transition-colors"
+          >
+            {suggestingDesc ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            {suggestingDesc ? 'Drafting…' : 'Suggest with AI'}
+          </button>
+        </div>
         <textarea
           value={formData.campaign_description}
           onChange={e => setFormData({ ...formData, campaign_description: e.target.value })}
@@ -427,7 +500,18 @@ export function CampaignForm({
       </div>
 
       <div>
-        <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest mb-1.5">Optional Search Keywords</label>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="block text-xs font-normal text-gray-500 font-outfit uppercase tracking-widest">Optional Search Keywords</label>
+          <button
+            type="button"
+            onClick={handleSuggestKeywords}
+            disabled={suggestingKeywords}
+            className="inline-flex items-center gap-1.5 text-[10px] font-normal uppercase tracking-widest text-primary-600 hover:text-primary-700 disabled:opacity-50 transition-colors"
+          >
+            {suggestingKeywords ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            {suggestingKeywords ? 'Thinking…' : 'Suggest with AI'}
+          </button>
+        </div>
         <Input
           value={formData.keywords}
           onChange={e => setFormData({ ...formData, keywords: e.target.value })}
@@ -542,17 +626,6 @@ export function CampaignForm({
             </button>
           ))}
         </div>
-        {formData.discovery_channels.includes('tiktok') && (
-          <p className={`mt-3 text-[11px] leading-relaxed rounded-lg px-3 py-2 ${
-            formData.discovery_channels.length === 1
-              ? 'bg-amber-50 text-amber-800 border border-amber-200'
-              : 'bg-gray-50 text-gray-500 border border-gray-100'
-          }`}>
-            {formData.discovery_channels.length === 1
-              ? 'TikTok-only discovery is not yet supported — follower and engagement enrichment is unavailable for TikTok. Add Instagram or YouTube to run discovery.'
-              : 'Note: TikTok handles are surfaced, but follower and engagement data is only enriched on Instagram and YouTube.'}
-          </p>
-        )}
       </div>
 
       <div>

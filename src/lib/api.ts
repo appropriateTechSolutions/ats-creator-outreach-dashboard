@@ -163,6 +163,12 @@ export const updateCampaignTemplate = (id: string, data: any): Promise<any> => a
 export const generateCampaignTemplate = (id: string): Promise<{ subject_line_template: string; body_template: string }> =>
   api.post(`/campaigns/${id}/generate-template`) as any;
 
+// AI (Gemini) suggestions for the new/edit campaign form — work without a saved campaign id
+export const suggestCampaignDescription = (payload: { name: string; categories: string[]; brand_name?: string; keywords?: string[] }): Promise<{ description: string }> =>
+  api.post('/campaigns/ai/suggest-description', payload) as any;
+export const suggestCampaignKeywords = (payload: { name: string; description?: string; categories: string[] }): Promise<{ keywords: string[] }> =>
+  api.post('/campaigns/ai/suggest-keywords', payload) as any;
+
 // ─── Campaign Leads ───────────────────────────────────
 export const getCampaignLeads = (campaignId: string): Promise<Creator[]> => api.get(`/campaigns/${campaignId}/leads`);
 

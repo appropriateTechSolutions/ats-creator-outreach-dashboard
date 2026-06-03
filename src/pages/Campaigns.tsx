@@ -10,6 +10,7 @@ import { Modal } from '../components/ui/Modal';
 import { LoadingState } from '../components/ui/LoadingState';
 import { CampaignForm } from '../components/CampaignForm';
 import { useAuth } from '../contexts/AuthContext';
+import { useDiscovery } from '../contexts/DiscoveryContext';
 
 const COUNTRIES = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
@@ -47,6 +48,7 @@ export default function Campaigns() {
   const [selectedBrandNameFilter, setSelectedBrandNameFilter] = useState<string | null>(null);
   const [dbCustomCategories, setDbCustomCategories] = useState<any[]>([]);
   const navigate = useNavigate();
+  const { startDiscovery } = useDiscovery();
 
   // Form State
   const [formData, setFormData] = useState({
@@ -151,7 +153,7 @@ export default function Campaigns() {
     try {
       const selectedBrand = brands.find(b => b.id === formData.brand_id);
       
-      await createCampaign({
+      const created = await createCampaign({
         name: formData.name,
         brand_id: formData.brand_id,
         client_id: selectedBrand?.client_id,
@@ -169,14 +171,27 @@ export default function Campaigns() {
       });
       // Close modal and reset form
       setIsModalOpen(false);
-      // Reset form after a small delay to avoid triggering useEffect while modal is still visible
-      setTimeout(() => {
-        setFormData({ name: '', brand_id: '', campaign_description: '', category: [], country: 'US', state: '', city: '', keywords: '', product_offer_notes: '', discovery_channels: ['instagram'] });
-        setCustomCat('');
-        setCustomState('');
-        setCustomCity('');
-      }, 100);
-      fetchData();
+      setFormData({ name: '', brand_id: '', campaign_description: '', category: [], country: 'US', state: '', city: '', keywords: '', product_offer_notes: '', discovery_channels: ['instagram'] });
+      setCustomCat('');
+      setCustomState('');
+      setCustomCity('');
+
+      // Kick off AI discovery immediately and take the user to the campaign detail view.
+      // startDiscovery shows the global "sit back and relax" popup.
+      if (created?.id) {
+        // Fall back to the submitted values so discovery params are never empty,
+        // even if the create response omits them.
+        startDiscovery({
+          ...created,
+          name: created.name ?? formData.name,
+          category: created.category ?? formData.category.join(','),
+          city: created.city ?? getCommaValues(formData.city).join(', '),
+          keywords: created.keywords ?? formData.keywords.split(',').map(k => k.trim()).filter(Boolean),
+        });
+        navigate(`/campaigns/${created.id}`);
+      } else {
+        fetchData();
+      }
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Failed to create campaign';
       alert(`Error: ${msg}`);

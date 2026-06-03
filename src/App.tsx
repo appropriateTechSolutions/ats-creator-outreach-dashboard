@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { DiscoveryProvider } from './contexts/DiscoveryContext';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './pages/Dashboard';
@@ -34,9 +35,11 @@ import { Outlet } from 'react-router-dom';
 
 const ProtectedLayout = () => (
   <ProtectedRoute>
-    <MainLayout>
-      <Outlet />
-    </MainLayout>
+    <DiscoveryProvider>
+      <MainLayout>
+        <Outlet />
+      </MainLayout>
+    </DiscoveryProvider>
   </ProtectedRoute>
 );
 
