@@ -427,8 +427,22 @@ export default function CreatorDetail() {
             background: transparent !important;
           }
 
-          body {
-            background: white !important;
+          /* Reset all wrapper backgrounds to transparent to let the white page show */
+          body,
+          html,
+          #root,
+          main,
+          .main-content,
+          div,
+          section {
+            background-color: transparent !important;
+            background: transparent !important;
+          }
+
+          body,
+          html {
+            background-color: #ffffff !important;
+            background: #ffffff !important;
             color: black !important;
             font-size: 11pt !important;
           }

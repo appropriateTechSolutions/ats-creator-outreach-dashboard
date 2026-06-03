@@ -2,12 +2,37 @@ import { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
-import { Check, X } from 'lucide-react';
+import { Check, X, FileText } from 'lucide-react';
 import { Link as RouterLink } from 'react-router-dom';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { getAllCreators, reviewLead } from '../lib/api';
 import type { Creator } from '../types';
+
+const getPrimaryProfileStats = (c: Creator) => {
+  if (!c.profiles || c.profiles.length === 0) {
+    return {
+      followers: c.followers || c.followers_count || 0,
+      engagementRate: c.engagement_rate || 0,
+      avgLikes: c.avg_likes || 0,
+      avgComments: c.avg_comments || 0,
+      mediaCount: 0,
+      platform: c.platform || 'instagram'
+    };
+  }
+  
+  const primaryPlatformName = c.primary_platform?.toLowerCase();
+  const profile = c.profiles.find(p => p.platform.toLowerCase() === primaryPlatformName) || c.profiles[0];
+  
+  return {
+    followers: profile.followers || 0,
+    engagementRate: profile.engagement_rate ? Number(profile.engagement_rate) : 0,
+    avgLikes: profile.avg_likes || 0,
+    avgComments: profile.avg_comments || 0,
+    mediaCount: profile.media_count || 0,
+    platform: profile.platform
+  };
+};
 
 export default function ReviewQueue() {
   const [queue, setQueue] = useState<Creator[]>([]);
@@ -74,14 +99,104 @@ export default function ReviewQueue() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
-      <div className="flex justify-between items-center mb-2">
+      <style>{`
+        @media print {
+          /* Hide non-printable layout items */
+          aside,
+          header,
+          nav,
+          .no-print,
+          .hide-on-print,
+          button,
+          label,
+          input {
+            display: none !important;
+          }
+
+          /* Reset layout padding when printing */
+          div[class*="lg:pl-64"],
+          div[class*="pl-0"],
+          main,
+          .main-content {
+            padding-left: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: transparent !important;
+          }
+
+          /* Reset all wrapper backgrounds to transparent to let the white page show */
+          body,
+          html,
+          #root,
+          main,
+          .main-content,
+          div,
+          section {
+            background-color: transparent !important;
+            background: transparent !important;
+          }
+
+          body,
+          html {
+            background-color: #ffffff !important;
+            background: #ffffff !important;
+            color: #111827 !important;
+            font-size: 10pt !important;
+            font-family: 'Outfit', 'Inter', sans-serif !important;
+          }
+
+          /* Keep cards and grid metrics clean */
+          .page-break-inside-avoid {
+            background-color: #ffffff !important;
+            background: #ffffff !important;
+            border: 1px solid #e5e7eb !important;
+          }
+          
+          .bg-gray-50 {
+            background-color: #f9fafb !important;
+            background: #f9fafb !important;
+            border: 1px solid #f3f4f6 !important;
+          }
+
+          .max-w-5xl {
+            max-width: 100% !important;
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
+          /* Force backgrounds/colors to render on print */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          .page-break-inside-avoid {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+        }
+      `}</style>
+
+      <div className="no-print flex justify-between items-center mb-2">
         <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Review Queue</h1>
-        <div className="text-sm font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-full uppercase tracking-widest">
-          {queue.length} Pending
+        <div className="flex items-center gap-3">
+          <div className="text-sm font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-full uppercase tracking-widest">
+            {queue.length} Pending
+          </div>
+          {queue.length > 0 && (
+            <Button
+              onClick={() => window.print()}
+              variant="outline"
+              className="flex items-center gap-2 text-xs uppercase tracking-widest font-outfit h-9"
+            >
+              <FileText size={14} className="text-primary-600" /> Export PDF
+            </Button>
+          )}
         </div>
       </div>
 
-      <Card className="shadow-xl shadow-gray-200/50 border-gray-200 overflow-hidden">
+      <Card className="no-print shadow-xl shadow-gray-200/50 border-gray-200 overflow-hidden">
         {queue.length === 0 ? (
           <div className="p-16 text-center bg-primary-50/10">
             <div className="w-16 h-16 bg-primary-100 text-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -149,6 +264,70 @@ export default function ReviewQueue() {
           </div>
         )}
       </Card>
+
+      {/* Print-only Well-Formatted Layout */}
+      {queue.length > 0 && (
+        <div className="hidden print:block w-full">
+          {/* Print-only Branded Header */}
+          <div className="flex items-center justify-between border-b-2 border-gray-900 pb-4 mb-8">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl font-extrabold tracking-widest text-primary-600 font-outfit">ATS</span>
+              <span className="text-xs text-gray-400 uppercase tracking-widest border-l pl-3 border-gray-300 font-medium">Outreach Platform</span>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-bold text-gray-800 uppercase tracking-wider font-outfit">Review Queue Export</p>
+              <p className="text-xs text-gray-400">{new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {queue.map((c) => {
+              const stats = getPrimaryProfileStats(c);
+              return (
+                <div key={c.id} className="page-break-inside-avoid border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
+                  {/* Header Info */}
+                  <div className="flex justify-between items-start border-b border-gray-100 pb-3 mb-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-900 font-outfit">{c.full_name || 'N/A'}</h3>
+                      <p className="text-xs text-primary-600 font-semibold mt-0.5">@{c.handle}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[11px] text-gray-500 capitalize font-medium">
+                        {stats.platform} &bull; {c.city ? `${c.city}${c.country ? `, ${c.country}` : ''}` : 'Location Unknown'}
+                      </p>
+                      <p className="text-[11px] text-gray-600 font-medium mt-0.5">{c.email || 'No email available'}</p>
+                    </div>
+                  </div>
+
+                  {/* Metrics Grid */}
+                  <div className="grid grid-cols-5 gap-3">
+                    <div className="bg-gray-50 p-2.5 rounded-lg text-center border border-gray-100">
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">Followers</p>
+                      <p className="text-sm font-bold text-gray-800 mt-0.5">{stats.followers ? stats.followers.toLocaleString() : '0'}</p>
+                    </div>
+                    <div className="bg-gray-50 p-2.5 rounded-lg text-center border border-gray-100">
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">Avg Likes</p>
+                      <p className="text-sm font-bold text-gray-800 mt-0.5">{stats.avgLikes ? stats.avgLikes.toLocaleString() : '0'}</p>
+                    </div>
+                    <div className="bg-gray-50 p-2.5 rounded-lg text-center border border-gray-100">
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">Avg Comments</p>
+                      <p className="text-sm font-bold text-gray-800 mt-0.5">{stats.avgComments ? stats.avgComments.toLocaleString() : '0'}</p>
+                    </div>
+                    <div className="bg-gray-50 p-2.5 rounded-lg text-center border border-gray-100">
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">Posts / Media</p>
+                      <p className="text-sm font-bold text-gray-800 mt-0.5">{stats.mediaCount ? stats.mediaCount.toLocaleString() : '0'}</p>
+                    </div>
+                    <div className="bg-gray-50 p-2.5 rounded-lg text-center border border-gray-100">
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">Engagement</p>
+                      <p className="text-sm font-bold text-primary-600 mt-0.5">{stats.engagementRate ? `${stats.engagementRate.toFixed(2)}%` : '0.00%'}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <OutreachPreviewModal
         creatorId={outreachModalCreatorId || ''}
