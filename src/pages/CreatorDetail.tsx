@@ -6,9 +6,11 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Star, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock, Info, Eye, Download } from 'lucide-react';
+import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Star, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock, Eye, Download } from 'lucide-react';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
+import { ImageLightbox } from '../components/ui/ImageLightbox';
+import { InfoTip } from '../components/ui/InfoTip';
 import { useAuth } from '../contexts/AuthContext';
 
 export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
@@ -43,19 +45,6 @@ export const getErRating = (followers: number, er: number): { label: string; col
   }
 };
 
-// Small info icon with a hover/focus tooltip for contextual helper text
-const InfoTip = ({ text }: { text: string }) => (
-  <span className="no-print group relative inline-flex align-middle">
-    <Info size={13} className="text-gray-400 hover:text-gray-600 cursor-help" tabIndex={0} />
-    <span
-      role="tooltip"
-      className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-2 w-56 -translate-x-1/2 rounded-lg bg-gray-900 px-3 py-2 text-left text-xs font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
-    >
-      {text}
-    </span>
-  </span>
-);
-
 export default function CreatorDetail() {
   const { user: currentUser } = useAuth();
   const { id } = useParams<{ id: string }>();
@@ -72,6 +61,7 @@ export default function CreatorDetail() {
   const [matchExpanded, setMatchExpanded] = useState(false);
   const [findingSimilar, setFindingSimilar] = useState(false);
   const [regeneratingSummary, setRegeneratingSummary] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   // Audience Analytics States
   const [audienceData, setAudienceData] = useState<any>(null);
@@ -541,9 +531,12 @@ export default function CreatorDetail() {
       <Card>
         <div className="bg-gradient-to-r from-gray-50 to-white px-6 sm:px-8 py-8 border-b border-gray-100 flex flex-col lg:flex-row items-start gap-6 rounded-t-[12px]">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 min-w-0 flex-1">
-             <div className="w-20 h-20 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-4xl uppercase shadow-lg shadow-primary-500/30 ring-4 ring-white font-outfit shrink-0 overflow-hidden">
+             <div
+               onClick={() => creator.profile_pic && setLightboxOpen(true)}
+               className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-5xl sm:text-6xl uppercase shadow-xl shadow-primary-500/30 ring-4 ring-white font-outfit shrink-0 overflow-hidden ${creator.profile_pic ? 'cursor-zoom-in' : ''}`}
+             >
                {creator.profile_pic ? (
-                 <img src={creator.profile_pic} alt="" className="w-full h-full object-cover" />
+                 <img src={creator.profile_pic} alt={creator.full_name || creator.handle || ''} loading="lazy" className="w-full h-full object-cover" />
                ) : (
                  creator.handle?.charAt(0)
                )}
@@ -606,12 +599,6 @@ export default function CreatorDetail() {
                 )}
               </div>
               
-              <div className="flex flex-wrap gap-2 mt-3">
-                {[...new Set(creator.category?.split(',').map(c => c.trim()).filter(Boolean))].map((c, index) => (
-                   <span key={`${c}-${index}`} className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded text-xs font-normal uppercase tracking-wider">{c}</span>
-                ))}
-              </div>
-
               {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
                 <div className="no-print flex items-center gap-2.5 mt-4">
                   {creator.review_status === 'rejected' && (
@@ -656,6 +643,7 @@ export default function CreatorDetail() {
             <StatusBadge status={['not_respond'].includes(creator.lifecycle_status || '') ? creator.lifecycle_status : (creator.review_status as any || 'pending')} />
             <div className="flex items-center gap-2 mt-2">
                <span className="text-xs font-normal text-gray-400 uppercase">Readiness:</span>
+               <InfoTip text="Readiness score (0–100) estimates how well this creator fits the campaign and how likely they are to convert — based on audience size, engagement, niche/category match, and profile completeness. Higher is better." />
                <ScoreBadge score={creator.outreach_readiness_score || 0} />
             </div>
             {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
@@ -1550,6 +1538,12 @@ export default function CreatorDetail() {
         isOpen={outreachModalOpen}
         onClose={() => setOutreachModalOpen(false)}
         onSend={handleConfirmSendOutreach}
+      />
+
+      <ImageLightbox
+        src={lightboxOpen ? (creator.profile_pic || null) : null}
+        alt={creator.full_name || creator.handle || ''}
+        onClose={() => setLightboxOpen(false)}
       />
     </div>
   );

@@ -11,6 +11,25 @@ import { getCampaigns, getAllCreators, getDashboardStats } from '../lib/api';
 import type { Campaign, Creator } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
+const getFollowers = (c: Creator): number => {
+  if (typeof c.followers_count === 'number') return c.followers_count;
+  const fromProfiles = c.profiles?.map(p => p.followers || 0) ?? [];
+  return fromProfiles.length ? Math.max(...fromProfiles) : 0;
+};
+
+const getEngagement = (c: Creator): number => {
+  if (typeof c.engagement_rate === 'number') return c.engagement_rate;
+  const fromProfiles = c.profiles?.map(p => Number(p.engagement_rate) || 0) ?? [];
+  return fromProfiles.length > 0 ? Math.max(...fromProfiles) : 0;
+};
+
+// Promote shortlisted/approved leads to the top of the Top Discovery Leads list.
+const leadPriority = (c: Creator): number => {
+  if (c.review_status === 'approved') return 2;
+  if (c.review_status === 'shortlisted') return 1;
+  return 0;
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -80,7 +99,14 @@ export default function Dashboard() {
       }
       return true;
     })
-    .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
+    .sort((a, b) => {
+      // Shortlisted/approved leads first, then by engagement rate, then by followers
+      const pa = leadPriority(a), pb = leadPriority(b);
+      if (pa !== pb) return pb - pa;
+      const ea = getEngagement(a), eb = getEngagement(b);
+      if (eb !== ea) return eb - ea;
+      return getFollowers(b) - getFollowers(a);
+    })
     .slice(0, 10);
 
   const handleQueueClick = (status: string) => {
@@ -395,7 +421,7 @@ export default function Dashboard() {
                      <Tr>
                        <Th>Creator</Th>
                        <Th>City</Th>
-                       <Th className="text-center">V2 Score</Th>
+                       <Th className="text-center">Engagement</Th>
                        <Th className="text-center">Relevance</Th>
                        <Th>Status</Th>
                      </Tr>
@@ -408,8 +434,8 @@ export default function Dashboard() {
                             <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-xs uppercase">
                               {(c.full_name || c.handle)?.charAt(0)}
                             </div>
-                            <div>
-                               <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 font-outfit uppercase tracking-tight hover:text-primary-600 transition-colors leading-none">
+                            <div className="min-w-0">
+                               <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 font-outfit uppercase tracking-tight hover:text-primary-600 transition-colors text-xs leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
                                  {c.full_name || `@${c.handle}`}
                                </Link>
                                <div className="flex items-center gap-2 mt-1.5">
@@ -451,8 +477,10 @@ export default function Dashboard() {
                           </div>
                         </Td>
                         <Td className="text-gray-500 capitalize">{c.city || 'Global'}</Td>
-                        <Td>
-                          <ScoreBadge score={c.outreach_readiness_score || 0} />
+                        <Td className="text-center">
+                          <span className="text-sm font-normal text-gray-900 font-outfit">
+                            {getEngagement(c) > 0 ? `${getEngagement(c).toFixed(2)}%` : 'N/A'}
+                          </span>
                         </Td>
                         <Td>
                           <ScoreBadge score={c.relevance_score || 0} />

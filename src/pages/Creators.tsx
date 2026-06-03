@@ -201,6 +201,8 @@ export default function Creators() {
 
   const filteredCreators = creators.filter(c => {
     if (!hasPublicProfileSignal(c)) return false;
+    // Exclude creators with fewer than 1k followers
+    if (getFollowers(c) < 1000) return false;
 
     const matchesSearch =
       c.handle?.toLowerCase().includes(search.toLowerCase()) ||
@@ -439,8 +441,8 @@ export default function Creators() {
                               (c.full_name || c.handle)?.charAt(0)
                             )}
                           </div>
-                          <div>
-                            <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit">
+                          <div className="min-w-0">
+                            <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
                               {c.full_name || `@${c.handle}`}
                             </Link>
                             <div className="flex gap-2 mt-1.5">

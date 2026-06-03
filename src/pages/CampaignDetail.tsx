@@ -22,6 +22,7 @@ import { ArrowLeft, Sparkles, Activity, Mail, Check, X, Instagram, Youtube, Edit
 import { Modal } from '../components/ui/Modal';
 import { CampaignForm } from '../components/CampaignForm';
 import { useAuth } from '../contexts/AuthContext';
+import { useDiscovery } from '../contexts/DiscoveryContext';
 
 import { CreatorPreviewDrawer } from '../components/CreatorPreviewDrawer';
 
@@ -119,7 +120,8 @@ export default function CampaignDetail() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
-  const [discovering, setDiscovering] = useState(false);
+  const { startDiscovery, isDiscovering, subscribe } = useDiscovery();
+  const discovering = isDiscovering(id);
   const [templateSubject, setTemplateSubject] = useState('');
   const [templateBody, setTemplateBody] = useState('');
   const [generatingTemplate, setGeneratingTemplate] = useState(false);
@@ -151,6 +153,18 @@ export default function CampaignDetail() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const [sortBy, setSortBy] = useState(() => {
+    try { return sessionStorage.getItem('campaign-leads-sort-v1') || 'followers_desc'; }
+    catch { return 'followers_desc'; }
+  });
+
+  // Persist the lead sort selection across navigation within the session
+  useEffect(() => {
+    try { sessionStorage.setItem('campaign-leads-sort-v1', sortBy); } catch { /* ignore */ }
+  }, [sortBy]);
+  // Ordered list of creator IDs found in the current discovery run (most recent first).
+  // Used to pin freshly discovered creators to the top while discovery is running.
+  const [discoveredOrder, setDiscoveredOrder] = useState<string[]>([]);
 
   const fetchData = async (silent = false) => {
     if (!id) return;
@@ -195,96 +209,32 @@ export default function CampaignDetail() {
 
   const handleDiscovery = () => {
     if (!campaign || !id) return;
-    setDiscovering(true);
-
-    const token = localStorage.getItem('ats_token') || '';
-    const categoriesStr = campaign.category || '';
-    const cityStr = campaign.city || 'global';
-    const keywordsStr = Array.isArray(campaign.keywords) ? campaign.keywords.join(',') : '';
-
-    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
-    const streamUrl = `${apiBaseUrl}/creators/ai-discovery-stream?campaign_id=${id}&categories=${encodeURIComponent(categoriesStr)}&city=${encodeURIComponent(cityStr)}&keywords=${encodeURIComponent(keywordsStr)}&token=${encodeURIComponent(token)}`;
-
-    console.log('⚡ Connecting to AI Discovery SSE Stream at:', streamUrl);
-    const eventSource = new EventSource(streamUrl);
-
-    eventSource.onmessage = (event) => {
-      console.log('📩 SSE message:', event);
-    };
-
-    eventSource.addEventListener('status', (e: any) => {
-      try {
-        const data = JSON.parse(e.data);
-        console.log('🔄 Discovery Status:', data.message);
-      } catch (err) {
-        console.error(err);
-      }
-    });
-
-    eventSource.addEventListener('saved', (e: any) => {
-      try {
-        const newLead = JSON.parse(e.data);
-        console.log('✨ Lead Saved:', newLead);
-        // Prepend/append new lead to the list if not already present
-        setLeads((prevLeads) => {
-          if (prevLeads.some((l) => l.id === newLead.id)) {
-            return prevLeads;
-          }
-          return [newLead, ...prevLeads];
-        });
-      } catch (err) {
-        console.error(err);
-      }
-    });
-
-    eventSource.addEventListener('enriched', (e: any) => {
-      try {
-        const enrichedLead = JSON.parse(e.data);
-        console.log('✅ Lead Enriched:', enrichedLead);
-        // Update the lead in state
-        setLeads((prevLeads) => {
-          return prevLeads.map((l) => (l.id === enrichedLead.id ? { ...l, ...enrichedLead } : l));
-        });
-        // If the current preview drawer is open for this creator, update it too
-        setPreviewCreator((prevPreview) => {
-          if (prevPreview && prevPreview.id === enrichedLead.id) {
-            return { ...prevPreview, ...enrichedLead };
-          }
-          return prevPreview;
-        });
-      } catch (err) {
-        console.error(err);
-      }
-    });
-
-    eventSource.addEventListener('completed', (e: any) => {
-      try {
-        const data = JSON.parse(e.data);
-        alert(`AI Discovery Completed! ${data.success_count} leads processed successfully.`);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        eventSource.close();
-        setDiscovering(false);
-      }
-    });
-
-    eventSource.addEventListener('error', (e: any) => {
-      let message = 'An error occurred during AI Discovery stream.';
-      try {
-        if (e.data) {
-          const data = JSON.parse(e.data);
-          message = data.error || data.message || message;
-        }
-      } catch (err) {
-        console.error(err);
-      }
-      console.error('❌ SSE Stream Error:', e);
-      alert(message);
-      eventSource.close();
-      setDiscovering(false);
-    });
+    setDiscoveredOrder([]);
+    // Discovery runs in a global context so it keeps going if the user navigates away.
+    startDiscovery(campaign);
   };
+
+  // While this campaign view is mounted, mirror live discovery events into the leads list.
+  useEffect(() => {
+    if (!id) return;
+    const unsub = subscribe(id, {
+      onSaved: (newLead) => {
+        // Track find order so this creator stays pinned to the top during discovery
+        setDiscoveredOrder((prev) => (prev.includes(newLead.id) ? prev : [newLead.id, ...prev]));
+        setLeads((prevLeads) => (prevLeads.some((l) => l.id === newLead.id) ? prevLeads : [newLead, ...prevLeads]));
+      },
+      onEnriched: (enrichedLead) => {
+        setLeads((prevLeads) => prevLeads.map((l) => (l.id === enrichedLead.id ? { ...l, ...enrichedLead } : l)));
+        setPreviewCreator((prev) => (prev && prev.id === enrichedLead.id ? { ...prev, ...enrichedLead } : prev));
+      },
+      onCompleted: () => {
+        // Search is done — drop the top-pinning and reload in the selected sort order
+        setDiscoveredOrder([]);
+        fetchData(true);
+      },
+    });
+    return unsub;
+  }, [id, subscribe]);
 
   const handleReview = async (creatorId: string, action: 'approve' | 'reject' | 'shortlist' | 'revoke') => {
     if (action === 'approve') {
@@ -449,6 +399,9 @@ export default function CampaignDetail() {
 
   const filteredLeads = leads.filter(c => {
     if (!hasPublicProfileSignal(c)) return false;
+    // Hide creators with fewer than 1k followers — except ones still being found in
+    // the current discovery run (their follower counts only arrive during enrichment).
+    if (getFollowers(c) < 1000 && !discoveredOrder.includes(c.id)) return false;
 
     if (selectedStatuses.length > 0) {
       const actualStatus = ['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status || 'pending');
@@ -462,6 +415,28 @@ export default function CampaignDetail() {
     return true;
   });
 
+  const sortedLeads = [...filteredLeads];
+  switch (sortBy) {
+    case 'followers_desc':  sortedLeads.sort((a, b) => getFollowers(b) - getFollowers(a)); break;
+    case 'followers_asc':   sortedLeads.sort((a, b) => getFollowers(a) - getFollowers(b)); break;
+    case 'engagement_desc': sortedLeads.sort((a, b) => getEngagement(b) - getEngagement(a)); break;
+    case 'engagement_asc':  sortedLeads.sort((a, b) => getEngagement(a) - getEngagement(b)); break;
+  }
+
+  // While discovery is running, keep freshly found creators pinned to the top in
+  // find-order (most recent first). Once the run completes, discoveredOrder is cleared
+  // and the list falls back to the selected sort order.
+  const displayLeads = discovering && discoveredOrder.length > 0
+    ? [...filteredLeads].sort((a, b) => {
+        const ia = discoveredOrder.indexOf(a.id);
+        const ib = discoveredOrder.indexOf(b.id);
+        if (ia === -1 && ib === -1) return 0;   // both pre-existing → keep relative order
+        if (ia === -1) return 1;                 // a pre-existing → below newly found
+        if (ib === -1) return -1;                // b pre-existing → below newly found
+        return ia - ib;                          // both newly found → by find order
+      })
+    : sortedLeads;
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
       <Link 
@@ -473,12 +448,7 @@ export default function CampaignDetail() {
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 mb-2 font-outfit uppercase tracking-tight leading-tight">{campaign.name}</h1>
-          <div className="flex items-center gap-3 text-sm text-gray-600">
-            <span className="capitalize">{campaign.city || 'Global'}</span>
-            <span>•</span>
-            <span className="capitalize">{campaign.category || 'Any Category'}</span>
-          </div>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight leading-tight">{campaign.name}</h1>
         </div>
         
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
@@ -519,12 +489,23 @@ export default function CampaignDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
-        <Card className="lg:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 pt-4">
+        <Card className="lg:col-span-3">
           <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-t-[12px]">
             <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Creators Leads ({filteredLeads.length})</h2>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="bg-white border border-gray-200 text-gray-700 text-xs uppercase tracking-wider rounded-lg py-1.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px]"
+            >
+              <option value="followers_desc">Sort: Followers (High→Low)</option>
+              <option value="followers_asc">Sort: Followers (Low→High)</option>
+              <option value="engagement_desc">Sort: Engagement (High→Low)</option>
+              <option value="engagement_asc">Sort: Engagement (Low→High)</option>
+            </select>
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
                 className="w-full sm:w-auto inline-flex items-center justify-between gap-2 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-normal hover:bg-gray-50 transition-all outline-none min-w-[140px]"
               >
@@ -573,15 +554,29 @@ export default function CampaignDetail() {
                 </>
               )}
             </div>
+            </div>
           </div>
           {filteredLeads.length === 0 ? (
-            <div className="p-16 text-center">
-              <div className="w-16 h-16 bg-primary-50 text-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Sparkles size={32} />
+            discovering ? (
+              <div className="p-16 text-center">
+                <div className="relative w-16 h-16 mx-auto mb-4">
+                  <div className="absolute inset-0 rounded-full border-2 border-primary-100 border-t-primary-500 animate-spin" />
+                  <div className="absolute inset-0 flex items-center justify-center text-primary-500">
+                    <Sparkles size={26} className="animate-pulse" />
+                  </div>
+                </div>
+                <h3 className="text-lg font-normal text-gray-900 uppercase tracking-widest font-outfit">Search in progress 🕵️</h3>
+                <p className="text-gray-500 mt-1 max-w-sm mx-auto">Our AI is combing the internet for the perfect creators. Hang tight — the first finds will pop in right here any moment. Grab a coffee ☕</p>
               </div>
-              <h3 className="text-lg font-normal text-gray-900 uppercase tracking-widest font-outfit">No leads found yet</h3>
-              <p className="text-gray-500 mt-1 max-w-sm mx-auto">Trigger the AI Discovery engine to automatically scrape, score, and qualify influencers matching this campaign's target profile.</p>
-            </div>
+            ) : (
+              <div className="p-16 text-center">
+                <div className="w-16 h-16 bg-primary-50 text-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Sparkles size={32} />
+                </div>
+                <h3 className="text-lg font-normal text-gray-900 uppercase tracking-widest font-outfit">No leads found yet</h3>
+                <p className="text-gray-500 mt-1 max-w-sm mx-auto">Trigger the AI Discovery engine to automatically scrape, score, and qualify influencers matching this campaign's target profile.</p>
+              </div>
+            )
           ) : (
             <Table>
               <Thead>
@@ -594,24 +589,24 @@ export default function CampaignDetail() {
                 </Tr>
               </Thead>
               <Tbody>
-                {filteredLeads.map(lead => (
+                {displayLeads.map(lead => (
                   <Tr key={lead.id}>
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-normal text-xs overflow-hidden">
+                        <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-xs overflow-hidden">
                           {lead.profile_pic ? (
                             <img src={lead.profile_pic} alt="" className="w-full h-full object-cover" />
                           ) : (
                             (lead.full_name || lead.handle)?.charAt(0).toUpperCase()
                           )}
                         </div>
-                        <div>
-                          <button 
+                        <div className="min-w-0">
+                          <button
                             onClick={() => {
                               setPreviewCreator(lead);
                               setIsPreviewOpen(true);
                             }}
-                            className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-left text-sm uppercase tracking-tight font-outfit"
+                            className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-left text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[140px]"
                           >
                             {lead.full_name || `@${lead.handle}`}
                           </button>
@@ -740,6 +735,23 @@ export default function CampaignDetail() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
+                <p className="text-xs font-normal text-gray-500 uppercase tracking-widest">Location</p>
+                <p className="text-sm text-gray-800 capitalize mt-1">
+                  {[campaign.city, campaign.state, campaign.country].map(v => v?.trim()).filter(Boolean).join(', ') || 'Global'}
+                </p>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100">
+                <p className="text-xs font-normal text-gray-500 uppercase tracking-widest">Categories</p>
+                <div className="flex gap-2 flex-wrap mt-2">
+                  {[...new Set(campaign.category?.split(',').map(c => c.trim()).filter(Boolean))].map(c => (
+                    <span key={c} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-normal uppercase tracking-wider">{c}</span>
+                  ))}
+                  {!campaign.category?.trim() && <span className="text-sm text-gray-400">Any category</span>}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100">
                 <p className="text-xs font-normal text-gray-500 uppercase tracking-widest">Keywords</p>
                 <div className="flex gap-2 flex-wrap mt-2">
                   {campaign.keywords?.map(k => (
@@ -748,7 +760,7 @@ export default function CampaignDetail() {
                   {!campaign.keywords?.length && <span className="text-sm text-gray-400">None provided</span>}
                 </div>
               </div>
-              
+
               <div className="pt-4 border-t border-gray-100">
                 <p className="text-xs font-normal text-gray-500 uppercase tracking-widest mb-4">Metrics Intelligence</p>
                 <button 
@@ -829,7 +841,7 @@ export default function CampaignDetail() {
 
               {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                 <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-2">
                     <Button
                       onClick={handleGenerateTemplate}
                       disabled={generatingTemplate}

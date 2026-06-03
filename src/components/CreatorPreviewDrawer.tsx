@@ -7,6 +7,8 @@ import { ScoreBadge } from './ui/ScoreBadge';
 import { OutreachPreviewModal } from './ui/OutreachPreviewModal';
 import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
+import { ImageLightbox } from './ui/ImageLightbox';
+import { InfoTip } from './ui/InfoTip';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   getCreatorById,
@@ -45,6 +47,13 @@ import {
 } from 'lucide-react';
 import type { Creator } from '../types';
 
+// Best available engagement rate for a creator (creator-level, else max across profiles).
+const getEngagement = (c: Creator): number => {
+  if (typeof c.engagement_rate === 'number') return c.engagement_rate;
+  const fromProfiles = c.profiles?.map(p => Number(p.engagement_rate) || 0) ?? [];
+  return fromProfiles.length > 0 ? Math.max(...fromProfiles) : 0;
+};
+
 interface CreatorPreviewDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -69,6 +78,7 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
 
   // Affiliate Form State
   const [isAffiliateModalOpen, setIsAffiliateModalOpen] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [affiliateFormData, setAffiliateFormData] = useState({
     code: '',
     link: ''
@@ -314,8 +324,15 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
         <div className="space-y-8 pb-8">
           {/* Header Section */}
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-primary-600 text-white flex flex-shrink-0 items-center justify-center font-normal text-2xl uppercase shadow-md font-outfit">
-              {activeCreator.handle?.charAt(0)}
+            <div
+              onClick={() => activeCreator.profile_pic && setLightboxOpen(true)}
+              className={`w-16 h-16 rounded-full bg-primary-600 text-white flex flex-shrink-0 items-center justify-center font-normal text-2xl uppercase shadow-md font-outfit overflow-hidden ring-2 ring-white ${activeCreator.profile_pic ? 'cursor-zoom-in' : ''}`}
+            >
+              {activeCreator.profile_pic ? (
+                <img src={activeCreator.profile_pic} alt={activeCreator.full_name || activeCreator.handle || ''} loading="lazy" className="w-full h-full object-cover" />
+              ) : (
+                activeCreator.handle?.charAt(0)
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <h3 className="text-xl font-normal text-gray-900 font-outfit uppercase tracking-tight truncate leading-tight">
@@ -339,29 +356,38 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
                   <ExternalLink size={14} className="text-gray-300 group-hover:text-primary-400 transition-colors shrink-0" />
                 </a>
               </div>
-              
-              {/* Category Tags */}
-              <div className="flex flex-wrap gap-1 mt-2">
-                {[...new Set(activeCreator.category?.split(',').map(c => c.trim()).filter(Boolean))].map((c, index) => (
-                   <span key={`${c}-${index}`} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[9px] font-normal uppercase tracking-wider">{c}</span>
-                ))}
-              </div>
             </div>
           </div>
 
           {/* Status & Scores */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center justify-center text-center">
               <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal">Status</p>
               <StatusBadge status={['not_respond'].includes(activeCreator.lifecycle_status || '') ? activeCreator.lifecycle_status : (activeCreator.review_status as any || 'pending')} />
             </div>
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal">Relevance</p>
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center justify-center text-center">
+              <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal inline-flex items-center justify-center gap-1">
+                Relevance
+                <InfoTip text="How closely this creator matches the campaign's niche, location and target audience (0–100). Higher means a better fit." />
+              </p>
               <ScoreBadge score={activeCreator.relevance_score || 0} />
             </div>
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal">Readiness</p>
-              <ScoreBadge score={activeCreator.outreach_readiness_score || 0} />
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center justify-center text-center">
+              <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal inline-flex items-center justify-center gap-1">
+                Engagement
+                <InfoTip text="Average engagement rate — likes and comments as a share of followers. A higher rate means a more active, responsive audience." />
+              </p>
+              {(() => {
+                const eng = getEngagement(activeCreator);
+                const tone = eng >= 3 ? 'text-success-700 bg-success-50' : eng >= 1 ? 'text-warning-700 bg-warning-50' : 'text-gray-500 bg-gray-100';
+                const dot = eng >= 3 ? 'bg-success-500' : eng >= 1 ? 'bg-warning-500' : 'bg-gray-400';
+                return (
+                  <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-normal font-outfit ${tone}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${dot}`}></span>
+                    {eng > 0 ? `${eng.toFixed(2)}%` : 'N/A'}
+                  </span>
+                );
+              })()}
             </div>
           </div>
 
@@ -538,27 +564,22 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
                     </div>
 
                      {profile && (
-                      <div className="flex gap-4 mt-3 pt-3 border-t border-gray-200/50">
-                        <div className="flex-1">
-                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Followers</p>
-                          <p className="text-xs font-normal text-gray-900 flex items-center gap-1 mb-2">
-                            <Users size={10} className="text-gray-400" />
-                            {profile.followers?.toLocaleString() || 'N/A'}
-                          </p>
-                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Avg Likes</p>
-                          <p className="text-xs font-normal text-gray-900 flex items-center gap-1">
-                            {profile.avg_likes?.toLocaleString() || 'N/A'}
-                          </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-gray-200/50">
+                        <div className="flex flex-col items-center justify-center text-center bg-white rounded-lg border border-gray-100 py-2.5 px-1">
+                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-1">Followers</p>
+                          <p className="text-sm font-normal text-gray-900">{profile.followers?.toLocaleString() || 'N/A'}</p>
                         </div>
-                        <div className="flex-1">
-                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Engagement</p>
-                          <p className="text-xs font-normal text-gray-900 mb-2">
-                            {profile.engagement_rate ? `${Number(profile.engagement_rate).toFixed(2)}%` : 'N/A'}
-                          </p>
-                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Avg Comments</p>
-                          <p className="text-xs font-normal text-gray-900">
-                            {profile.avg_comments?.toLocaleString() || 'N/A'}
-                          </p>
+                        <div className="flex flex-col items-center justify-center text-center bg-white rounded-lg border border-gray-100 py-2.5 px-1">
+                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-1">Engagement</p>
+                          <p className="text-sm font-normal text-gray-900">{profile.engagement_rate ? `${Number(profile.engagement_rate).toFixed(2)}%` : 'N/A'}</p>
+                        </div>
+                        <div className="flex flex-col items-center justify-center text-center bg-white rounded-lg border border-gray-100 py-2.5 px-1">
+                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-1">Avg Likes</p>
+                          <p className="text-sm font-normal text-gray-900">{profile.avg_likes?.toLocaleString() || 'N/A'}</p>
+                        </div>
+                        <div className="flex flex-col items-center justify-center text-center bg-white rounded-lg border border-gray-100 py-2.5 px-1">
+                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-1">Avg Comments</p>
+                          <p className="text-sm font-normal text-gray-900">{profile.avg_comments?.toLocaleString() || 'N/A'}</p>
                         </div>
                       </div>
                     )}
@@ -812,6 +833,12 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
           </div>
         </div>
       </Drawer>
+
+      <ImageLightbox
+        src={lightboxOpen ? (activeCreator.profile_pic || null) : null}
+        alt={activeCreator.full_name || activeCreator.handle || ''}
+        onClose={() => setLightboxOpen(false)}
+      />
 
       {outreachModalOpen && (
         <OutreachPreviewModal
