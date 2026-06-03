@@ -22,7 +22,6 @@ import Brands from './pages/Brands';
 import BrandDetail from './pages/BrandDetail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import LandingPage from './pages/LandingPage';
 
 // Temporary placeholders for missing pages
 const Placeholder = ({ title }: { title: string }) => (
@@ -46,8 +45,8 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Login />} />
+          <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="/accept-invite" element={<AcceptInvite />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
