@@ -6,32 +6,39 @@ import type { Creator } from '../types';
 // "total creators" figure is computed identically everywhere instead of each
 // view applying its own (divergent) filter.
 
+const toNumber = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 export const getFollowers = (c: Creator): number => {
-  if (typeof c.followers_count === 'number') return c.followers_count;
-  const fromProfiles = c.profiles?.map(p => p.followers || 0) ?? [];
+  const direct = toNumber(c.followers_count ?? (c as any).followers);
+  if (direct > 0) return direct;
+  const fromProfiles = c.profiles?.map(p => toNumber(p.followers)) ?? [];
   return fromProfiles.length ? Math.max(...fromProfiles) : 0;
 };
 
 export const getEngagement = (c: Creator): number => {
-  if (typeof c.engagement_rate === 'number') return c.engagement_rate;
-  const fromProfiles = c.profiles?.map(p => Number(p.engagement_rate) || 0) ?? [];
-  return fromProfiles.length > 0 ? Math.max(...fromProfiles) : 0;
+  const direct = toNumber(c.engagement_rate);
+  if (direct > 0) return direct;
+  const fromProfiles = c.profiles?.map(p => toNumber(p.engagement_rate)) ?? [];
+  return fromProfiles.length ? Math.max(...fromProfiles) : 0;
 };
 
 // True if the creator has any real public profile data worth showing.
 export const hasPublicProfileSignal = (c: Creator): boolean => {
   const hasProfileMetrics = c.profiles?.some(profile =>
-    (profile.followers || 0) > 0 ||
-    (profile.avg_likes || 0) > 0 ||
-    (profile.avg_comments || 0) > 0 ||
-    (profile.engagement_rate || 0) > 0
+    toNumber(profile.followers) > 0 ||
+    toNumber(profile.avg_likes) > 0 ||
+    toNumber(profile.avg_comments) > 0 ||
+    toNumber(profile.engagement_rate) > 0
   );
 
   return Boolean(
     c.bio?.trim() ||
     getFollowers(c) > 0 ||
-    (c.avg_likes || 0) > 0 ||
-    (c.avg_comments || 0) > 0 ||
+    toNumber(c.avg_likes) > 0 ||
+    toNumber(c.avg_comments) > 0 ||
     getEngagement(c) > 0 ||
     hasProfileMetrics
   );
