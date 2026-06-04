@@ -10,18 +10,7 @@ import { LoadingState } from '../components/ui/LoadingState';
 import { getCampaigns, getAllCreators, getDashboardStats } from '../lib/api';
 import type { Campaign, Creator } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-
-const getFollowers = (c: Creator): number => {
-  if (typeof c.followers_count === 'number') return c.followers_count;
-  const fromProfiles = c.profiles?.map(p => p.followers || 0) ?? [];
-  return fromProfiles.length ? Math.max(...fromProfiles) : 0;
-};
-
-const getEngagement = (c: Creator): number => {
-  if (typeof c.engagement_rate === 'number') return c.engagement_rate;
-  const fromProfiles = c.profiles?.map(p => Number(p.engagement_rate) || 0) ?? [];
-  return fromProfiles.length > 0 ? Math.max(...fromProfiles) : 0;
-};
+import { getFollowers, getEngagement, isQualifiedCreator, matchesStatusFilter } from '../lib/creatorFilters';
 
 // Promote shortlisted/approved leads to the top of the Top Discovery Leads list.
 const leadPriority = (c: Creator): number => {
@@ -82,13 +71,18 @@ export default function Dashboard() {
     return true;
   });
 
-  const approvedCount = filteredCreatorsForStats.filter(c => c.review_status === 'approved').length;
-  const pendingReviewCount = filteredCreatorsForStats.filter(c => c.review_status === 'pending_review').length;
-  const notResponsiveCount = filteredCreatorsForStats.filter(c => c.lifecycle_status === 'not_respond').length;
-  const discoveredCount = filteredCreatorsForStats.filter(c => c.review_status === 'hold' || c.review_status === 'pending' || !c.review_status).length;
-  
-  const sentCount = filteredCreatorsForStats.filter(c => c.lifecycle_status === 'contacted' || c.latest_outreach?.delivery_status === 'sent').length;
-  const rejectedCount = filteredCreatorsForStats.filter(c => c.review_status === 'rejected').length;
+  // Count only "qualified" creators (real profile data + follower floor) using
+  // the same definition as the Creators directory, so the Dashboard total and
+  // queue cards match what those pages show when clicked through.
+  const qualifiedCreators = filteredCreatorsForStats.filter(isQualifiedCreator);
+  const totalCreators = qualifiedCreators.length;
+
+  const approvedCount = qualifiedCreators.filter(c => matchesStatusFilter(c, 'approved')).length;
+  const pendingReviewCount = qualifiedCreators.filter(c => matchesStatusFilter(c, 'pending')).length;
+  const notResponsiveCount = qualifiedCreators.filter(c => matchesStatusFilter(c, 'not_respond')).length;
+  const discoveredCount = qualifiedCreators.filter(c => matchesStatusFilter(c, 'hold')).length;
+  const sentCount = qualifiedCreators.filter(c => matchesStatusFilter(c, 'contacted')).length;
+  const rejectedCount = qualifiedCreators.filter(c => matchesStatusFilter(c, 'rejected')).length;
 
   const topCreators = [...creators]
     .filter(c => {
@@ -210,7 +204,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             <KPICard 
               title="Creators" 
-              value={stats.kpis.totalCreators.value} 
+              value={totalCreators} 
               icon={<Users size={16} />} 
               trend={stats.kpis.totalCreators.trend ? { value: stats.kpis.totalCreators.trend, isPositive: stats.kpis.totalCreators.trend >= 0 } : undefined} 
               onClick={() => navigate('/creators')}
@@ -291,35 +285,35 @@ export default function Dashboard() {
                   <div className="flex items-center gap-4">
                     <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">New</div>
                     <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
-                      <div className="bg-gradient-to-r from-slate-400 to-slate-500 h-full transition-all shadow-inner" style={{ width: stats.kpis.totalCreators.value === 0 ? '0%' : '100%' }}></div>
+                      <div className="bg-gradient-to-r from-slate-400 to-slate-500 h-full transition-all shadow-inner" style={{ width: totalCreators === 0 ? '0%' : '100%' }}></div>
                     </div>
-                    <div className="w-12 text-sm font-bold text-gray-900">{stats.kpis.totalCreators.value}</div>
+                    <div className="w-12 text-sm font-bold text-gray-900">{totalCreators}</div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Contacted</div>
                     <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
-                      <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all shadow-md" style={{ width: getPercentLength(stats.funnel.contacted, stats.kpis.totalCreators.value) }}></div>
+                      <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all shadow-md" style={{ width: getPercentLength(stats.funnel.contacted, totalCreators) }}></div>
                     </div>
                     <div className="w-12 text-sm font-bold text-gray-900">{stats.funnel.contacted}</div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Replied</div>
                     <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
-                      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 h-full transition-all shadow-md" style={{ width: getPercentLength(stats.funnel.replied, stats.kpis.totalCreators.value) }}></div>
+                      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 h-full transition-all shadow-md" style={{ width: getPercentLength(stats.funnel.replied, totalCreators) }}></div>
                     </div>
                     <div className="w-12 text-sm font-bold text-gray-900">{stats.funnel.replied}</div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Qualified</div>
                     <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
-                      <div className="bg-gradient-to-r from-teal-400 to-emerald-500 h-full transition-all shadow-md" style={{ width: getPercentLength(stats.funnel.qualified, stats.kpis.totalCreators.value) }}></div>
+                      <div className="bg-gradient-to-r from-teal-400 to-emerald-500 h-full transition-all shadow-md" style={{ width: getPercentLength(stats.funnel.qualified, totalCreators) }}></div>
                     </div>
                     <div className="w-12 text-sm font-bold text-gray-900">{stats.funnel.qualified}</div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Converted</div>
                     <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
-                      <div className="bg-gradient-to-r from-emerald-500 to-green-600 h-full transition-all shadow-lg" style={{ width: getPercentLength(stats.funnel.converted, stats.kpis.totalCreators.value) }}></div>
+                      <div className="bg-gradient-to-r from-emerald-500 to-green-600 h-full transition-all shadow-lg" style={{ width: getPercentLength(stats.funnel.converted, totalCreators) }}></div>
                     </div>
                     <div className="w-12 text-sm font-bold text-gray-900">{stats.funnel.converted}</div>
                   </div>

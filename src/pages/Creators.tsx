@@ -10,18 +10,10 @@ import { LoadingState } from '../components/ui/LoadingState';
 import { Check, X, Instagram, Youtube, Activity, Star } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
+import { getFollowers, getEngagement, isQualifiedCreator, matchesStatusFilter } from '../lib/creatorFilters';
+import { Pagination } from '../components/ui/Pagination';
 
-const getFollowers = (c: Creator): number => {
-  if (typeof c.followers_count === 'number') return c.followers_count;
-  const fromProfiles = c.profiles?.map(p => p.followers || 0) ?? [];
-  return fromProfiles.length ? Math.max(...fromProfiles) : 0;
-};
-
-const getEngagement = (c: Creator): number => {
-  if (typeof c.engagement_rate === 'number') return c.engagement_rate;
-  const fromProfiles = c.profiles?.map(p => p.engagement_rate || 0) ?? [];
-  return fromProfiles.length > 0 ? Math.max(...fromProfiles) : 0;
-};
+const PAGE_SIZE = 50;
 
 export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
   if (followers <= 0 || er <= 0) return null;
@@ -53,24 +45,6 @@ export const getErRating = (followers: number, er: number): { label: string; col
   } else {
     return { label: 'Below Avg', colorClass: 'bg-rose-50 text-rose-700 border border-rose-200' };
   }
-};
-
-const hasPublicProfileSignal = (c: Creator): boolean => {
-  const hasProfileMetrics = c.profiles?.some(profile =>
-    (profile.followers || 0) > 0 ||
-    (profile.avg_likes || 0) > 0 ||
-    (profile.avg_comments || 0) > 0 ||
-    (profile.engagement_rate || 0) > 0
-  );
-
-  return Boolean(
-    c.bio?.trim() ||
-    getFollowers(c) > 0 ||
-    (c.avg_likes || 0) > 0 ||
-    (c.avg_comments || 0) > 0 ||
-    getEngagement(c) > 0 ||
-    hasProfileMetrics
-  );
 };
 
 const formatFollowers = (n: number): string => {
@@ -126,6 +100,7 @@ export default function Creators() {
   const [engagementFilter, setEngagementFilter] = useState(() => loadStoredFilters().engagementFilter || '');
   const [campaignFilter, setCampaignFilter] = useState(() => loadStoredFilters().campaignFilter || '');
   const [sortBy, setSortBy] = useState(() => loadStoredFilters().sortBy || 'followers_desc');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchCreators = () => {
     setLoading(true);
@@ -159,6 +134,11 @@ export default function Creators() {
     } catch {
       // ignore storage errors (quota / disabled)
     }
+  }, [search, selectedStatuses, followersFilter, engagementFilter, campaignFilter, sortBy]);
+
+  // Snap back to the first page whenever the result set changes.
+  useEffect(() => {
+    setCurrentPage(1);
   }, [search, selectedStatuses, followersFilter, engagementFilter, campaignFilter, sortBy]);
 
   const handleReview = async (id: string, action: 'approve' | 'reject' | 'shortlist' | 'revoke') => {
@@ -200,9 +180,8 @@ export default function Creators() {
   };
 
   const filteredCreators = creators.filter(c => {
-    if (!hasPublicProfileSignal(c)) return false;
-    // Exclude creators with fewer than 1k followers
-    if (getFollowers(c) < 1000) return false;
+    // Only count creators with real profile data that clear the follower floor.
+    if (!isQualifiedCreator(c)) return false;
 
     const matchesSearch =
       c.handle?.toLowerCase().includes(search.toLowerCase()) ||
@@ -232,30 +211,9 @@ export default function Creators() {
 
     if (selectedStatuses.length === 0) return matchesSearch;
 
-    // Check if the creator matches any of the selected statuses
-    return matchesSearch && selectedStatuses.some(statusFilter => {
-      if (statusFilter === 'hold') {
-        return (c.review_status === 'hold' || !c.review_status || c.review_status === 'pending') && c.lifecycle_status !== 'not_respond';
-      }
-
-      if (statusFilter === 'pending') {
-        return (c.review_status === 'pending_review' || c.review_status === 'shortlisted') && c.lifecycle_status !== 'not_respond';
-      }
-
-      if (statusFilter === 'not_respond') {
-        return c.lifecycle_status === 'not_respond';
-      }
-
-      if (statusFilter === 'contacted') {
-        return c.lifecycle_status === 'contacted' || c.latest_outreach?.delivery_status === 'sent';
-      }
-
-      if (statusFilter === 'failed') {
-        return c.lifecycle_status === 'failed' || c.latest_outreach?.delivery_status === 'failed';
-      }
-
-      return c.review_status === statusFilter;
-    });
+    // Check if the creator matches any of the selected statuses (shared helper
+    // so these buckets stay identical to the Dashboard queue counts).
+    return matchesSearch && selectedStatuses.some(statusFilter => matchesStatusFilter(c, statusFilter));
   });
 
   const sortedCreators = [...filteredCreators];
@@ -265,6 +223,10 @@ export default function Creators() {
     case 'engagement_desc': sortedCreators.sort((a, b) => getEngagement(b) - getEngagement(a)); break;
     case 'engagement_asc':  sortedCreators.sort((a, b) => getEngagement(a) - getEngagement(b)); break;
   }
+
+  // Clamp the page if the result set shrank below the current offset, then slice.
+  const pageStart = (Math.min(currentPage, Math.max(1, Math.ceil(sortedCreators.length / PAGE_SIZE))) - 1) * PAGE_SIZE;
+  const pagedCreators = sortedCreators.slice(pageStart, pageStart + PAGE_SIZE);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
@@ -430,7 +392,7 @@ export default function Creators() {
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {sortedCreators.map(c => (
+                  {pagedCreators.map(c => (
                     <Tr key={c.id}>
                       <Td>
                         <div className="flex items-center gap-3">
@@ -568,7 +530,7 @@ export default function Creators() {
 
             {/* Mobile Card View */}
             <div className="md:hidden divide-y divide-gray-100 bg-white">
-              {sortedCreators.map(c => {
+              {pagedCreators.map(c => {
                 const followers = getFollowers(c);
                 const engagement = getEngagement(c);
                 return (
@@ -692,6 +654,13 @@ export default function Creators() {
                 <div className="text-center py-20 text-gray-400 italic bg-white rounded-xl">No creators match your search.</div>
               )}
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={sortedCreators.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+            />
           </>
         )}
       </Card>
