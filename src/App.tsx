@@ -60,6 +60,7 @@ export default function App() {
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/campaigns/:id" element={<CampaignDetail />} />
             <Route path="/creators" element={<Creators />} />
+            <Route path="/my-creators" element={<Creators onlyEngaged={true} />} />
             <Route path="/creators/:id" element={<CreatorDetail />} />
             <Route path="/review" element={<ReviewQueue />} />
             <Route path="/outreach" element={<Outreach />} />

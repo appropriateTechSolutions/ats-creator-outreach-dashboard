@@ -22,6 +22,7 @@ export function StatusBadge({ status }: { status: StatusType }) {
       variant = 'error';
       break;
     case 'replied':
+    case 'engaged':
     case 'contacted':
       variant = 'primary';
       break;

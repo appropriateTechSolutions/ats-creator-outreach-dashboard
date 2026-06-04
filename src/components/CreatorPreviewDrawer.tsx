@@ -363,7 +363,7 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
           <div className="grid grid-cols-3 gap-3">
             <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center justify-center text-center">
               <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal">Status</p>
-              <StatusBadge status={['not_respond'].includes(activeCreator.lifecycle_status || '') ? activeCreator.lifecycle_status : (activeCreator.review_status as any || 'pending')} />
+              <StatusBadge status={['contacted', 'replied', 'engaged', 'qualified', 'converted', 'not_respond'].includes(activeCreator.lifecycle_status || '') ? activeCreator.lifecycle_status : (activeCreator.review_status as any || 'pending')} />
             </div>
             <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center justify-center text-center">
               <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-1.5 font-normal inline-flex items-center justify-center gap-1">
@@ -439,7 +439,7 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
               <Sparkles size={12} className="text-primary-600" /> AI Summary
             </h4>
             <p className="text-sm text-gray-700 leading-relaxed italic border-l-2 border-primary-200 pl-3">
-              {activeCreator.notes || "AI summary not available for this lead."}
+              {activeCreator.summary || "AI summary not available for this lead."}
             </p>
           </div>
 
@@ -717,120 +717,125 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
             </div>
           </div>
 
-          {/* Meeting Options */}
-          <div className="border-t border-gray-100 pt-6">
-            <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <Calendar size={14} className="text-primary-600" /> Meeting Options
-            </h4>
-            <div className="space-y-3">
-              <div className="flex items-center justify-center bg-primary-50/40 rounded-xl border border-primary-100/60 py-4 flex-col gap-1">
-                <p className="text-[9px] text-primary-400 uppercase tracking-widest font-normal">No meeting scheduled</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => alert('Meeting Scheduler Integration Coming Soon')}
-                className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 shadow-sm text-[10px] uppercase tracking-widest rounded-xl py-2.5 transition-colors font-normal"
-              >
-                <Calendar size={14} className="text-primary-600" />
-                <span>Schedule Meeting</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Affiliate Assets */}
-          <div className="border-t border-gray-100 pt-6">
-            <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <LinkIcon size={14} className="text-primary-600" /> Affiliate Info
-            </h4>
-            {activeCreator.affiliate_code || activeCreator.affiliate_link || (activeCreator as any).AffiliateTracking?.affiliate_code ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
-                  <div>
-                    <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest">Tracking Code</p>
-                    <p className="text-xs font-normal text-gray-900 font-outfit uppercase">
-                      {activeCreator.affiliate_code || (activeCreator as any).AffiliateTracking?.affiliate_code || '---'}
-                    </p>
+          {/* Conditional rendering for engaged creators */}
+          {activeCreator.lifecycle_status === 'engaged' && (
+            <>
+              {/* Meeting Options */}
+              <div className="border-t border-gray-100 pt-6">
+                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <Calendar size={14} className="text-primary-600" /> Meeting Options
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-center bg-primary-50/40 rounded-xl border border-primary-100/60 py-4 flex-col gap-1">
+                    <p className="text-[9px] text-primary-400 uppercase tracking-widest font-normal">No meeting scheduled</p>
                   </div>
-                  <button 
-                    onClick={() => handleCopyCode(activeCreator.affiliate_code || (activeCreator as any).AffiliateTracking?.affiliate_code)}
-                    className="text-primary-500 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors"
+                  <button
+                    type="button"
+                    onClick={() => alert('Meeting Scheduler Integration Coming Soon')}
+                    className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 shadow-sm text-[10px] uppercase tracking-widest rounded-xl py-2.5 transition-colors font-normal"
                   >
-                    <Copy size={14} />
+                    <Calendar size={14} className="text-primary-600" />
+                    <span>Schedule Meeting</span>
                   </button>
                 </div>
-                {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
-                  <Button
-                    variant="outline"
-                    className="w-full text-[10px] uppercase tracking-widest font-normal h-10"
-                    onClick={() => {
-                      setAffiliateFormData({
-                        code: activeCreator.affiliate_code || (activeCreator as any).AffiliateTracking?.affiliate_code || '',
-                        link: activeCreator.affiliate_link || (activeCreator as any).AffiliateTracking?.affiliate_link || ''
-                      });
-                      setIsAffiliateModalOpen(true);
-                    }}
-                  >
-                    Manage Assets
-                  </Button>
-                )}
               </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex flex-col items-center justify-center bg-gray-50 rounded-xl border border-dashed border-gray-200 py-4 gap-1">
-                  <LinkIcon size={18} className="text-gray-300" />
-                  <p className="text-[9px] text-gray-400 uppercase tracking-widest">No assets linked</p>
-                </div>
-                {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
-                  <Button
-                    className="w-full bg-primary-600 hover:bg-primary-700 shadow-md text-[10px] uppercase tracking-widest font-normal h-10"
-                    onClick={() => {
-                      setAffiliateFormData({ code: '', link: '' });
-                      setIsAffiliateModalOpen(true);
-                    }}
-                  >
-                    Link Assets
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
 
-          {/* ROI Performance Metrics */}
-          <div className="border-t border-gray-100 pt-6">
-            <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <TrendingUp size={14} className="text-primary-600" /> Affiliate Performance
-            </h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
-                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                  <MousePointer2 size={10} /> Clicks
-                </p>
-                <p className="text-base font-normal text-gray-900 font-outfit">{activeCreator.AffiliateTracking?.clicks || 0}</p>
+              {/* Affiliate Assets */}
+              <div className="border-t border-gray-100 pt-6">
+                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <LinkIcon size={14} className="text-primary-600" /> Affiliate Info
+                </h4>
+                {activeCreator.affiliate_code || activeCreator.affiliate_link || (activeCreator as any).AffiliateTracking?.affiliate_code ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      <div>
+                        <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest">Tracking Code</p>
+                        <p className="text-xs font-normal text-gray-900 font-outfit uppercase">
+                          {activeCreator.affiliate_code || (activeCreator as any).AffiliateTracking?.affiliate_code || '---'}
+                        </p>
+                      </div>
+                      <button 
+                        onClick={() => handleCopyCode(activeCreator.affiliate_code || (activeCreator as any).AffiliateTracking?.affiliate_code)}
+                        className="text-primary-500 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors"
+                      >
+                        <Copy size={14} />
+                      </button>
+                    </div>
+                    {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
+                      <Button
+                        variant="outline"
+                        className="w-full text-[10px] uppercase tracking-widest font-normal h-10"
+                        onClick={() => {
+                          setAffiliateFormData({
+                            code: activeCreator.affiliate_code || (activeCreator as any).AffiliateTracking?.affiliate_code || '',
+                            link: activeCreator.affiliate_link || (activeCreator as any).AffiliateTracking?.affiliate_link || ''
+                          });
+                          setIsAffiliateModalOpen(true);
+                        }}
+                      >
+                        Manage Assets
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex flex-col items-center justify-center bg-gray-50 rounded-xl border border-dashed border-gray-200 py-4 gap-1">
+                      <LinkIcon size={18} className="text-gray-300" />
+                      <p className="text-[9px] text-gray-400 uppercase tracking-widest">No assets linked</p>
+                    </div>
+                    {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
+                      <Button
+                        className="w-full bg-primary-600 hover:bg-primary-700 shadow-md text-[10px] uppercase tracking-widest font-normal h-10"
+                        onClick={() => {
+                          setAffiliateFormData({ code: '', link: '' });
+                          setIsAffiliateModalOpen(true);
+                        }}
+                      >
+                        Link Assets
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
-                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                  <ShoppingCart size={10} /> Sales
-                </p>
-                <p className="text-base font-normal text-gray-900 font-outfit">{activeCreator.AffiliateTracking?.conversions || 0}</p>
+
+              {/* ROI Performance Metrics */}
+              <div className="border-t border-gray-100 pt-6">
+                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <TrendingUp size={14} className="text-primary-600" /> Affiliate Performance
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                    <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                      <MousePointer2 size={10} /> Clicks
+                    </p>
+                    <p className="text-base font-normal text-gray-900 font-outfit">{activeCreator.AffiliateTracking?.clicks || 0}</p>
+                  </div>
+                  <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                    <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                      <ShoppingCart size={10} /> Sales
+                    </p>
+                    <p className="text-base font-normal text-gray-900 font-outfit">{activeCreator.AffiliateTracking?.conversions || 0}</p>
+                  </div>
+                  <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                    <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                      <DollarSign size={10} /> Revenue
+                    </p>
+                    <p className="text-base font-normal text-emerald-600 font-outfit">
+                      ${Number(activeCreator.AffiliateTracking?.revenue_generated || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                    <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                      <ArrowUpRight size={10} /> Commission
+                    </p>
+                    <p className="text-base font-normal text-primary-600 font-outfit">
+                      ${Number(activeCreator.AffiliateTracking?.commission_owed || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
-                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                  <DollarSign size={10} /> Revenue
-                </p>
-                <p className="text-base font-normal text-emerald-600 font-outfit">
-                  ${Number(activeCreator.AffiliateTracking?.revenue_generated || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-              </div>
-              <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
-                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                  <ArrowUpRight size={10} /> Commission
-                </p>
-                <p className="text-base font-normal text-primary-600 font-outfit">
-                  ${Number(activeCreator.AffiliateTracking?.commission_owed || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </Drawer>
 

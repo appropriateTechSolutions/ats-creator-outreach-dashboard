@@ -65,7 +65,9 @@ export const matchesStatusFilter = (c: Creator, statusId: string): boolean => {
     case 'not_respond':
       return c.lifecycle_status === 'not_respond';
     case 'contacted':
-      return c.lifecycle_status === 'contacted' || c.latest_outreach?.delivery_status === 'sent';
+      return c.lifecycle_status === 'contacted';
+    case 'engaged':
+      return c.lifecycle_status === 'engaged' || c.lifecycle_status === 'replied';
     case 'failed':
       return c.lifecycle_status === 'failed' || c.latest_outreach?.delivery_status === 'failed';
     default:

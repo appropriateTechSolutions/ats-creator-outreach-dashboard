@@ -83,7 +83,7 @@ const loadStoredFilters = (): StoredFilters => {
   }
 };
 
-export default function Creators() {
+export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolean } = {}) {
   const { user } = useAuth();
   const location = useLocation();
   const [creators, setCreators] = useState<Creator[]>([]);
@@ -183,6 +183,9 @@ export default function Creators() {
     // Only count creators with real profile data that clear the follower floor.
     if (!isQualifiedCreator(c)) return false;
 
+    // Filter for onlyEngaged creators if requested
+    if (onlyEngaged && c.lifecycle_status !== 'engaged') return false;
+
     const matchesSearch =
       c.handle?.toLowerCase().includes(search.toLowerCase()) ||
       c.full_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -238,7 +241,9 @@ export default function Creators() {
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Global Creator Directory</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
+            {onlyEngaged ? 'My Creators' : 'Global Creator Directory'}
+          </h1>
         </div>
       </div>
 
@@ -272,58 +277,62 @@ export default function Creators() {
 
           {/* Desktop Filters (hidden on mobile) */}
           <div className="hidden sm:flex flex-wrap items-center gap-3">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px] flex items-center justify-between shadow-sm hover:bg-gray-50"
-              >
-                <span>
-                  {selectedStatuses.length === 0 
-                    ? 'Any Status' 
-                    : `${selectedStatuses.length} Selected`}
-                </span>
-                <ChevronDown size={14} className="text-gray-400 ml-2" />
-              </button>
+            {!onlyEngaged && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                  className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px] flex items-center justify-between shadow-sm hover:bg-gray-50"
+                >
+                  <span>
+                    {selectedStatuses.length === 0 
+                      ? 'Any Status' 
+                      : `${selectedStatuses.length} Selected`}
+                  </span>
+                  <ChevronDown size={14} className="text-gray-400 ml-2" />
+                </button>
 
-              {isFilterDropdownOpen && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-10" 
-                    onClick={() => setIsFilterDropdownOpen(false)}
-                  />
-                  <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-150 rounded-xl shadow-xl z-20 py-1.5 animate-[fadeIn_0.15s_ease]">
-                    {[
-                      { id: 'hold', label: 'Discovered' },
-                      { id: 'pending', label: 'Shortlisted' },
-                      { id: 'approved', label: 'Approved' },
-                      { id: 'rejected', label: 'Rejected' },
-                      { id: 'not_respond', label: 'Not Responsive' }
-                    ].map(item => {
-                      const isChecked = selectedStatuses.includes(item.id);
-                      return (
-                        <label 
-                          key={item.id} 
-                          className="flex items-center gap-3 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer select-none"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {
-                              setSelectedStatuses(prev => 
-                                isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
-                              );
-                            }}
-                            className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 cursor-pointer"
-                          />
-                          <span>{item.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
+                {isFilterDropdownOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setIsFilterDropdownOpen(false)}
+                    />
+                    <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-150 rounded-xl shadow-xl z-20 py-1.5 animate-[fadeIn_0.15s_ease]">
+                      {[
+                        { id: 'hold', label: 'Discovered' },
+                        { id: 'pending', label: 'Shortlisted' },
+                        { id: 'approved', label: 'Approved' },
+                        { id: 'contacted', label: 'Contacted' },
+                        { id: 'engaged', label: 'Engaged' },
+                        { id: 'rejected', label: 'Rejected' },
+                        { id: 'not_respond', label: 'Not Responsive' }
+                      ].map(item => {
+                        const isChecked = selectedStatuses.includes(item.id);
+                        return (
+                          <label 
+                            key={item.id} 
+                            className="flex items-center gap-3 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer select-none"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                setSelectedStatuses(prev => 
+                                  isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
+                                );
+                              }}
+                              className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 cursor-pointer"
+                            />
+                            <span>{item.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <select
               value={followersFilter}
@@ -404,7 +413,7 @@ export default function Creators() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
+                            <Link to={`/creators/${c.id}`} state={{ fromMyCreators: onlyEngaged }} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
                               {c.full_name || `@${c.handle}`}
                             </Link>
                             <div className="flex gap-2 mt-1.5">
@@ -471,7 +480,7 @@ export default function Creators() {
                           );
                         })()}
                       </Td>
-                      <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
+                      <Td><StatusBadge status={['contacted', 'replied', 'engaged', 'qualified', 'converted', 'not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
                       <Td className="text-right">
                         {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                           <div className="flex justify-end gap-2">
@@ -545,7 +554,7 @@ export default function Creators() {
                           )}
                         </div>
                         <div>
-                          <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit block">
+                          <Link to={`/creators/${c.id}`} state={{ fromMyCreators: onlyEngaged }} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit block">
                             {c.full_name || `@${c.handle}`}
                           </Link>
                           <div className="flex gap-2.5 mt-1.5">
@@ -588,7 +597,7 @@ export default function Creators() {
                           </div>
                         </div>
                       </div>
-                      <StatusBadge status={['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} />
+                      <StatusBadge status={['contacted', 'replied', 'engaged', 'qualified', 'converted', 'not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} />
                     </div>
 
                     <div className="grid grid-cols-2 gap-y-3 gap-x-4 pt-1 text-xs">
@@ -710,44 +719,48 @@ export default function Creators() {
                onClick={() => setOpenMobileDropdown(null)}
              >
                {/* Status Section */}
-               <div className="space-y-2.5">
-                 <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Status</label>
-                 <div className="grid grid-cols-2 gap-2">
-                   {[
-                     { id: 'hold', label: 'Discovered' },
-                     { id: 'pending', label: 'Shortlisted' },
-                     { id: 'approved', label: 'Approved' },
-                     { id: 'rejected', label: 'Rejected' },
-                     { id: 'not_respond', label: 'Not Responsive' }
-                   ].map(item => {
-                     const isChecked = selectedStatuses.includes(item.id);
-                     return (
-                       <button
-                         type="button"
-                         key={item.id}
-                         onClick={() => {
-                           setSelectedStatuses(prev => 
-                             isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
-                           );
-                         }}
-                         className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-xs text-left transition-all ${
-                           isChecked 
-                             ? 'border-primary-500 bg-primary-50/30 text-primary-700 font-medium' 
-                             : 'border-slate-100 bg-slate-50/50 text-slate-700'
-                         }`}
-                       >
-                         <input
-                           type="checkbox"
-                           checked={isChecked}
-                           readOnly
-                           className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 pointer-events-none"
-                         />
-                         <span>{item.label}</span>
-                       </button>
-                     );
-                   })}
+               {!onlyEngaged && (
+                 <div className="space-y-2.5">
+                   <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Status</label>
+                   <div className="grid grid-cols-2 gap-2">
+                     {[
+                       { id: 'hold', label: 'Discovered' },
+                       { id: 'pending', label: 'Shortlisted' },
+                       { id: 'approved', label: 'Approved' },
+                       { id: 'contacted', label: 'Contacted' },
+                       { id: 'engaged', label: 'Engaged' },
+                       { id: 'rejected', label: 'Rejected' },
+                       { id: 'not_respond', label: 'Not Responsive' }
+                     ].map(item => {
+                       const isChecked = selectedStatuses.includes(item.id);
+                       return (
+                         <button
+                           type="button"
+                           key={item.id}
+                           onClick={() => {
+                             setSelectedStatuses(prev => 
+                               isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
+                             );
+                           }}
+                           className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-xs text-left transition-all ${
+                             isChecked 
+                               ? 'border-primary-500 bg-primary-50/30 text-primary-700 font-medium' 
+                               : 'border-slate-100 bg-slate-50/50 text-slate-700'
+                           }`}
+                         >
+                           <input
+                             type="checkbox"
+                             checked={isChecked}
+                             readOnly
+                             className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 pointer-events-none"
+                           />
+                           <span>{item.label}</span>
+                         </button>
+                       );
+                     })}
+                   </div>
                  </div>
-               </div>
+               )}
  
                {/* Followers Section */}
                <div className="space-y-1.5 relative">

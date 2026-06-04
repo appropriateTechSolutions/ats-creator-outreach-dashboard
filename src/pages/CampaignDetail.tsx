@@ -23,6 +23,7 @@ import { Modal } from '../components/ui/Modal';
 import { CampaignForm } from '../components/CampaignForm';
 import { useAuth } from '../contexts/AuthContext';
 import { useDiscovery } from '../contexts/DiscoveryContext';
+import { matchesStatusFilter } from '../lib/creatorFilters';
 
 import { CreatorPreviewDrawer } from '../components/CreatorPreviewDrawer';
 import { Pagination } from '../components/ui/Pagination';
@@ -414,13 +415,7 @@ export default function CampaignDetail() {
     if (getFollowers(c) < 1000 && !discoveredOrder.includes(c.id)) return false;
 
     if (selectedStatuses.length > 0) {
-      const actualStatus = ['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status || 'pending');
-      return selectedStatuses.some(s => {
-        if (s === 'pending') {
-          return actualStatus === 'pending_review' || actualStatus === 'shortlisted' || actualStatus === 'pending' || !c.review_status;
-        }
-        return actualStatus === s;
-      });
+      return selectedStatuses.some(s => matchesStatusFilter(c, s));
     }
     return true;
   });
@@ -539,8 +534,11 @@ export default function CampaignDetail() {
                   />
                   <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1.5 animate-[fadeIn_0.15s_ease]">
                     {[
-                      { id: 'pending', label: 'Pending Review' },
+                      { id: 'hold', label: 'Discovered' },
+                      { id: 'pending', label: 'Shortlisted' },
                       { id: 'approved', label: 'Approved' },
+                      { id: 'contacted', label: 'Contacted' },
+                      { id: 'engaged', label: 'Engaged' },
                       { id: 'rejected', label: 'Rejected' },
                       { id: 'not_respond', label: 'Not Responsive' }
                     ].map(item => {
@@ -692,7 +690,7 @@ export default function CampaignDetail() {
                         );
                       })()}
                     </Td>
-                    <Td><StatusBadge status={['not_respond'].includes(lead.lifecycle_status || '') ? lead.lifecycle_status : (lead.review_status as any || 'pending')} /></Td>
+                    <Td><StatusBadge status={['contacted', 'replied', 'engaged', 'qualified', 'converted', 'not_respond'].includes(lead.lifecycle_status || '') ? lead.lifecycle_status : (lead.review_status as any || 'pending')} /></Td>
                     <Td className="text-right">
                       {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                         <div className="flex items-center justify-end gap-2">
@@ -705,7 +703,7 @@ export default function CampaignDetail() {
                               Revoke
                             </button>
                           )}
-                          {lead.review_status !== 'approved' && lead.review_status !== 'rejected' && lead.review_status !== 'shortlisted' && lead.review_status !== 'pending_review' && lead.lifecycle_status !== 'not_respond' && (
+                          {lead.review_status !== 'approved' && lead.review_status !== 'rejected' && lead.lifecycle_status !== 'not_respond' && (
                             <>
                               <button 
                                 onClick={() => handleReview(lead.id, 'approve')}
@@ -721,15 +719,13 @@ export default function CampaignDetail() {
                               >
                                 <X size={16} />
                               </button>
-                              {lead.review_status !== 'shortlisted' && lead.review_status !== 'pending_review' && (
-                                <button
-                                  onClick={() => handleReview(lead.id, 'shortlist')}
-                                  className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                                  title="Shortlist → Move to Review Queue"
-                                >
-                                  <Star size={16} />
-                                </button>
-                              )}
+                              <button
+                                onClick={() => handleReview(lead.id, (lead.review_status === 'shortlisted' || lead.review_status === 'pending_review') ? 'revoke' : 'shortlist')}
+                                className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                title={(lead.review_status === 'shortlisted' || lead.review_status === 'pending_review') ? "Remove from Shortlist" : "Shortlist → Move to Review Queue"}
+                              >
+                                <Star size={16} fill={(lead.review_status === 'shortlisted' || lead.review_status === 'pending_review') ? "currentColor" : "none"} />
+                              </button>
                             </>
                           )}
                         </div>

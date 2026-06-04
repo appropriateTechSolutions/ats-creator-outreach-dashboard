@@ -86,6 +86,7 @@ export interface Creator {
   review_status: string | null
   lifecycle_status?: string | null
   notes?: string | null
+  summary?: string | null
   campaign_id: string | null
   campaign_ids: string[]
   assigned_status: string

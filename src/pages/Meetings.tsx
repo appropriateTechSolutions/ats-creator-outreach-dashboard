@@ -35,8 +35,8 @@ export default function Meetings() {
       .then(data => {
         if (Array.isArray(data)) {
           const filtered = data.filter(c => {
-            // 1. Check if they are manually marked as replied/qualified
-            const isPositiveStatus = ['replied', 'qualified'].includes(c.lifecycle_status || '');
+            // 1. Check if they are manually marked as replied/engaged/qualified
+            const isPositiveStatus = ['replied', 'engaged', 'qualified'].includes(c.lifecycle_status || '');
             
             // 2. Check if the AI detected interest (Matches your database screenshot)
             const aiDetectedInterest = c.conversation?.detected_intent === 'interested' || 

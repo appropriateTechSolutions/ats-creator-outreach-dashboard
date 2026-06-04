@@ -2,15 +2,60 @@ import { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
-import { Check, X, FileText } from 'lucide-react';
+import { Check, X, FileText, Instagram, Youtube, Activity, Star } from 'lucide-react';
 import { Link as RouterLink } from 'react-router-dom';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
+import { StatusBadge } from '../components/ui/StatusBadge';
+import { getFollowers, getEngagement } from '../lib/creatorFilters';
 import { getAllCreators, reviewLead } from '../lib/api';
 import { Pagination } from '../components/ui/Pagination';
 import type { Creator } from '../types';
 
 const PAGE_SIZE = 50;
+
+export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
+  if (followers <= 0 || er <= 0) return null;
+  
+  let goodThreshold = 0;
+  let avgLower = 0;
+  
+  if (followers < 10000) {
+    goodThreshold = 6.0;
+    avgLower = 3.0;
+  } else if (followers < 100000) {
+    goodThreshold = 4.0;
+    avgLower = 1.5;
+  } else if (followers < 500000) {
+    goodThreshold = 2.0;
+    avgLower = 0.7;
+  } else if (followers < 1000000) {
+    goodThreshold = 1.5;
+    avgLower = 0.5;
+  } else {
+    goodThreshold = 1.0;
+    avgLower = 0.3;
+  }
+  
+  if (er >= goodThreshold) {
+    return { label: 'Good ER', colorClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+  } else if (er >= avgLower) {
+    return { label: 'Avg ER', colorClass: 'bg-blue-50 text-blue-700 border border-blue-200' };
+  } else {
+    return { label: 'Below Avg', colorClass: 'bg-rose-50 text-rose-700 border border-rose-200' };
+  }
+};
+
+const formatFollowers = (n: number): string => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+  return String(n);
+};
+
+const getPlatformHandle = (creator: Creator, platform: string) => {
+  const profileHandle = creator.profiles?.find(p => p.platform.toLowerCase() === platform)?.handle;
+  return (profileHandle || creator.handle || '').replace(/^@/, '');
+};
 
 const getPrimaryProfileStats = (c: Creator) => {
   if (!c.profiles || c.profiles.length === 0) {
@@ -72,13 +117,13 @@ export default function ReviewQueue() {
     fetchQueue();
   }, []);
 
-  const handleReject = async (id: string) => {
+  const handleReview = async (id: string, action: 'approve' | 'reject' | 'shortlist' | 'revoke') => {
     setActionLoading(id);
     try {
-      await reviewLead(id, 'reject');
+      await reviewLead(id, action);
       fetchQueue();
     } catch (err) {
-      alert('Failed to reject lead.');
+      alert('Failed to update creator: ' + err);
     } finally {
       setActionLoading(null);
     }
@@ -221,53 +266,136 @@ export default function ReviewQueue() {
               <Thead>
                 <Tr>
                   <Th>Creator Details</Th>
+                  <Th className="text-center">Followers</Th>
+                  <Th className="text-center">Engagement</Th>
+                  <Th>Status</Th>
                   <Th className="text-right">Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {pagedQueue.map(c => (
-                  <Tr key={c.id}>
-                    <Td>
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
-                          {c.profile_pic ? (
-                            <img src={c.profile_pic} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            (c.full_name || c.handle)?.charAt(0)
-                          )}
-                        </div>
-                        <div>
-                          <RouterLink to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit">
-                            {c.full_name || `@${c.handle}`}
-                          </RouterLink>
-                          <div className="text-xs text-gray-500 font-normal mt-0.5">
-                            @{c.handle}
+                {pagedQueue.map(c => {
+                  const followers = getFollowers(c);
+                  const engagement = getEngagement(c);
+                  return (
+                    <Tr key={c.id}>
+                      <Td>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
+                            {c.profile_pic ? (
+                              <img src={c.profile_pic} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              (c.full_name || c.handle)?.charAt(0)
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <RouterLink to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
+                              {c.full_name || `@${c.handle}`}
+                            </RouterLink>
+                            <div className="flex gap-2 mt-1.5">
+                              {c.has_instagram && (
+                                <a 
+                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="inline-flex items-center gap-1 text-[#E1306C] hover:scale-[1.02] transition-transform"
+                                  title="Instagram"
+                                >
+                                  <Instagram size={14} />
+                                  <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(c, 'instagram')}</span>
+                                </a>
+                              )}
+                              {c.has_youtube && (
+                                <a 
+                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${c.handle?.replace(/^@/, '')}`} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="inline-flex items-center gap-1 text-[#FF0000] hover:scale-[1.02] transition-transform"
+                                  title="YouTube"
+                                >
+                                  <Youtube size={14} />
+                                  <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(c, 'youtube')}</span>
+                                </a>
+                              )}
+                              {c.has_tiktok && (
+                                <a 
+                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="inline-flex items-center gap-1 text-gray-900 hover:scale-[1.02] transition-transform"
+                                  title="TikTok"
+                                >
+                                  <Activity size={14} />
+                                  <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(c, 'tiktok')}</span>
+                                </a>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </Td>
-                    <Td className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => setOutreachModalCreatorId(c.id)}
-                          disabled={!!actionLoading}
-                          className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                          title="Approve & Send Outreach"
-                        >
-                          <Check size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleReject(c.id)}
-                          disabled={!!actionLoading}
-                          className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                          title="Reject"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    </Td>
-                  </Tr>
-                ))}
+                      </Td>
+                      <Td className="text-center">
+                        <span className="text-sm text-gray-700 font-normal">{followers > 0 ? formatFollowers(followers) : '—'}</span>
+                      </Td>
+                      <Td className="text-center">
+                        {(() => {
+                          const rating = getErRating(followers, engagement);
+                          return (
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="text-sm text-gray-700 font-normal">{engagement > 0 ? `${engagement.toFixed(1)}%` : '—'}</span>
+                              {rating && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${rating.colorClass}`}>
+                                  {rating.label}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </Td>
+                      <Td><StatusBadge status={['not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
+                      <Td className="text-right">
+                        <div className="flex justify-end gap-2">
+                          {c.review_status === 'rejected' && (
+                            <button
+                              onClick={() => handleReview(c.id, 'revoke')}
+                              disabled={!!actionLoading}
+                              className="px-2.5 py-1 rounded text-[11px] font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
+                              title="Revoke Rejection"
+                            >
+                              Revoke
+                            </button>
+                          )}
+                          {c.review_status !== 'approved' && c.review_status !== 'rejected' && c.lifecycle_status !== 'not_respond' && (
+                            <>
+                              <button
+                                onClick={() => setOutreachModalCreatorId(c.id)}
+                                disabled={!!actionLoading}
+                                className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                title="Approve & Send Outreach"
+                              >
+                                <Check size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleReview(c.id, 'reject')}
+                                disabled={!!actionLoading}
+                                className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                title="Reject"
+                              >
+                                <X size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleReview(c.id, (c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? 'revoke' : 'shortlist')}
+                                disabled={!!actionLoading}
+                                className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                title={(c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? "Remove from Shortlist" : "Shortlist → Move to Review Queue"}
+                              >
+                                <Star size={16} fill={(c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? "currentColor" : "none"} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </Td>
+                    </Tr>
+                  );
+                })}
               </Tbody>
             </Table>
             <Pagination
