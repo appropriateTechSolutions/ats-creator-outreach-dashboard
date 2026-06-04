@@ -175,7 +175,21 @@ export const getCampaignLeads = (campaignId: string): Promise<Creator[]> => api.
 // ─── Global Dashboard (NEW ENDPOINTS) ──────────────────
 // Note: For testing the Dashboard pipeline UI, we fetch all campaigns and creators across the system
 // to sum up the totals on the frontend until a dedicated /stats endpoint is built.
-export const getAllCreators = (): Promise<Creator[]> => cachedGet('creators', () => api.get('/creators'));
+// Walk every page so the directory shows all creators, not just the first
+// page. The backend caps pageSize at 500; we request 200 and keep fetching
+// until a short page signals the end. cachedGet dedups concurrent callers and
+// caches the fully-assembled list.
+export const getAllCreators = (): Promise<Creator[]> =>
+  cachedGet('creators', async () => {
+    const pageSize = 200;
+    const all: Creator[] = [];
+    for (let page = 1; ; page++) {
+      const batch = (await api.get('/creators', { params: { page, pageSize } })) as unknown as Creator[];
+      all.push(...batch);
+      if (!batch || batch.length < pageSize) break;
+    }
+    return all;
+  });
 export const getCreatorById = (creatorId: string): Promise<Creator> => api.get(`/creators/${creatorId}`);
 // ─── Statistics ───────────────────────────────────────
 export const getDashboardStats = (campaignId?: string): Promise<any> =>

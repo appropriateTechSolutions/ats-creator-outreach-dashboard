@@ -25,6 +25,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDiscovery } from '../contexts/DiscoveryContext';
 
 import { CreatorPreviewDrawer } from '../components/CreatorPreviewDrawer';
+import { Pagination } from '../components/ui/Pagination';
+
+const LEADS_PER_PAGE = 50;
 
 const COUNTRIES = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
@@ -158,10 +161,17 @@ export default function CampaignDetail() {
     catch { return 'followers_desc'; }
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+
   // Persist the lead sort selection across navigation within the session
   useEffect(() => {
     try { sessionStorage.setItem('campaign-leads-sort-v1', sortBy); } catch { /* ignore */ }
   }, [sortBy]);
+
+  // Reset to the first page whenever the filtered/sorted result set changes.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedStatuses, sortBy]);
   // Ordered list of creator IDs found in the current discovery run (most recent first).
   // Used to pin freshly discovered creators to the top while discovery is running.
   const [discoveredOrder, setDiscoveredOrder] = useState<string[]>([]);
@@ -437,6 +447,10 @@ export default function CampaignDetail() {
       })
     : sortedLeads;
 
+  // Clamp the page if the list shrank below the current offset, then slice.
+  const leadsPageStart = (Math.min(currentPage, Math.max(1, Math.ceil(displayLeads.length / LEADS_PER_PAGE))) - 1) * LEADS_PER_PAGE;
+  const pagedLeads = displayLeads.slice(leadsPageStart, leadsPageStart + LEADS_PER_PAGE);
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
       <Link 
@@ -589,7 +603,7 @@ export default function CampaignDetail() {
                 </Tr>
               </Thead>
               <Tbody>
-                {displayLeads.map(lead => (
+                {pagedLeads.map(lead => (
                   <Tr key={lead.id}>
                     <Td>
                       <div className="flex items-center gap-3">
@@ -726,6 +740,12 @@ export default function CampaignDetail() {
               </Tbody>
             </Table>
           )}
+          <Pagination
+            currentPage={currentPage}
+            totalItems={displayLeads.length}
+            pageSize={LEADS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
         </Card>
 
         <div className="space-y-6">

@@ -7,7 +7,10 @@ import { Link as RouterLink } from 'react-router-dom';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { getAllCreators, reviewLead } from '../lib/api';
+import { Pagination } from '../components/ui/Pagination';
 import type { Creator } from '../types';
+
+const PAGE_SIZE = 50;
 
 const getPrimaryProfileStats = (c: Creator) => {
   if (!c.profiles || c.profiles.length === 0) {
@@ -39,6 +42,12 @@ export default function ReviewQueue() {
   const [loading, setLoading] = useState(true);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Clamp the page if the queue shrank below the current offset, then slice the
+  // on-screen table. The print export below intentionally renders the full queue.
+  const queuePageStart = (Math.min(currentPage, Math.max(1, Math.ceil(queue.length / PAGE_SIZE))) - 1) * PAGE_SIZE;
+  const pagedQueue = queue.slice(queuePageStart, queuePageStart + PAGE_SIZE);
 
   const fetchQueue = async () => {
     try {
@@ -216,7 +225,7 @@ export default function ReviewQueue() {
                 </Tr>
               </Thead>
               <Tbody>
-                {queue.map(c => (
+                {pagedQueue.map(c => (
                   <Tr key={c.id}>
                     <Td>
                       <div className="flex items-center gap-3">
@@ -261,6 +270,12 @@ export default function ReviewQueue() {
                 ))}
               </Tbody>
             </Table>
+            <Pagination
+              currentPage={currentPage}
+              totalItems={queue.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+            />
           </div>
         )}
       </Card>
