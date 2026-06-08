@@ -24,6 +24,8 @@ import BrandDetail from './pages/BrandDetail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import LandingPage from './pages/LandingPage';
+import Partnerships from './pages/Partnerships';
+import Shipments from './pages/Shipments';
 
 // Temporary placeholders for missing pages
 const Placeholder = ({ title }: { title: string }) => (
@@ -72,6 +74,8 @@ export default function App() {
             <Route path="/clients/:id" element={<ClientDetail />} />
             <Route path="/brands" element={<Brands />} />
             <Route path="/brands/:id" element={<BrandDetail />} />
+            <Route path="/partnerships" element={<Partnerships />} />
+            <Route path="/shipments" element={<Shipments />} />
             <Route path="/affiliate" element={<AffiliatePerformance />} />
             <Route path="/analytics" element={<Placeholder title="Analytics" />} />
           </Route>

@@ -12,7 +12,9 @@ import {
   Building2,
   Briefcase,
   LogOut,
-  ChevronUp
+  ChevronUp,
+  Handshake,
+  Package
 } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
@@ -60,6 +62,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { name: 'Campaigns', path: '/campaigns', icon: <Target size={20} /> },
     { name: 'Creators', path: '/creators', icon: <Users size={20} /> },
     { name: 'My Creators', path: '/my-creators', icon: <Users size={20} /> },
+    { name: 'Partnerships', path: '/partnerships', icon: <Handshake size={20} /> },
+    { name: 'Shipments', path: '/shipments', icon: <Package size={20} /> },
     { name: 'Review Queue', path: '/review', icon: <CheckSquare size={20} />, internalOnly: true },
     { name: 'Conversations', path: '/conversations', icon: <MessageSquare size={20} /> },
     { name: 'Meetings', path: '/meetings', icon: <Calendar size={20} /> },

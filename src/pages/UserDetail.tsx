@@ -46,7 +46,9 @@ export default function UserDetail() {
   const { user: currentUser } = useAuth();
   const [userData, setUserData] = useState<UserDetailData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
@@ -78,27 +80,27 @@ export default function UserDetail() {
 
   const handleToggleStatus = async () => {
     if (!id || !userData) return;
-    setActionLoading(true);
+    setStatusLoading(true);
     try {
       await api.disableUser(id);
       await fetchUser();
     } catch (err: any) {
       alert(err || 'Failed to update user status.');
     } finally {
-      setActionLoading(false);
+      setStatusLoading(false);
     }
   };
 
   const handleResendInvite = async () => {
     if (!id) return;
-    setActionLoading(true);
+    setInviteLoading(true);
     try {
       await api.resendInvite(id);
       alert('Invitation resent successfully!');
     } catch (err: any) {
       alert(err || 'Failed to resend invitation.');
     } finally {
-      setActionLoading(false);
+      setInviteLoading(false);
     }
   };
 
@@ -110,14 +112,14 @@ export default function UserDetail() {
   const confirmDeleteUser = async () => {
     if (!id || !userData) return;
     setShowDeleteConfirm(false);
-    setActionLoading(true);
+    setDeleteLoading(true);
     try {
       await api.deleteUser(id);
       navigate('/users');
     } catch (err: any) {
       alert(err || 'Failed to delete user.');
     } finally {
-      setActionLoading(false);
+      setDeleteLoading(false);
     }
   };
 
@@ -168,26 +170,14 @@ export default function UserDetail() {
  
          {['super_admin', 'admin', 'client_admin'].includes(currentUser?.role || '') && (
            <div className="flex flex-wrap gap-6 items-center">
-            {!['invited', 'deleted'].includes(userData.status) && (
-              <Button 
-                variant="outline"
-                onClick={handleDeleteUser}
-                disabled={actionLoading}
-                className="flex items-center gap-2 border-red-100 text-red-600 hover:bg-red-50 px-4 py-2 rounded-xl transition-all font-normal uppercase tracking-widest text-[10px] font-outfit h-[40px]"
-              >
-                 <Trash2 size={16} />
-                 Delete User
-              </Button>
-            )}
-
-            {userData.status === 'invited' ? (
+             {userData.status === 'invited' ? (
               <Button 
                 variant="outline" 
                 onClick={handleResendInvite}
-                disabled={actionLoading}
+                disabled={inviteLoading}
                 className="flex items-center gap-2"
               >
-                {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw size={16} />}
+                {inviteLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw size={16} />}
                 Resend Invite
               </Button>
             ) : (
@@ -197,7 +187,7 @@ export default function UserDetail() {
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={handleToggleStatus}
-                      disabled={actionLoading}
+                      disabled={statusLoading}
                       className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${userData.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
                     >
                       <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${userData.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -347,14 +337,31 @@ export default function UserDetail() {
                 <Button 
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white font-normal uppercase tracking-widest text-[10px] shadow-xl shadow-red-500/20"
                   onClick={confirmDeleteUser}
-                  disabled={actionLoading}
+                  disabled={deleteLoading}
                 >
-                  {actionLoading ? <LoadingState mini /> : 'Delete User'}
+                  {deleteLoading ? <LoadingState mini /> : 'Delete User'}
                 </Button>
               </div>
             </div>
           </Card>
         </div>
+      )}
+      {/* Floating Actions */}
+      {['super_admin', 'admin', 'client_admin'].includes(currentUser?.role || '') && !['invited', 'deleted'].includes(userData.status) && (
+        <button
+          type="button"
+          onClick={handleDeleteUser}
+          disabled={deleteLoading}
+          className="fixed bottom-8 right-8 w-12 h-12 bg-white text-red-600 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center justify-center hover:bg-red-50 hover:scale-110 active:scale-95 transition-all z-[60] group disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label="Delete user"
+          title="Delete User"
+        >
+          {deleteLoading ? (
+            <RefreshCw size={20} className="animate-spin text-red-600" />
+          ) : (
+            <Trash2 size={21} className="group-hover:rotate-12 transition-transform" />
+          )}
+        </button>
       )}
     </div>
   );

@@ -10,7 +10,7 @@ export interface Campaign {
   state?: string
   city: string
   keywords: string[]
-  status: 'draft' | 'active' | 'paused' | 'completed' | 'archived'
+  status: 'draft' | 'active' | 'paused' | 'completed' | 'archived' | 'inactive'
   offer_type: 'free_product' | 'affiliate_commission' | 'hybrid'
   product_offer_notes: string | null
   discovery_channels?: string[]
@@ -22,6 +22,8 @@ export interface Campaign {
   delivered_count?: number
   Brand?: { id: string, name: string }
   Client?: { id: string, name: string }
+  start_date?: string | null
+  end_date?: string | null
   created_at: string
   updated_at: string
 }

@@ -17,6 +17,14 @@ export function StatusBadge({ status }: { status: StatusType }) {
     case 'shortlisted':
       variant = 'warning';
       break;
+    case 'shipped':
+    case 'product_shipped':
+      variant = 'secondary';
+      break;
+    case 'delivered':
+    case 'product_delivered':
+      variant = 'success';
+      break;
     case 'failed':
     case 'rejected':
       variant = 'error';
@@ -42,7 +50,8 @@ export function StatusBadge({ status }: { status: StatusType }) {
   if (status === 'archived') label = 'Inactive';
   if (status === 'not_respond') label = 'Not Responsive';
   if (status === 'inactive') label = 'Inactive';
-  if (status === 'pending_review' || status === 'shortlisted' || status === 'pending') label = 'Shortlisted';
+  if (status === 'pending_review' || status === 'shortlisted') label = 'Shortlisted';
+  if (status === 'pending') label = 'Pending';
 
   return <Badge variant={variant}>{label}</Badge>;
 }

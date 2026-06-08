@@ -267,3 +267,93 @@ export const getMediaKitUrl = (creatorId: string, download = false): Promise<{ s
   api.get(`/media-kits/${creatorId}/media-kit-url`, {
     params: download ? { download: 1 } : undefined
   }) as any;
+
+// ─── Partnerships ──────────────────────────────────────
+export const getPartnerships = (params?: { campaign_id?: string; status?: string; creator_tier?: string; offer_type?: string }): Promise<any[]> =>
+  api.get('/partnerships', { params }) as any;
+
+export const getPartnershipById = (id: string): Promise<any> =>
+  api.get(`/partnerships/${id}`) as any;
+
+export const createPartnership = (data: { creator_id: string; campaign_id: string; status?: string; [key: string]: any }): Promise<any> =>
+  api.post('/partnerships', data) as any;
+
+export const updatePartnership = (id: string, data: any): Promise<any> =>
+  api.patch(`/partnerships/${id}`, data) as any;
+
+export const markQualified = (id: string): Promise<any> =>
+  api.post(`/partnerships/${id}/mark-qualified`) as any;
+
+export const sendOffer = (id: string, offerData: {
+  offer_type: string;
+  flat_fee?: number;
+  affiliate_enabled?: boolean;
+  affiliate_percentage?: number;
+  affiliate_code?: string;
+  affiliate_link?: string;
+}): Promise<any> =>
+  api.post(`/partnerships/${id}/send-offer`, offerData) as any;
+
+export const markAccepted = (id: string): Promise<any> =>
+  api.post(`/partnerships/${id}/mark-accepted`) as any;
+
+export const activatePartnership = (id: string): Promise<any> =>
+  api.post(`/partnerships/${id}/activate`) as any;
+
+export const completePartnership = (id: string): Promise<any> =>
+  api.post(`/partnerships/${id}/complete`) as any;
+
+export const rejectPartnership = (id: string): Promise<any> =>
+  api.post(`/partnerships/${id}/reject`) as any;
+
+// ─── Activities ────────────────────────────────────────
+export const getActivities = (params?: { creator_id?: string; campaign_id?: string; activity_type?: string }): Promise<any[]> =>
+  api.get('/activities', { params }) as any;
+
+export const getCreatorActivities = (creatorId: string): Promise<any[]> =>
+  api.get(`/activities/creators/${creatorId}`) as any;
+
+export const getCampaignActivities = (campaignId: string): Promise<any[]> =>
+  api.get(`/activities/campaigns/${campaignId}`) as any;
+
+// ─── Shipments ──────────────────────────────────────────
+export const getShipments = (params?: { campaign_id?: string; status?: string; creator_id?: string }): Promise<any[]> =>
+  api.get('/shipments', { params }) as any;
+
+export const getShipmentById = (id: string): Promise<any> =>
+  api.get(`/shipments/${id}`) as any;
+
+export const createShipment = (data: {
+  creator_id: string;
+  campaign_id: string;
+  partnership_id?: string;
+  product_name: string;
+  product_sku?: string;
+  quantity?: number;
+  recipient_name?: string;
+  shipping_address_line1?: string;
+  shipping_address_line2?: string;
+  shipping_city?: string;
+  shipping_state?: string;
+  shipping_zip?: string;
+  shipping_country?: string;
+  notes?: string;
+}): Promise<any> =>
+  api.post('/shipments', data) as any;
+
+export const updateShipment = (id: string, data: {
+  status?: string;
+  carrier?: string;
+  tracking_number?: string;
+  tracking_url?: string;
+  notes?: string;
+  recipient_name?: string;
+  shipping_address_line1?: string;
+  shipping_address_line2?: string;
+  shipping_city?: string;
+  shipping_state?: string;
+  shipping_zip?: string;
+  shipping_country?: string;
+}): Promise<any> =>
+  api.patch(`/shipments/${id}`, data) as any;
+

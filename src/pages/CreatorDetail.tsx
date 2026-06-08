@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit, getMediaKitUrl, updateCreatorNotes } from '../lib/api';
+import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit, getMediaKitUrl, updateCreatorNotes, getPartnerships, getCreatorActivities, markQualified, sendOffer, markAccepted, activatePartnership, completePartnership, rejectPartnership, updatePartnership, getShipments, updateShipment } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Star, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock, Eye, Download } from 'lucide-react';
+import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Star, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock, Eye, Download, Coins, Edit3, Truck } from 'lucide-react';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
 import { ImageLightbox } from '../components/ui/ImageLightbox';
 import { InfoTip } from '../components/ui/InfoTip';
 import { useAuth } from '../contexts/AuthContext';
+import { Modal } from '../components/ui/Modal';
+import { format } from 'date-fns';
 
 export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
   if (followers <= 0 || er <= 0) return null;
@@ -80,6 +82,38 @@ export default function CreatorDetail() {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+
+  // V3 CRM Tab & Partnership States
+  const [activeTab, setActiveTab] = useState<'partnerships' | 'shipments' | 'activities'>('partnerships');
+  const [partnerships, setPartnerships] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [creatorShipments, setCreatorShipments] = useState<any[]>([]);
+  const [partnershipsLoading, setPartnershipsLoading] = useState(false);
+
+  const [activePartnership, setActivePartnership] = useState<any | null>(null);
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [offerForm, setOfferForm] = useState({
+    offer_type: 'free_product',
+    flat_fee: 0,
+    affiliate_enabled: false,
+    affiliate_percentage: 0,
+    affiliate_code: '',
+    affiliate_link: ''
+  });
+
+  const [editForm, setEditForm] = useState({
+    creator_tier: 'unknown',
+    contract_required: false,
+    contract_signed: false,
+    contract_url: '',
+    start_date: '',
+    end_date: '',
+    activation_notes: '',
+    internal_notes: ''
+  });
 
   const togglePlatform = (key: string) => {
     setExpandedPlatforms(prev => ({ ...prev, [key]: !prev[key] }));
@@ -157,6 +191,19 @@ export default function CreatorDetail() {
           setMessages(sorted);
         }
 
+        try {
+          const [partsList, actsList, shipmentsList] = await Promise.all([
+            getPartnerships(),
+            getCreatorActivities(id),
+            getShipments({ creator_id: id })
+          ]);
+          setPartnerships(partsList.filter((p: any) => p.creator_id === id));
+          setActivities(actsList);
+          setCreatorShipments(shipmentsList);
+        } catch (e) {
+          console.error('Failed to load V3 partnerships/activities/shipments', e);
+        }
+
         if (data.campaign_id) {
           try {
             const camp = await getCampaignById(data.campaign_id);
@@ -173,6 +220,107 @@ export default function CreatorDetail() {
       .finally(() => {
         if (!silent) setLoading(false);
       });
+  };
+
+  const handlePartnershipAction = async (partnershipId: string, action: string) => {
+    try {
+      setPartnershipsLoading(true);
+      if (action === 'qualify') {
+        await markQualified(partnershipId);
+      } else if (action === 'accept') {
+        await markAccepted(partnershipId);
+      } else if (action === 'activate') {
+        await activatePartnership(partnershipId);
+      } else if (action === 'complete') {
+        await completePartnership(partnershipId);
+      } else if (action === 'reject') {
+        if (window.confirm('Are you sure you want to reject this partnership?')) {
+          await rejectPartnership(partnershipId);
+        } else {
+          setPartnershipsLoading(false);
+          return;
+        }
+      }
+      await loadData(true);
+    } catch (err) {
+      alert('Action failed: ' + err);
+    } finally {
+      setPartnershipsLoading(false);
+    }
+  };
+
+  const openOfferModal = (p: any) => {
+    setActivePartnership(p);
+    setOfferForm({
+      offer_type: p.offer_type || 'free_product',
+      flat_fee: p.flat_fee || 0,
+      affiliate_enabled: p.affiliate_enabled || false,
+      affiliate_percentage: p.affiliate_percentage || 0,
+      affiliate_code: p.affiliate_code || '',
+      affiliate_link: p.affiliate_link || ''
+    });
+    setShowOfferModal(true);
+  };
+
+  const submitOffer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activePartnership) return;
+    setSubmitting(true);
+    try {
+      await sendOffer(activePartnership.id, {
+        offer_type: offerForm.offer_type,
+        flat_fee: Number(offerForm.flat_fee) || undefined,
+        affiliate_enabled: offerForm.affiliate_enabled,
+        affiliate_percentage: offerForm.affiliate_enabled ? Number(offerForm.affiliate_percentage) : undefined,
+        affiliate_code: offerForm.affiliate_enabled ? offerForm.affiliate_code : undefined,
+        affiliate_link: offerForm.affiliate_enabled ? offerForm.affiliate_link : undefined
+      });
+      setShowOfferModal(false);
+      await loadData(true);
+    } catch (err) {
+      alert('Failed to send offer: ' + err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openEditModal = (p: any) => {
+    setActivePartnership(p);
+    setEditForm({
+      creator_tier: p.creator_tier || 'unknown',
+      contract_required: p.contract_required || false,
+      contract_signed: p.contract_signed || false,
+      contract_url: p.contract_url || '',
+      start_date: p.start_date || '',
+      end_date: p.end_date || '',
+      activation_notes: p.activation_notes || '',
+      internal_notes: p.internal_notes || ''
+    });
+    setShowEditModal(true);
+  };
+
+  const submitEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activePartnership) return;
+    setSubmitting(true);
+    try {
+      await updatePartnership(activePartnership.id, {
+        creator_tier: editForm.creator_tier,
+        contract_required: editForm.contract_required,
+        contract_signed: editForm.contract_signed,
+        contract_url: editForm.contract_url || null,
+        start_date: editForm.start_date || null,
+        end_date: editForm.end_date || null,
+        activation_notes: editForm.activation_notes || null,
+        internal_notes: editForm.internal_notes || null
+      });
+      setShowEditModal(false);
+      await loadData(true);
+    } catch (err) {
+      alert('Failed to update details: ' + err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -1423,6 +1571,293 @@ export default function CreatorDetail() {
         </CardContent>
       </Card>
 
+      {/* V3 Creator CRM Partnerships & Activities Section */}
+      <Card className="no-print">
+        <div className="border-b border-gray-100 bg-white rounded-t-[12px] flex items-center justify-between px-6 pt-4">
+            {(['partnerships', 'shipments', 'activities'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer outline-none ${
+                  activeTab === tab
+                    ? 'border-primary-600 text-primary-700'
+                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                {tab === 'partnerships' 
+                  ? `Campaign Partnerships (${partnerships.length})` 
+                  : tab === 'shipments'
+                    ? `Shipments (${creatorShipments.length})`
+                    : `Activity Timeline (${activities.length})`
+                }
+              </button>
+            ))}
+        </div>
+
+        {activeTab === 'partnerships' && (
+          <div className="p-6">
+            {partnershipsLoading ? (
+              <LoadingState message="Syncing partnerships..." />
+            ) : partnerships.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
+                No campaign partnerships found for this creator yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left min-w-[700px]">
+                  <thead>
+                    <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
+                      <th className="px-4 py-3">Campaign</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3 text-center">Tier</th>
+                      <th className="px-4 py-3">Offer parameters</th>
+                      <th className="px-4 py-3 text-right">Timeline</th>
+                      <th className="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {partnerships.map((p) => (
+                      <tr key={p.id} className="hover:bg-primary-50/10 transition-colors">
+                        <td className="px-4 py-4 align-middle">
+                          <div className="text-xs font-semibold text-gray-900 font-outfit uppercase tracking-tight">
+                            {p.Campaign?.name}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <StatusBadge status={p.status} />
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-gray-100 text-gray-600 uppercase tracking-wider">
+                            {p.creator_tier?.replace('_', ' ') || 'unknown'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 align-middle text-xs">
+                          {p.offer_type ? (
+                            <div className="space-y-1">
+                              <div className="font-medium text-gray-800 uppercase flex items-center gap-1">
+                                <Coins size={10} className="text-amber-500" /> {p.offer_type.replace('_', ' ')}
+                              </div>
+                              {p.flat_fee > 0 && <div className="text-gray-500">${p.flat_fee} {p.currency}</div>}
+                              {p.affiliate_enabled && (
+                                <div className="text-primary-600 bg-primary-50/50 border border-primary-100/50 rounded px-1.5 py-0.5 inline-block text-[9px] uppercase font-mono mt-0.5">
+                                  Code: {p.affiliate_code || '---'} ({p.affiliate_percentage || 0}%)
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 italic">No offer drafted</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-right align-middle text-[11px] text-gray-500 font-mono">
+                          {p.start_date ? (
+                            <div>
+                              <div>Start: {format(new Date(p.start_date), 'MMM d, yyyy')}</div>
+                              {p.end_date && <div className="text-gray-400 mt-0.5">End: {format(new Date(p.end_date), 'MMM d, yyyy')}</div>}
+                            </div>
+                          ) : (
+                            '---'
+                          )}
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <div className="flex items-center justify-center gap-2">
+                            {p.status === 'engaged' && (
+                              <Button size="sm" className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'qualify')}>
+                                Qualify
+                              </Button>
+                            )}
+                            {p.status === 'qualified' && (
+                              <Button size="sm" className="bg-primary-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => openOfferModal(p)}>
+                                Send Offer
+                              </Button>
+                            )}
+                            {p.status === 'offer_sent' && (
+                              <Button size="sm" className="bg-green-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'accept')}>
+                                Accept Offer
+                              </Button>
+                            )}
+                            {['accepted', 'product_shipped', 'product_delivered'].includes(p.status) && (
+                              <Button size="sm" className="bg-amber-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'activate')}>
+                                Activate
+                              </Button>
+                            )}
+                            {p.status === 'activated' && (
+                              <Button size="sm" className="bg-gray-800 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'complete')}>
+                                Complete
+                              </Button>
+                            )}
+                            <button 
+                              onClick={() => openEditModal(p)}
+                              className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                              title="Edit parameters"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            {p.status !== 'rejected' && p.status !== 'completed' && (
+                              <button 
+                                onClick={() => handlePartnershipAction(p.id, 'reject')}
+                                className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors font-bold text-sm leading-none"
+                                title="Reject partnership"
+                              >
+                                &times;
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'shipments' && (
+          <div className="p-6 space-y-4">
+            {creatorShipments.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
+                No shipments dispatched to this creator yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left min-w-[800px]">
+                  <thead>
+                    <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
+                      <th className="px-4 py-3">Campaign</th>
+                      <th className="px-4 py-3">Product Name</th>
+                      <th className="px-4 py-3">Recipient</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3">Tracking</th>
+                      <th className="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 bg-white">
+                    {creatorShipments.map((s) => (
+                      <tr key={s.id} className="hover:bg-primary-50/10 transition-colors">
+                        <td className="px-4 py-4 align-middle text-xs font-medium text-gray-800">
+                          {s.Campaign?.name}
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <div className="text-xs font-medium text-gray-800">{s.product_name}</div>
+                          <div className="text-[10px] text-gray-400">Qty: {s.quantity} {s.product_sku ? `(SKU: ${s.product_sku})` : ''}</div>
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <div className="text-xs text-gray-800">{s.recipient_name}</div>
+                          <div className="text-[10px] text-gray-500 truncate max-w-[180px]" title={s.shipping_address_line1}>{s.shipping_address_line1}</div>
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <StatusBadge status={s.status} />
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          {s.tracking_number ? (
+                            <div>
+                              <div className="text-xs font-mono font-medium text-gray-800 flex items-center gap-1">
+                                <Truck size={10} className="text-gray-400" /> {s.carrier}: {s.tracking_number}
+                              </div>
+                              {s.tracking_url && (
+                                <a href={s.tracking_url} target="_blank" rel="noreferrer" className="text-[10px] text-primary-600 hover:underline inline-flex items-center gap-0.5 mt-0.5">
+                                  Track <ExternalLink size={8} />
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 italic">No tracking info</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 align-middle text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            {s.status === 'pending' && (
+                              <Button size="sm" className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => {
+                                updateShipment(s.id, { status: 'shipped' }).then(() => loadData(true));
+                              }}>
+                                Ship
+                              </Button>
+                            )}
+                            {s.status === 'shipped' && (
+                              <Button size="sm" className="bg-green-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => {
+                                updateShipment(s.id, { status: 'delivered' }).then(() => loadData(true));
+                              }}>
+                                Deliver
+                              </Button>
+                            )}
+                            <button 
+                              onClick={() => {
+                                const carrier = prompt("Enter Carrier (e.g. USPS, UPS):", s.carrier || "");
+                                const tracking = prompt("Enter Tracking Number:", s.tracking_number || "");
+                                const tracking_url = prompt("Enter Tracking URL:", s.tracking_url || "");
+                                if (carrier !== null && tracking !== null) {
+                                  updateShipment(s.id, { carrier, tracking_number: tracking, tracking_url: tracking_url || undefined }).then(() => loadData(true));
+                                }
+                              }}
+                              className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                              title="Quick Edit Tracking"
+                            >
+                              <Edit3 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'activities' && (
+          <div className="p-6">
+            {activities.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
+                No activities logged for this creator yet.
+              </div>
+            ) : (
+              <div className="flow-root animate-[fadeIn_0.2s_ease]">
+                <ul className="-mb-8">
+                  {activities.map((act, actIdx) => (
+                    <li key={act.id}>
+                      <div className="relative pb-8">
+                        {actIdx !== activities.length - 1 ? (
+                          <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true" />
+                        ) : null}
+                        <div className="relative flex space-x-3">
+                          <div>
+                            <span className="h-8 w-8 rounded-full bg-primary-50 border border-primary-100 flex items-center justify-center text-primary-600 shadow-sm">
+                              <Activity size={14} />
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0 pt-1.5 flex justify-between space-x-4">
+                            <div>
+                              <p className="text-xs text-gray-800 font-medium">
+                                {act.description}{' '}
+                                {act.Campaign && (
+                                  <span className="font-semibold text-gray-900 uppercase tracking-tight text-[11px]">
+                                    ({act.Campaign.name})
+                                  </span>
+                                )}
+                              </p>
+                              {act.metadata && Object.keys(act.metadata).length > 0 && (
+                                <div className="mt-1 text-[10px] text-gray-400 font-mono">
+                                  {JSON.stringify(act.metadata)}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right text-[10px] whitespace-nowrap text-gray-400 font-mono">
+                              {format(new Date(act.created_at || act.createdAt), 'MMM d, yyyy HH:mm')}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
       {creator.lifecycle_status === 'engaged' && (
         <>
           <div className="no-print grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
@@ -1621,6 +2056,204 @@ export default function CreatorDetail() {
         </div>
       )}
       
+      {/* ─── Send Offer Modal ─── */}
+      <Modal isOpen={showOfferModal} onClose={() => setShowOfferModal(false)} title="Draft & Send Campaign Offer">
+        <form onSubmit={submitOffer} className="space-y-4 font-outfit">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Offer Compensation Type</label>
+            <select
+              value={offerForm.offer_type}
+              onChange={e => setOfferForm(prev => ({ ...prev, offer_type: e.target.value }))}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+            >
+              <option value="free_product">Free Product</option>
+              <option value="affiliate_commission">Affiliate Commission Only</option>
+              <option value="flat_fee">Flat Fee</option>
+              <option value="hybrid">Hybrid (Flat Fee + Affiliate)</option>
+            </select>
+          </div>
+
+          {(offerForm.offer_type === 'flat_fee' || offerForm.offer_type === 'hybrid') && (
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Flat Fee Amount (USD)</label>
+              <input
+                type="number"
+                value={offerForm.flat_fee}
+                onChange={e => setOfferForm(prev => ({ ...prev, flat_fee: Number(e.target.value) }))}
+                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+                min="0"
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 py-2">
+            <input
+              type="checkbox"
+              id="affiliate_enabled_creator"
+              checked={offerForm.affiliate_enabled}
+              onChange={e => setOfferForm(prev => ({ ...prev, affiliate_enabled: e.target.checked }))}
+              className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 border-gray-300"
+            />
+            <label htmlFor="affiliate_enabled_creator" className="text-sm text-gray-700 select-none">Enable Affiliate Parameters</label>
+          </div>
+
+          {offerForm.affiliate_enabled && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border border-dashed border-gray-100 rounded-xl p-4 bg-gray-50/50">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Percentage (%)</label>
+                <input
+                  type="number"
+                  value={offerForm.affiliate_percentage}
+                  onChange={e => setOfferForm(prev => ({ ...prev, affiliate_percentage: Number(e.target.value) }))}
+                  className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm"
+                  min="0"
+                  max="100"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Promo Code</label>
+                <input
+                  type="text"
+                  value={offerForm.affiliate_code}
+                  onChange={e => setOfferForm(prev => ({ ...prev, affiliate_code: e.target.value }))}
+                  className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm uppercase font-mono"
+                  placeholder="CODE20"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Tracking URL</label>
+                <input
+                  type="text"
+                  value={offerForm.affiliate_link}
+                  onChange={e => setOfferForm(prev => ({ ...prev, affiliate_link: e.target.value }))}
+                  className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm"
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowOfferModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
+              {submitting ? 'Sending Offer...' : 'Send Offer Proposal'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ─── Edit Partnership Modal ─── */}
+      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Update Partnership Profile">
+        <form onSubmit={submitEdit} className="space-y-4 font-outfit">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Creator Tier Size</label>
+              <select
+                value={editForm.creator_tier}
+                onChange={e => setEditForm(prev => ({ ...prev, creator_tier: e.target.value }))}
+                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              >
+                <option value="unknown">Unknown</option>
+                <option value="nano">Nano (&lt;10k)</option>
+                <option value="micro">Micro (10k-50k)</option>
+                <option value="mid_tier">Mid Tier (50k-100k)</option>
+                <option value="macro">Macro (100k-500k)</option>
+                <option value="celebrity">Celebrity (500k+)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Contract Signature Link</label>
+              <input
+                type="text"
+                value={editForm.contract_url}
+                onChange={e => setEditForm(prev => ({ ...prev, contract_url: e.target.value }))}
+                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+                placeholder="https://docusign.com/..."
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-6 py-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="contract_required_creator"
+                checked={editForm.contract_required}
+                onChange={e => setEditForm(prev => ({ ...prev, contract_required: e.target.checked }))}
+                className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 border-gray-300"
+              />
+              <label htmlFor="contract_required_creator" className="text-sm text-gray-700 select-none">Contract Required</label>
+            </div>
+            
+            {editForm.contract_required && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="contract_signed_creator"
+                  checked={editForm.contract_signed}
+                  onChange={e => setEditForm(prev => ({ ...prev, contract_signed: e.target.checked }))}
+                  className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 border-gray-300"
+                />
+                <label htmlFor="contract_signed_creator" className="text-sm text-gray-700 select-none">Contract Signed</label>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Campaign Start Date</label>
+              <input
+                type="date"
+                value={editForm.start_date}
+                onChange={e => setEditForm(prev => ({ ...prev, start_date: e.target.value }))}
+                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Campaign End Date</label>
+              <input
+                type="date"
+                value={editForm.end_date}
+                onChange={e => setEditForm(prev => ({ ...prev, end_date: e.target.value }))}
+                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Activation Notes</label>
+            <textarea
+              value={editForm.activation_notes}
+              onChange={e => setEditForm(prev => ({ ...prev, activation_notes: e.target.value }))}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[60px]"
+              placeholder="Fulfillment parameters, specific agreements..."
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Internal CRM Notes</label>
+            <textarea
+              value={editForm.internal_notes}
+              onChange={e => setEditForm(prev => ({ ...prev, internal_notes: e.target.value }))}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[60px]"
+              placeholder="Private details, scoring fits, follow up details..."
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowEditModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
+              {submitting ? 'Saving...' : 'Save Parameters'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
       <OutreachPreviewModal
         creatorId={creator?.id || ''}
         campaignId={creator?.campaign_id || undefined}

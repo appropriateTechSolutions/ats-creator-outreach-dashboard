@@ -23,6 +23,8 @@ interface Campaign {
   city: string;
   category: string;
   created_at: string;
+  start_date?: string | null;
+  end_date?: string | null;
   brand_id?: string | null;
   Brand?: {
     id?: string;
@@ -316,7 +318,7 @@ export default function Campaigns() {
           <>
             {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full min-w-[1100px] text-left">
                 <thead>
                   <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
                     <th className="px-8 py-5">Campaign Identity</th>
@@ -325,6 +327,7 @@ export default function Campaigns() {
                     <th className="px-8 py-5 text-center">City</th>
                     <th className="px-8 py-5 text-center">Status</th>
                     <th className="px-8 py-5 text-right">Launch Date</th>
+                    <th className="px-8 py-5 text-right">End Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -373,14 +376,19 @@ export default function Campaigns() {
                       </td>
                       <td className="px-8 py-6 text-right align-top">
                         <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
-                          {(c.created_at || (c as any).createdAt) ? format(new Date(c.created_at || (c as any).createdAt), 'MMM d, yyyy') : '---'}
+                          {(c.start_date || c.created_at || (c as any).createdAt) ? format(new Date(c.start_date || c.created_at || (c as any).createdAt), 'MMM d, yyyy') : '---'}
+                        </div>
+                      </td>
+                      <td className="px-8 py-6 text-right align-top">
+                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
+                          {c.end_date ? format(new Date(c.end_date), 'MMM d, yyyy') : '---'}
                         </div>
                       </td>
                     </tr>
                   ))}
                   {filteredCampaigns.length === 0 && (
                     <tr>
-                      <td colSpan={user?.user_type === 'internal' ? 6 : 5} className="text-center py-20 text-gray-400 italic">No active campaigns configured yet.</td>
+                      <td colSpan={user?.user_type === 'internal' ? 7 : 6} className="text-center py-20 text-gray-400 italic">No active campaigns configured yet.</td>
                     </tr>
                   )}
                 </tbody>
@@ -435,7 +443,13 @@ export default function Campaigns() {
                     <div>
                       <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Launch Date</span>
                       <span className="font-normal text-gray-800 uppercase tracking-tight font-outfit">
-                        {(c.created_at || (c as any).createdAt) ? format(new Date(c.created_at || (c as any).createdAt), 'MMM d, yyyy') : '---'}
+                        {(c.start_date || c.created_at || (c as any).createdAt) ? format(new Date(c.start_date || c.created_at || (c as any).createdAt), 'MMM d, yyyy') : '---'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">End Date</span>
+                      <span className="font-normal text-gray-800 uppercase tracking-tight font-outfit">
+                        {c.end_date ? format(new Date(c.end_date), 'MMM d, yyyy') : '---'}
                       </span>
                     </div>
                   </div>
