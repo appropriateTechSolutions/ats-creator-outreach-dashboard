@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit, getMediaKitUrl, updateCreatorNotes, getPartnerships, getCreatorActivities, markQualified, sendOffer, markAccepted, activatePartnership, completePartnership, rejectPartnership, updatePartnership, getShipments, updateShipment } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
@@ -50,6 +50,7 @@ export const getErRating = (followers: number, er: number): { label: string; col
 export default function CreatorDetail() {
   const { user: currentUser } = useAuth();
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [creator, setCreator] = useState<Creator | null>(null);
   const [, setCampaign] = useState<Campaign | null>(null);
@@ -197,7 +198,7 @@ export default function CreatorDetail() {
             getCreatorActivities(id),
             getShipments({ creator_id: id })
           ]);
-          setPartnerships(partsList.filter((p: any) => p.creator_id === id));
+          setPartnerships(partsList.filter((p: any) => String(p.creator_id) === String(id) || String(p.creatorId) === String(id) || String(p.Creator?.id) === String(id)));
           setActivities(actsList);
           setCreatorShipments(shipmentsList);
         } catch (e) {
@@ -1571,293 +1572,6 @@ export default function CreatorDetail() {
         </CardContent>
       </Card>
 
-      {/* V3 Creator CRM Partnerships & Activities Section */}
-      <Card className="no-print">
-        <div className="border-b border-gray-100 bg-white rounded-t-[12px] flex items-center justify-between px-6 pt-4">
-            {(['partnerships', 'shipments', 'activities'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer outline-none ${
-                  activeTab === tab
-                    ? 'border-primary-600 text-primary-700'
-                    : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                {tab === 'partnerships' 
-                  ? `Campaign Partnerships (${partnerships.length})` 
-                  : tab === 'shipments'
-                    ? `Shipments (${creatorShipments.length})`
-                    : `Activity Timeline (${activities.length})`
-                }
-              </button>
-            ))}
-        </div>
-
-        {activeTab === 'partnerships' && (
-          <div className="p-6">
-            {partnershipsLoading ? (
-              <LoadingState message="Syncing partnerships..." />
-            ) : partnerships.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
-                No campaign partnerships found for this creator yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[700px]">
-                  <thead>
-                    <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-                      <th className="px-4 py-3">Campaign</th>
-                      <th className="px-4 py-3 text-center">Status</th>
-                      <th className="px-4 py-3 text-center">Tier</th>
-                      <th className="px-4 py-3">Offer parameters</th>
-                      <th className="px-4 py-3 text-right">Timeline</th>
-                      <th className="px-4 py-3 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {partnerships.map((p) => (
-                      <tr key={p.id} className="hover:bg-primary-50/10 transition-colors">
-                        <td className="px-4 py-4 align-middle">
-                          <div className="text-xs font-semibold text-gray-900 font-outfit uppercase tracking-tight">
-                            {p.Campaign?.name}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-center align-middle">
-                          <StatusBadge status={p.status} />
-                        </td>
-                        <td className="px-4 py-4 text-center align-middle">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-gray-100 text-gray-600 uppercase tracking-wider">
-                            {p.creator_tier?.replace('_', ' ') || 'unknown'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 align-middle text-xs">
-                          {p.offer_type ? (
-                            <div className="space-y-1">
-                              <div className="font-medium text-gray-800 uppercase flex items-center gap-1">
-                                <Coins size={10} className="text-amber-500" /> {p.offer_type.replace('_', ' ')}
-                              </div>
-                              {p.flat_fee > 0 && <div className="text-gray-500">${p.flat_fee} {p.currency}</div>}
-                              {p.affiliate_enabled && (
-                                <div className="text-primary-600 bg-primary-50/50 border border-primary-100/50 rounded px-1.5 py-0.5 inline-block text-[9px] uppercase font-mono mt-0.5">
-                                  Code: {p.affiliate_code || '---'} ({p.affiliate_percentage || 0}%)
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400 italic">No offer drafted</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-4 text-right align-middle text-[11px] text-gray-500 font-mono">
-                          {p.start_date ? (
-                            <div>
-                              <div>Start: {format(new Date(p.start_date), 'MMM d, yyyy')}</div>
-                              {p.end_date && <div className="text-gray-400 mt-0.5">End: {format(new Date(p.end_date), 'MMM d, yyyy')}</div>}
-                            </div>
-                          ) : (
-                            '---'
-                          )}
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <div className="flex items-center justify-center gap-2">
-                            {p.status === 'engaged' && (
-                              <Button size="sm" className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'qualify')}>
-                                Qualify
-                              </Button>
-                            )}
-                            {p.status === 'qualified' && (
-                              <Button size="sm" className="bg-primary-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => openOfferModal(p)}>
-                                Send Offer
-                              </Button>
-                            )}
-                            {p.status === 'offer_sent' && (
-                              <Button size="sm" className="bg-green-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'accept')}>
-                                Accept Offer
-                              </Button>
-                            )}
-                            {['accepted', 'product_shipped', 'product_delivered'].includes(p.status) && (
-                              <Button size="sm" className="bg-amber-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'activate')}>
-                                Activate
-                              </Button>
-                            )}
-                            {p.status === 'activated' && (
-                              <Button size="sm" className="bg-gray-800 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'complete')}>
-                                Complete
-                              </Button>
-                            )}
-                            <button 
-                              onClick={() => openEditModal(p)}
-                              className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                              title="Edit parameters"
-                            >
-                              <Edit3 size={14} />
-                            </button>
-                            {p.status !== 'rejected' && p.status !== 'completed' && (
-                              <button 
-                                onClick={() => handlePartnershipAction(p.id, 'reject')}
-                                className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors font-bold text-sm leading-none"
-                                title="Reject partnership"
-                              >
-                                &times;
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'shipments' && (
-          <div className="p-6 space-y-4">
-            {creatorShipments.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
-                No shipments dispatched to this creator yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[800px]">
-                  <thead>
-                    <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-                      <th className="px-4 py-3">Campaign</th>
-                      <th className="px-4 py-3">Product Name</th>
-                      <th className="px-4 py-3">Recipient</th>
-                      <th className="px-4 py-3 text-center">Status</th>
-                      <th className="px-4 py-3">Tracking</th>
-                      <th className="px-4 py-3 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 bg-white">
-                    {creatorShipments.map((s) => (
-                      <tr key={s.id} className="hover:bg-primary-50/10 transition-colors">
-                        <td className="px-4 py-4 align-middle text-xs font-medium text-gray-800">
-                          {s.Campaign?.name}
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <div className="text-xs font-medium text-gray-800">{s.product_name}</div>
-                          <div className="text-[10px] text-gray-400">Qty: {s.quantity} {s.product_sku ? `(SKU: ${s.product_sku})` : ''}</div>
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <div className="text-xs text-gray-800">{s.recipient_name}</div>
-                          <div className="text-[10px] text-gray-500 truncate max-w-[180px]" title={s.shipping_address_line1}>{s.shipping_address_line1}</div>
-                        </td>
-                        <td className="px-4 py-4 text-center align-middle">
-                          <StatusBadge status={s.status} />
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          {s.tracking_number ? (
-                            <div>
-                              <div className="text-xs font-mono font-medium text-gray-800 flex items-center gap-1">
-                                <Truck size={10} className="text-gray-400" /> {s.carrier}: {s.tracking_number}
-                              </div>
-                              {s.tracking_url && (
-                                <a href={s.tracking_url} target="_blank" rel="noreferrer" className="text-[10px] text-primary-600 hover:underline inline-flex items-center gap-0.5 mt-0.5">
-                                  Track <ExternalLink size={8} />
-                                </a>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-gray-400 italic">No tracking info</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-4 align-middle text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            {s.status === 'pending' && (
-                              <Button size="sm" className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => {
-                                updateShipment(s.id, { status: 'shipped' }).then(() => loadData(true));
-                              }}>
-                                Ship
-                              </Button>
-                            )}
-                            {s.status === 'shipped' && (
-                              <Button size="sm" className="bg-green-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => {
-                                updateShipment(s.id, { status: 'delivered' }).then(() => loadData(true));
-                              }}>
-                                Deliver
-                              </Button>
-                            )}
-                            <button 
-                              onClick={() => {
-                                const carrier = prompt("Enter Carrier (e.g. USPS, UPS):", s.carrier || "");
-                                const tracking = prompt("Enter Tracking Number:", s.tracking_number || "");
-                                const tracking_url = prompt("Enter Tracking URL:", s.tracking_url || "");
-                                if (carrier !== null && tracking !== null) {
-                                  updateShipment(s.id, { carrier, tracking_number: tracking, tracking_url: tracking_url || undefined }).then(() => loadData(true));
-                                }
-                              }}
-                              className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                              title="Quick Edit Tracking"
-                            >
-                              <Edit3 size={12} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'activities' && (
-          <div className="p-6">
-            {activities.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
-                No activities logged for this creator yet.
-              </div>
-            ) : (
-              <div className="flow-root animate-[fadeIn_0.2s_ease]">
-                <ul className="-mb-8">
-                  {activities.map((act, actIdx) => (
-                    <li key={act.id}>
-                      <div className="relative pb-8">
-                        {actIdx !== activities.length - 1 ? (
-                          <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true" />
-                        ) : null}
-                        <div className="relative flex space-x-3">
-                          <div>
-                            <span className="h-8 w-8 rounded-full bg-primary-50 border border-primary-100 flex items-center justify-center text-primary-600 shadow-sm">
-                              <Activity size={14} />
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0 pt-1.5 flex justify-between space-x-4">
-                            <div>
-                              <p className="text-xs text-gray-800 font-medium">
-                                {act.description}{' '}
-                                {act.Campaign && (
-                                  <span className="font-semibold text-gray-900 uppercase tracking-tight text-[11px]">
-                                    ({act.Campaign.name})
-                                  </span>
-                                )}
-                              </p>
-                              {act.metadata && Object.keys(act.metadata).length > 0 && (
-                                <div className="mt-1 text-[10px] text-gray-400 font-mono">
-                                  {JSON.stringify(act.metadata)}
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-right text-[10px] whitespace-nowrap text-gray-400 font-mono">
-                              {format(new Date(act.created_at || act.createdAt), 'MMM d, yyyy HH:mm')}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-      </Card>
-
       {creator.lifecycle_status === 'engaged' && (
         <>
           <div className="no-print grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
@@ -1998,6 +1712,295 @@ export default function CreatorDetail() {
           </Card>
         </>
       )}
+
+      {/* V3 Creator CRM Partnerships & Activities Section */}
+      <Card className="no-print">
+        <div className="border-b border-gray-100 bg-white rounded-t-[12px] flex items-center justify-between px-6 pt-4">
+            {(['partnerships', 'shipments', 'activities'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer outline-none ${
+                  activeTab === tab
+                    ? 'border-primary-600 text-primary-700'
+                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                {tab === 'partnerships' 
+                  ? `Campaign Partnerships (${partnerships.length})` 
+                  : tab === 'shipments'
+                    ? `Shipments (${creatorShipments.length})`
+                    : `Activity Timeline (${activities.length})`
+                }
+              </button>
+            ))}
+        </div>
+
+        {activeTab === 'partnerships' && (
+          <div className="p-6">
+            {partnershipsLoading ? (
+              <LoadingState message="Syncing partnerships..." />
+            ) : partnerships.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
+                No campaign partnerships found for this creator yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left min-w-[700px]">
+                  <thead>
+                    <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
+                      <th className="px-4 py-3">Campaign</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3 text-center">Tier</th>
+                      <th className="px-4 py-3">Offer parameters</th>
+                      <th className="px-4 py-3 text-right">Timeline</th>
+                      <th className="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {partnerships.map((p) => (
+                      <tr key={p.id} onClick={() => navigate(`/partnerships/${p.id}`, { state: { fromCreatorId: id } })} className="hover:bg-primary-50/10 transition-colors cursor-pointer">
+                        <td className="px-4 py-4 align-middle">
+                          <div className="text-xs font-semibold text-gray-900 font-outfit uppercase tracking-tight">
+                            {p.Campaign?.name}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <StatusBadge status={p.status} />
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-gray-100 text-gray-600 uppercase tracking-wider">
+                            {p.creator_tier?.replace('_', ' ') || 'unknown'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 align-middle text-xs">
+                          {p.offer_type ? (
+                            <div className="space-y-1">
+                              <div className="font-medium text-gray-800 uppercase flex items-center gap-1">
+                                <Coins size={10} className="text-amber-500" /> {p.offer_type.replace('_', ' ')}
+                              </div>
+                              {p.flat_fee > 0 && <div className="text-gray-500">${p.flat_fee} {p.currency}</div>}
+                              {p.affiliate_enabled && (
+                                <div className="text-primary-600 bg-primary-50/50 border border-primary-100/50 rounded px-1.5 py-0.5 inline-block text-[9px] uppercase font-mono mt-0.5">
+                                  Code: {p.affiliate_code || '---'} ({p.affiliate_percentage || 0}%)
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 italic">No offer drafted</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-right align-middle text-[11px] text-gray-500 font-mono">
+                          {p.start_date ? (
+                            <div>
+                              <div>Start: {format(new Date(p.start_date), 'MMM d, yyyy')}</div>
+                              {p.end_date && <div className="text-gray-400 mt-0.5">End: {format(new Date(p.end_date), 'MMM d, yyyy')}</div>}
+                            </div>
+                          ) : (
+                            '---'
+                          )}
+                        </td>
+                        <td className="px-4 py-4 align-middle relative z-10" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-2">
+                            {p.status === 'engaged' && (
+                              <Button size="sm" className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'qualify')}>
+                                Qualify
+                              </Button>
+                            )}
+                            {p.status === 'qualified' && (
+                              <Button size="sm" className="bg-primary-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => openOfferModal(p)}>
+                                Send Offer
+                              </Button>
+                            )}
+                            {p.status === 'offer_sent' && (
+                              <Button size="sm" className="bg-green-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'accept')}>
+                                Accept Offer
+                              </Button>
+                            )}
+                            {['accepted', 'product_shipped', 'product_delivered'].includes(p.status) && (
+                              <Button size="sm" className="bg-amber-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'activate')}>
+                                Activate
+                              </Button>
+                            )}
+                            {p.status === 'activated' && (
+                              <Button size="sm" className="bg-gray-800 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'complete')}>
+                                Complete
+                              </Button>
+                            )}
+                            <button 
+                              onClick={() => openEditModal(p)}
+                              className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                              title="Edit parameters"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            {p.status !== 'rejected' && p.status !== 'completed' && (
+                              <button 
+                                onClick={() => handlePartnershipAction(p.id, 'reject')}
+                                className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors font-bold text-sm leading-none"
+                                title="Reject partnership"
+                              >
+                                &times;
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'shipments' && (
+          <div className="p-6 space-y-4">
+            {creatorShipments.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
+                No shipments dispatched to this creator yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left min-w-[800px]">
+                  <thead>
+                    <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
+                      <th className="px-4 py-3">Campaign</th>
+                      <th className="px-4 py-3">Product Name</th>
+                      <th className="px-4 py-3">Recipient</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3">Tracking</th>
+                      <th className="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 bg-white">
+                    {creatorShipments.map((s) => (
+                      <tr key={s.id} onClick={() => navigate(`/shipments/${s.id}`, { state: { fromCreatorId: id } })} className="hover:bg-primary-50/10 transition-colors cursor-pointer">
+                        <td className="px-4 py-4 align-middle text-xs font-medium text-gray-800">
+                          {s.Campaign?.name}
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <div className="text-xs font-medium text-gray-800">{s.product_name}</div>
+                          <div className="text-[10px] text-gray-400">Qty: {s.quantity} {s.product_sku ? `(SKU: ${s.product_sku})` : ''}</div>
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <div className="text-xs text-gray-800">{s.recipient_name}</div>
+                          <div className="text-[10px] text-gray-500 truncate max-w-[180px]" title={s.shipping_address_line1}>{s.shipping_address_line1}</div>
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <StatusBadge status={s.status} />
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          {s.tracking_number ? (
+                            <div>
+                              <div className="text-xs font-mono font-medium text-gray-800 flex items-center gap-1">
+                                <Truck size={10} className="text-gray-400" /> {s.carrier}: {s.tracking_number}
+                              </div>
+                              {s.tracking_url && (
+                                <a href={s.tracking_url} target="_blank" rel="noreferrer" className="text-[10px] text-primary-600 hover:underline inline-flex items-center gap-0.5 mt-0.5">
+                                  Track <ExternalLink size={8} />
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 italic">No tracking info</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 align-middle text-center relative z-10" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-2">
+                            {s.status === 'pending' && (
+                              <Button size="sm" className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => {
+                                updateShipment(s.id, { status: 'shipped' }).then(() => loadData(true));
+                              }}>
+                                Ship
+                              </Button>
+                            )}
+                            {s.status === 'shipped' && (
+                              <Button size="sm" className="bg-green-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => {
+                                updateShipment(s.id, { status: 'delivered' }).then(() => loadData(true));
+                              }}>
+                                Deliver
+                              </Button>
+                            )}
+                            <button 
+                              onClick={() => {
+                                const carrier = prompt("Enter Carrier (e.g. USPS, UPS):", s.carrier || "");
+                                const tracking = prompt("Enter Tracking Number:", s.tracking_number || "");
+                                const tracking_url = prompt("Enter Tracking URL:", s.tracking_url || "");
+                                if (carrier !== null && tracking !== null) {
+                                  updateShipment(s.id, { carrier, tracking_number: tracking, tracking_url: tracking_url || undefined }).then(() => loadData(true));
+                                }
+                              }}
+                              className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                              title="Quick Edit Tracking"
+                            >
+                              <Edit3 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'activities' && (
+          <div className="p-6">
+            {activities.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
+                No activities logged for this creator yet.
+              </div>
+            ) : (
+              <div className="flow-root animate-[fadeIn_0.2s_ease]">
+                <ul className="-mb-8">
+                  {activities.map((act, actIdx) => (
+                    <li key={act.id}>
+                      <div className="relative pb-8">
+                        {actIdx !== activities.length - 1 ? (
+                          <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true" />
+                        ) : null}
+                        <div className="relative flex space-x-3">
+                          <div>
+                            <span className="h-8 w-8 rounded-full bg-primary-50 border border-primary-100 flex items-center justify-center text-primary-600 shadow-sm">
+                              <Activity size={14} />
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0 pt-1.5 flex justify-between space-x-4">
+                            <div>
+                              <p className="text-xs text-gray-800 font-medium">
+                                {act.description}{' '}
+                                {act.Campaign && (
+                                  <span className="font-semibold text-gray-900 uppercase tracking-tight text-[11px]">
+                                    ({act.Campaign.name})
+                                  </span>
+                                )}
+                              </p>
+                              {act.metadata && Object.keys(act.metadata).length > 0 && (
+                                <div className="mt-1 text-[10px] text-gray-400 font-mono">
+                                  {JSON.stringify(act.metadata)}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right text-[10px] whitespace-nowrap text-gray-400 font-mono">
+                              {format(new Date(act.created_at || act.createdAt), 'MMM d, yyyy HH:mm')}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
+      
 
       {/* Affiliate Modal */}
       {isAffiliateModalOpen && (

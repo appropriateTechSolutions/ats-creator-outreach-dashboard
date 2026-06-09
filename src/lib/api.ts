@@ -227,8 +227,8 @@ export const sendCampaignOutreach = (campaignId: string): Promise<{ sent: number
 export const sendSingleOutreach = (creatorId: string, campaignId?: string, customSubject?: string, customBody?: string, message_type?: string): Promise<any> =>
   api.post('/outreach/send-single', { creator_id: creatorId, campaign_id: campaignId, customSubject, customBody, message_type });
 
-export const previewOutreach = (creatorId: string, campaignId?: string, message_type?: string): Promise<{ subject: string; body: string; to: string | null }> =>
-  api.get('/outreach/preview', { params: { creator_id: creatorId, campaign_id: campaignId, message_type } }) as any;
+export const previewOutreach = (creatorId: string, campaignId?: string, message_type?: string, extraParams?: any): Promise<{ subject: string; body: string; to: string | null }> =>
+  api.get('/outreach/preview', { params: { creator_id: creatorId, campaign_id: campaignId, message_type, ...extraParams } }) as any;
 
 export const getOutreachLogs = (): Promise<any[]> => cachedGet('outreach-logs', () => api.get('/outreach/logs'));
 
@@ -291,6 +291,8 @@ export const sendOffer = (id: string, offerData: {
   affiliate_percentage?: number;
   affiliate_code?: string;
   affiliate_link?: string;
+  customSubject?: string;
+  customBody?: string;
 }): Promise<any> =>
   api.post(`/partnerships/${id}/send-offer`, offerData) as any;
 
@@ -354,6 +356,30 @@ export const updateShipment = (id: string, data: {
   shipping_state?: string;
   shipping_zip?: string;
   shipping_country?: string;
+  estimated_delivery?: string | null;
 }): Promise<any> =>
   api.patch(`/shipments/${id}`, data) as any;
+
+export const requestAddressShipment = (id: string, data?: { customSubject?: string; customBody?: string }): Promise<any> =>
+  api.post(`/shipments/${id}/request-address`, data) as any;
+
+export const markReadyToShipShipment = (id: string): Promise<any> =>
+  api.post(`/shipments/${id}/mark-ready-to-ship`) as any;
+
+export const markShippedShipment = (id: string, trackingData?: {
+  carrier?: string;
+  tracking_number?: string;
+  tracking_url?: string;
+  estimated_delivery?: string | null;
+}): Promise<any> =>
+  api.post(`/shipments/${id}/mark-shipped`, trackingData) as any;
+
+export const markDeliveredShipment = (id: string): Promise<any> =>
+  api.post(`/shipments/${id}/mark-delivered`) as any;
+
+export const markFailedShipment = (id: string): Promise<any> =>
+  api.post(`/shipments/${id}/mark-failed`) as any;
+
+export const cancelShipment = (id: string): Promise<any> =>
+  api.post(`/shipments/${id}/cancel`) as any;
 

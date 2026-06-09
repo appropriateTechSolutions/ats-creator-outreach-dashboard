@@ -25,7 +25,11 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import LandingPage from './pages/LandingPage';
 import Partnerships from './pages/Partnerships';
+import PartnershipDetail from './pages/PartnershipDetail';
 import Shipments from './pages/Shipments';
+import ShipmentDetail from './pages/ShipmentDetail';
+import AcceptOffer from './pages/AcceptOffer';
+import ProvideAddress from './pages/ProvideAddress';
 
 // Temporary placeholders for missing pages
 const Placeholder = ({ title }: { title: string }) => (
@@ -56,6 +60,8 @@ export default function App() {
           <Route path="/accept-invite" element={<AcceptInvite />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/accept-offer/:id" element={<AcceptOffer />} />
+          <Route path="/provide-address/:id" element={<ProvideAddress />} />
           
           <Route element={<ProtectedLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
@@ -75,7 +81,9 @@ export default function App() {
             <Route path="/brands" element={<Brands />} />
             <Route path="/brands/:id" element={<BrandDetail />} />
             <Route path="/partnerships" element={<Partnerships />} />
+            <Route path="/partnerships/:id" element={<PartnershipDetail />} />
             <Route path="/shipments" element={<Shipments />} />
+            <Route path="/shipments/:id" element={<ShipmentDetail />} />
             <Route path="/affiliate" element={<AffiliatePerformance />} />
             <Route path="/analytics" element={<Placeholder title="Analytics" />} />
           </Route>

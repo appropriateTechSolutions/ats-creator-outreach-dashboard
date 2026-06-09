@@ -25,6 +25,12 @@ export function StatusBadge({ status }: { status: StatusType }) {
     case 'product_delivered':
       variant = 'success';
       break;
+    case 'address_requested':
+      variant = 'warning';
+      break;
+    case 'ready_to_ship':
+      variant = 'primary';
+      break;
     case 'failed':
     case 'rejected':
       variant = 'error';
@@ -52,6 +58,8 @@ export function StatusBadge({ status }: { status: StatusType }) {
   if (status === 'inactive') label = 'Inactive';
   if (status === 'pending_review' || status === 'shortlisted') label = 'Shortlisted';
   if (status === 'pending') label = 'Pending';
+  if (status === 'address_requested') label = 'Address Requested';
+  if (status === 'ready_to_ship') label = 'Ready to Ship';
 
   return <Badge variant={variant}>{label}</Badge>;
 }

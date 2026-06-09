@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card } from '../components/ui/Card';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Modal } from '../components/ui/Modal';
 import { 
-  getPartnerships, 
-  getCampaigns,
+  getPartnershipById,
   markQualified,
   sendOffer,
   markAccepted,
@@ -19,32 +18,28 @@ import {
 } from '../lib/api';
 import { 
   Handshake, 
-  Search, 
   Coins, 
   Edit3,
-  Calendar
+  ExternalLink,
+  ArrowLeft,
+  FileText,
+  Mail
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-export default function Partnerships() {
+export default function PartnershipDetail() {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [partnerships, setPartnerships] = useState<any[]>([]);
-  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const location = useLocation();
+  const fromCreatorId = location.state?.fromCreatorId;
+  const [partnership, setPartnership] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  
-  // Filters
-  const [selectedCampaign, setSelectedCampaign] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [selectedTier, setSelectedTier] = useState('');
-  const [selectedOfferType, setSelectedOfferType] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   // Modals
-  const [activePartnership, setActivePartnership] = useState<any | null>(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   // Form states
   const [offerForm, setOfferForm] = useState({
@@ -67,16 +62,8 @@ export default function Partnerships() {
     internal_notes: ''
   });
 
-  const [submitting, setSubmitting] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [previewSubject, setPreviewSubject] = useState('');
-  const [previewBody, setPreviewBody] = useState('');
-  const [previewToEmail, setPreviewToEmail] = useState('');
-  const [previewLoading, setPreviewLoading] = useState(false);
-
   // Shipment states
   const [showShipmentModal, setShowShipmentModal] = useState(false);
-  const [shipmentPartnership, setShipmentPartnership] = useState<any | null>(null);
   const [shipmentForm, setShipmentForm] = useState({
     product_name: '',
     product_sku: '',
@@ -91,26 +78,64 @@ export default function Partnerships() {
     notes: ''
   });
 
-  const fetchCampaignsAndPartnerships = async () => {
+  const [previewSubject, setPreviewSubject] = useState('');
+  const [previewBody, setPreviewBody] = useState('');
+  const [previewToEmail, setPreviewToEmail] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const getOfferTemplateText = (subjectTemplate: string, bodyTemplate: string) => {
+    if (!partnership) return { subject: '', body: '' };
+    
+    let offerTypeLabel = 'Free Product';
+    let compDetails = '';
+    
+    const { offer_type, flat_fee, affiliate_percentage, affiliate_code } = partnership;
+    
+    if (offer_type === 'flat_fee') {
+      offerTypeLabel = 'Flat Fee';
+      compDetails = `- Flat Fee Amount: $${flat_fee || 0} USD`;
+    } else if (offer_type === 'affiliate_commission') {
+      offerTypeLabel = 'Affiliate Commission Only';
+      compDetails = `- Commission Rate: ${affiliate_percentage || 0}%\n- Custom Promo Code: ${affiliate_code || 'N/A'}`;
+    } else if (offer_type === 'hybrid') {
+      offerTypeLabel = 'Hybrid (Flat Fee + Affiliate)';
+      compDetails = `- Flat Fee Amount: $${flat_fee || 0} USD\n- Commission Rate: ${affiliate_percentage || 0}%\n- Custom Promo Code: ${affiliate_code || 'N/A'}`;
+    } else {
+      offerTypeLabel = 'Free Product Collaboration';
+      compDetails = `- Free Product Package: ${partnership.Campaign?.product_offer_notes || 'Exclusive Gift Set'}`;
+    }
+    
+    const replace = (tmpl: string) => {
+      if (!tmpl) return '';
+      return tmpl
+        .replace(/\{\{\s*offer_type\s*\}\}/g, offerTypeLabel)
+        .replace(/\{\{\s*compensation_details\s*\}\}/g, compDetails);
+    };
+    
+    return {
+      subject: replace(subjectTemplate),
+      body: replace(bodyTemplate)
+    };
+  };
+
+  const fetchPartnership = async () => {
+    if (!id) return;
     try {
-      const [campaignsList, partnershipsList] = await Promise.all([
-        getCampaigns(),
-        getPartnerships()
-      ]);
-      setCampaigns(campaignsList);
-      setPartnerships(partnershipsList);
+      setLoading(true);
+      const data = await getPartnershipById(id);
+      setPartnership(data);
     } catch (err) {
-      console.error('Failed to load data:', err);
+      console.error('Failed to load partnership:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCampaignsAndPartnerships();
-  }, []);
+    fetchPartnership();
+  }, [id]);
 
-  const handleAction = async (id: string, action: string) => {
+  const handleAction = async (action: string) => {
+    if (!id || !partnership) return;
     try {
       setLoading(true);
       if (action === 'qualify') {
@@ -129,8 +154,8 @@ export default function Partnerships() {
           return;
         }
       }
-      const updated = await getPartnerships();
-      setPartnerships(updated);
+      const updated = await getPartnershipById(id);
+      setPartnership(updated);
     } catch (err) {
       alert('Action failed: ' + err);
     } finally {
@@ -138,32 +163,32 @@ export default function Partnerships() {
     }
   };
 
-  const openOfferModal = (p: any) => {
-    setActivePartnership(p);
+  const openOfferModal = () => {
+    if (!partnership) return;
     setOfferForm({
-      offer_type: p.offer_type || 'free_product',
-      flat_fee: p.flat_fee || 0,
-      affiliate_enabled: p.affiliate_enabled || false,
-      affiliate_percentage: p.affiliate_percentage || 0,
-      affiliate_code: p.affiliate_code || '',
-      affiliate_link: p.affiliate_link || ''
+      offer_type: partnership.offer_type || 'free_product',
+      flat_fee: partnership.flat_fee || 0,
+      affiliate_enabled: partnership.affiliate_enabled || false,
+      affiliate_percentage: partnership.affiliate_percentage || 0,
+      affiliate_code: partnership.affiliate_code || '',
+      affiliate_link: partnership.affiliate_link || ''
     });
     setShowOfferModal(true);
   };
 
-  const openShipmentModal = (p: any) => {
-    setShipmentPartnership(p);
+  const openShipmentModal = () => {
+    if (!partnership) return;
     setShipmentForm({
-      product_name: p.Campaign?.product_offer_notes || '',
+      product_name: partnership.Campaign?.product_offer_notes || '',
       product_sku: '',
       quantity: 1,
-      recipient_name: p.Creator?.full_name || '',
-      shipping_address_line1: p.Creator?.shipping_address_line1 || '',
-      shipping_address_line2: p.Creator?.shipping_address_line2 || '',
-      shipping_city: p.Creator?.shipping_city || '',
-      shipping_state: p.Creator?.shipping_state || '',
-      shipping_zip: p.Creator?.shipping_zip || '',
-      shipping_country: p.Creator?.shipping_country || 'US',
+      recipient_name: partnership.Creator?.full_name || '',
+      shipping_address_line1: partnership.Creator?.shipping_address_line1 || '',
+      shipping_address_line2: partnership.Creator?.shipping_address_line2 || '',
+      shipping_city: partnership.Creator?.shipping_city || '',
+      shipping_state: partnership.Creator?.shipping_state || '',
+      shipping_zip: partnership.Creator?.shipping_zip || '',
+      shipping_country: partnership.Creator?.shipping_country || 'US',
       notes: ''
     });
     setShowShipmentModal(true);
@@ -171,14 +196,14 @@ export default function Partnerships() {
 
   const submitShipment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shipmentPartnership) return;
+    if (!partnership) return;
     setSubmitting(true);
     try {
       await createShipment({
         ...shipmentForm,
-        creator_id: shipmentPartnership.creator_id,
-        campaign_id: shipmentPartnership.campaign_id,
-        partnership_id: shipmentPartnership.id
+        creator_id: partnership.creator_id,
+        campaign_id: partnership.campaign_id,
+        partnership_id: partnership.id
       });
       setShowShipmentModal(false);
       navigate('/shipments');
@@ -191,7 +216,7 @@ export default function Partnerships() {
 
   const handleContinueToPreview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activePartnership) return;
+    if (!partnership) return;
     setShowOfferModal(false);
     setShowPreviewModal(true);
     setPreviewLoading(true);
@@ -205,14 +230,14 @@ export default function Partnerships() {
       
       const { previewOutreach } = await import('../lib/api');
       const data = await previewOutreach(
-        activePartnership.creator_id,
-        activePartnership.campaign_id,
+        partnership.creator_id,
+        partnership.campaign_id,
         'qualification',
         extraParams
       );
       setPreviewSubject(data.subject || '');
       setPreviewBody(data.body || '');
-      setPreviewToEmail(data.to || activePartnership.Creator?.email || '');
+      setPreviewToEmail(data.to || partnership.Creator?.email || '');
     } catch (err) {
       console.error(err);
       alert('Failed to load email preview.');
@@ -223,10 +248,10 @@ export default function Partnerships() {
 
   const handleSendOfferEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activePartnership) return;
+    if (!partnership) return;
     setSubmitting(true);
     try {
-      await sendOffer(activePartnership.id, {
+      await sendOffer(partnership.id, {
         offer_type: offerForm.offer_type,
         flat_fee: Number(offerForm.flat_fee) || undefined,
         affiliate_enabled: offerForm.affiliate_enabled,
@@ -237,8 +262,8 @@ export default function Partnerships() {
         customBody: previewBody
       });
       setShowPreviewModal(false);
-      const updated = await getPartnerships();
-      setPartnerships(updated);
+      const updated = await getPartnershipById(partnership.id);
+      setPartnership(updated);
     } catch (err) {
       alert('Failed to send offer email: ' + err);
     } finally {
@@ -246,27 +271,27 @@ export default function Partnerships() {
     }
   };
 
-  const openEditModal = (p: any) => {
-    setActivePartnership(p);
+  const openEditModal = () => {
+    if (!partnership) return;
     setEditForm({
-      creator_tier: p.creator_tier || 'unknown',
-      contract_required: p.contract_required || false,
-      contract_signed: p.contract_signed || false,
-      contract_url: p.contract_url || '',
-      start_date: p.start_date || '',
-      end_date: p.end_date || '',
-      activation_notes: p.activation_notes || '',
-      internal_notes: p.internal_notes || ''
+      creator_tier: partnership.creator_tier || 'unknown',
+      contract_required: partnership.contract_required || false,
+      contract_signed: partnership.contract_signed || false,
+      contract_url: partnership.contract_url || '',
+      start_date: partnership.start_date || '',
+      end_date: partnership.end_date || '',
+      activation_notes: partnership.activation_notes || '',
+      internal_notes: partnership.internal_notes || ''
     });
     setShowEditModal(true);
   };
 
   const submitEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activePartnership) return;
+    if (!partnership) return;
     setSubmitting(true);
     try {
-      await updatePartnership(activePartnership.id, {
+      await updatePartnership(partnership.id, {
         creator_tier: editForm.creator_tier,
         contract_required: editForm.contract_required,
         contract_signed: editForm.contract_signed,
@@ -277,8 +302,8 @@ export default function Partnerships() {
         internal_notes: editForm.internal_notes || null
       });
       setShowEditModal(false);
-      const updated = await getPartnerships();
-      setPartnerships(updated);
+      const updated = await getPartnershipById(partnership.id);
+      setPartnership(updated);
     } catch (err) {
       alert('Failed to update details: ' + err);
     } finally {
@@ -286,295 +311,278 @@ export default function Partnerships() {
     }
   };
 
-  const filtered = partnerships.filter(p => {
-    // Search
-    if (search) {
-      const q = search.toLowerCase();
-      const matchCreator = p.Creator?.handle?.toLowerCase().includes(q) || p.Creator?.full_name?.toLowerCase().includes(q);
-      const matchCampaign = p.Campaign?.name?.toLowerCase().includes(q);
-      if (!matchCreator && !matchCampaign) return false;
-    }
-    // Dropdowns
-    if (selectedCampaign && p.campaign_id !== selectedCampaign) return false;
-    if (selectedStatus && p.status !== selectedStatus) return false;
-    if (selectedTier && p.creator_tier !== selectedTier) return false;
-    if (selectedOfferType && p.offer_type !== selectedOfferType) return false;
-    
-    let matchesDate = true;
-    if (startDate || endDate) {
-      const pDate = p.start_date ? new Date(p.start_date) : (p.createdAt ? new Date(p.createdAt) : new Date());
-      if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0,0,0,0);
-        if (pDate < start) matchesDate = false;
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23,59,59,999);
-        if (pDate > end) matchesDate = false;
-      }
-    }
-    if (!matchesDate) return false;
-    
-    return true;
-  });
+  if (loading) {
+    return (
+      <div className="py-20 max-w-7xl mx-auto px-4 sm:px-0">
+        <LoadingState message="Retrieving Partnership details..." />
+      </div>
+    );
+  }
 
+  if (!partnership) {
+    return (
+      <div className="py-20 max-w-7xl mx-auto px-4 sm:px-0 text-center">
+        <h2 className="text-xl font-semibold text-gray-700">Partnership not found</h2>
+        <Link to={fromCreatorId ? `/creators/${fromCreatorId}` : "/partnerships"} className="text-primary-600 hover:underline mt-4 inline-block">
+          Back to {fromCreatorId ? 'Creator Detail' : 'Partnerships'}
+        </Link>
+      </div>
+    );
+  }
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.3s_ease]">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
+          {fromCreatorId ? (
+            <button 
+              onClick={() => navigate(`/creators/${fromCreatorId}`)}
+              className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors mb-3"
+            >
+              <ArrowLeft size={14} /> Back to Creator Detail
+            </button>
+          ) : (
+            <button 
+              onClick={() => navigate('/partnerships')}
+              className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors mb-3"
+            >
+              <ArrowLeft size={14} /> Back to Partnerships
+            </button>
+          )}
           <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
-            Creator Partnerships
+            Partnership Profile
           </h1>
+        </div>
+
+        {/* Actions panel */}
+        <div className="flex items-center gap-2">
+          {partnership.status === 'engaged' && (
+            <Button className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={() => handleAction('qualify')}>
+              Qualify
+            </Button>
+          )}
+          {partnership.status === 'qualified' && (
+            <Button className="bg-primary-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={openOfferModal}>
+              Send Offer
+            </Button>
+          )}
+          {partnership.status === 'offer_sent' && (
+            <Button className="bg-green-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={() => handleAction('accept')}>
+              Accept Offer
+            </Button>
+          )}
+          {partnership.status === 'accepted' && (
+            <Button className="bg-blue-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={openShipmentModal}>
+              Send Shipment
+            </Button>
+          )}
+          {['product_shipped', 'product_delivered'].includes(partnership.status) && (
+            <Button className="bg-amber-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={() => handleAction('activate')}>
+              Activate
+            </Button>
+          )}
+          {partnership.status === 'activated' && (
+            <Button className="bg-gray-800 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={() => handleAction('complete')}>
+              Complete
+            </Button>
+          )}
+          <button 
+            onClick={openEditModal}
+            className="p-2.5 text-gray-500 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors flex items-center justify-center"
+            title="Edit parameters"
+          >
+            <Edit3 size={18} />
+          </button>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <Card className="border-none shadow-xl bg-white/80 backdrop-blur-md">
-        <div className="p-6 flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex gap-2 w-full sm:max-w-md flex-1">
-              <div className="relative flex-1">
-                <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-gray-400" />
-                <input 
-                  type="text" 
-                  placeholder="Search creator..." 
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-outfit"
-                />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Side: Creator overview & details */}
+        <div className="space-y-8 lg:col-span-2">
+          {/* Creator Profile Summary Card */}
+          <Card className="border-none shadow-xl bg-white p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 border-b border-gray-100 pb-6">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-2xl uppercase ring-4 ring-white shadow-md overflow-hidden">
+                  {partnership.Creator?.profile_pic ? (
+                    <img src={partnership.Creator.profile_pic} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    (partnership.Creator?.full_name || partnership.Creator?.handle)?.charAt(0) || 'C'
+                  )}
+                </div>
+                <div>
+                  <div className="text-xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
+                    {partnership.Creator?.full_name || `@${partnership.Creator?.handle}`}
+                  </div>
+                  <div className="text-sm text-gray-500 mt-1">@{partnership.Creator?.handle}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{partnership.Creator?.email || 'No email registered'}</div>
+                </div>
+              </div>
+              
+              <div className="flex flex-col items-end gap-2">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Partnership Status</span>
+                <StatusBadge status={partnership.status} />
               </div>
             </div>
-            <div className="text-sm text-gray-500 font-normal sm:ml-auto">
-              {filtered.length} records found
-            </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={selectedCampaign}
-              onChange={(e) => setSelectedCampaign(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit min-w-[150px]"
-            >
-              <option value="">All Campaigns</option>
-              {campaigns.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-6">
+              {/* Settings */}
+              <div className="space-y-4 font-outfit">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Compensation</span>
+                    <span className="text-sm font-normal text-gray-800 uppercase">
+                      {partnership.offer_type ? partnership.offer_type.replace('_', ' ') : 'None drafted'}
+                    </span>
+                  </div>
+                  {partnership.flat_fee > 0 && (
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Flat Fee</span>
+                      <span className="text-sm font-normal text-gray-800">${partnership.flat_fee} {partnership.currency}</span>
+                    </div>
+                  )}
+                </div>
 
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit min-w-[150px]"
-            >
-              <option value="">All Statuses</option>
-              <option value="engaged">Engaged</option>
-              <option value="meeting_scheduled">Meeting Scheduled</option>
-              <option value="qualified">Qualified</option>
-              <option value="offer_sent">Offer Sent</option>
-              <option value="accepted">Accepted</option>
-              <option value="activated">Activated</option>
-              <option value="completed">Completed</option>
-              <option value="rejected">Rejected</option>
-            </select>
-
-            <select
-              value={selectedTier}
-              onChange={(e) => setSelectedTier(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit min-w-[150px]"
-            >
-              <option value="">All Tiers</option>
-              <option value="nano">Nano (&lt;10k)</option>
-              <option value="micro">Micro (10k-50k)</option>
-              <option value="mid_tier">Mid Tier (50k-100k)</option>
-              <option value="macro">Macro (100k-500k)</option>
-              <option value="celebrity">Celebrity (500k+)</option>
-            </select>
-
-            <select
-              value={selectedOfferType}
-              onChange={(e) => setSelectedOfferType(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit min-w-[150px]"
-            >
-              <option value="">All Offer Types</option>
-              <option value="free_product">Free Product</option>
-              <option value="affiliate_commission">Affiliate Only</option>
-              <option value="flat_fee">Flat Fee</option>
-              <option value="hybrid">Hybrid</option>
-            </select>
-
-            {/* Date Range Selector */}
-            <div className="flex items-center gap-3 border border-gray-200 rounded-lg py-2 px-3 bg-white shadow-sm">
-              <Calendar size={14} className="text-gray-400" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest font-outfit">From</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-transparent border-none text-gray-700 text-xs font-normal uppercase tracking-tight outline-none focus:ring-0 font-outfit p-0 cursor-pointer focus:outline-none"
-                />
-              </div>
-              <span className="text-gray-300">|</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest font-outfit">To</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-transparent border-none text-gray-700 text-xs font-normal uppercase tracking-tight outline-none focus:ring-0 font-outfit p-0 cursor-pointer focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Main Table */}
-      <Card className="overflow-hidden border-none shadow-2xl bg-white">
-        {loading ? (
-          <div className="py-20">
-            <LoadingState message="Retrieving CRM Partnerships..." />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[1200px]">
-              <thead>
-                <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-                  <th className="px-8 py-5">Creator</th>
-                  <th className="px-8 py-5">Campaign</th>
-                  <th className="px-8 py-5 text-center">Status</th>
-                  <th className="px-8 py-5 text-center">Tier</th>
-                  <th className="px-8 py-5">Offer Parameters</th>
-                  <th className="px-8 py-5 text-center">Start Date</th>
-                  <th className="px-8 py-5 text-center">End Date</th>
-                  <th className="px-8 py-5 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map(p => (
-                  <tr 
-                    key={p.id} 
-                    onClick={() => navigate(`/partnerships/${p.id}`)}
-                    className="hover:bg-primary-50/10 transition-colors cursor-pointer"
-                  >
-                    <td className="px-8 py-5 align-middle">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
-                          {p.Creator?.profile_pic ? (
-                            <img src={p.Creator.profile_pic} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            (p.Creator?.full_name || p.Creator?.handle)?.charAt(0) || 'C'
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
-                            {p.Creator?.full_name || `@${p.Creator?.handle}`}
-                          </div>
-                          <div className="flex gap-2 mt-1.5">
-                            <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{p.Creator?.handle}</span>
-                          </div>
-                        </div>
+                {partnership.affiliate_enabled && (
+                  <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3 text-xs">
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block border-b border-gray-100 pb-1">Affiliate Details</span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[9px] text-gray-400 block uppercase">Promo Code</span>
+                        <span className="font-semibold text-gray-800 font-mono uppercase text-sm">{partnership.affiliate_code || '---'}</span>
                       </div>
-                    </td>
-                    <td className="px-8 py-5 align-middle">
-                      <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight truncate max-w-[200px]">{p.Campaign?.name}</div>
-                    </td>
-                    <td className="px-8 py-5 text-center align-middle">
-                      <StatusBadge status={p.status} />
-                    </td>
-                    <td className="px-8 py-5 text-center align-middle">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-gray-100 text-gray-600 uppercase tracking-wider">
-                        {p.creator_tier?.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5 align-middle text-xs">
-                      {p.offer_type ? (
-                        <div className="space-y-1">
-                          <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight flex items-center gap-1">
-                            <Coins size={12} className="text-amber-500" /> {p.offer_type.replace('_', ' ')}
-                          </div>
-                          {p.flat_fee > 0 && <div className="text-[11px] text-gray-500 tracking-normal">${p.flat_fee} {p.currency}</div>}
-                          {p.affiliate_enabled && (
-                            <div className="text-primary-600 bg-primary-50/50 border border-primary-100/50 rounded px-1.5 py-0.5 inline-block text-[10px] uppercase font-mono mt-1">
-                              Code: {p.affiliate_code || '---'} ({p.affiliate_percentage || 0}%)
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 italic">No offer drafted</span>
-                      )}
-                    </td>
-                    <td className="px-8 py-5 text-center align-middle text-xs text-gray-650 font-mono">
-                      {p.start_date ? format(new Date(p.start_date), 'MMM d, yyyy') : <span className="text-gray-400 italic">---</span>}
-                    </td>
-                    <td className="px-8 py-5 text-center align-middle text-xs text-gray-650 font-mono">
-                      {p.end_date ? format(new Date(p.end_date), 'MMM d, yyyy') : <span className="text-gray-400 italic">---</span>}
-                    </td>
-                    <td className="px-8 py-5 align-middle" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-center gap-2">
-                        {p.status === 'engaged' && (
-                          <Button size="sm" className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5" onClick={() => handleAction(p.id, 'qualify')}>
-                            Qualify
-                          </Button>
-                        )}
-                        {p.status === 'qualified' && (
-                          <Button size="sm" className="bg-primary-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5" onClick={() => openOfferModal(p)}>
-                            Send Offer
-                          </Button>
-                        )}
-                        {p.status === 'offer_sent' && (
-                          <Button size="sm" variant="outline" className="text-gray-600 font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5 border-gray-200 bg-gray-50 hover:bg-gray-100" onClick={() => openOfferModal(p)}>
-                            Resend Offer
-                          </Button>
-                        )}
-                        {p.status === 'accepted' && (
-                          <Button size="sm" className="bg-blue-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5" onClick={() => openShipmentModal(p)}>
-                            Create Shipment
-                          </Button>
-                        )}
-                        {['product_shipped', 'product_delivered'].includes(p.status) && (
-                          <Button size="sm" className="bg-amber-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5" onClick={() => handleAction(p.id, 'activate')}>
-                            Activate
-                          </Button>
-                        )}
-                        {p.status === 'activated' && (
-                          <Button size="sm" className="bg-gray-800 text-white font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5" onClick={() => handleAction(p.id, 'complete')}>
-                            Complete
-                          </Button>
-                        )}
-                        <button 
-                          onClick={() => openEditModal(p)}
-                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Edit parameters"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        {p.status !== 'rejected' && p.status !== 'completed' && (
-                          <button 
-                            onClick={() => handleAction(p.id, 'reject')}
-                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Reject partnership"
-                          >
-                            &times;
-                          </button>
-                        )}
+                      <div>
+                        <span className="text-[9px] text-gray-400 block uppercase">Commission Rate</span>
+                        <span className="font-semibold text-gray-800 text-sm">{partnership.affiliate_percentage || 0}%</span>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="text-center py-20 text-gray-400 italic">No partnerships matching criteria.</td>
-                  </tr>
+                    </div>
+                    {partnership.affiliate_link && (
+                      <div className="pt-2 border-t border-gray-100">
+                        <span className="text-[9px] text-gray-400 block uppercase">Tracking Link</span>
+                        <a href={partnership.affiliate_link} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline flex items-center gap-1 mt-0.5 truncate max-w-full font-mono">
+                          {partnership.affiliate_link} <ExternalLink size={10} />
+                        </a>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
-        )}
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Start Date</span>
+                    <span className="text-sm font-normal text-gray-800">
+                      {partnership.start_date ? format(new Date(partnership.start_date), 'MMM d, yyyy') : '---'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">End Date</span>
+                    <span className="text-sm font-normal text-gray-800">
+                      {partnership.end_date ? format(new Date(partnership.end_date), 'MMM d, yyyy') : '---'}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-      </Card>
+              {/* Legal & Notes */}
+              <div className="space-y-4 font-outfit">
+
+                <div>
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Contract Status</span>
+                  <div className="mt-1 flex items-center gap-1.5 text-xs">
+                    {partnership.contract_required ? (
+                      partnership.contract_signed ? (
+                        <span className="text-green-600 bg-green-50 px-2 py-0.5 rounded-full font-semibold border border-green-200 uppercase tracking-wider text-[10px]">Signed</span>
+                      ) : (
+                        <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-semibold border border-amber-200 uppercase tracking-wider text-[10px]">Pending Signature</span>
+                      )
+                    ) : (
+                      <span className="text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider text-[10px]">Not Required</span>
+                    )}
+                  </div>
+                </div>
+
+                {partnership.contract_url && (
+                  <div>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Contract Link</span>
+                    <a href={partnership.contract_url} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline flex items-center gap-1 mt-1 text-xs font-semibold">
+                      View Executed Contract <ExternalLink size={12} />
+                    </a>
+                  </div>
+                )}
+
+                {partnership.creator_tier && (
+                  <div>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Creator Tier Size</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600 uppercase tracking-wider inline-block mt-1">
+                      {partnership.creator_tier.replace('_', ' ')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Notes Section */}
+            {(partnership.activation_notes || partnership.internal_notes) && (
+              <div className="border-t border-gray-100 mt-6 pt-6 space-y-4 font-outfit">
+                {partnership.activation_notes && (
+                  <div>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Activation Notes</span>
+                    <p className="text-sm text-gray-650 mt-1.5 whitespace-pre-wrap leading-relaxed">{partnership.activation_notes}</p>
+                  </div>
+                )}
+
+                {partnership.internal_notes && (
+                  <div className="bg-yellow-50/45 border border-yellow-100/50 p-4 rounded-xl">
+                    <span className="text-[9px] font-bold text-amber-800 uppercase tracking-wider block">Internal Team Notes</span>
+                    <p className="text-sm text-gray-650 mt-1.5 whitespace-pre-wrap leading-relaxed">{partnership.internal_notes}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* Right Side: Partnership Outreach Template Preview */}
+        <div className="lg:col-span-1">
+          <Card className="border-primary-100 bg-primary-50/10 h-full flex flex-col">
+            <CardHeader className="flex flex-row justify-between items-center pb-2">
+              <h2 className="text-sm font-normal text-primary-700 uppercase tracking-widest flex items-center gap-2 font-outfit">
+                <Mail size={16} /> Partnership Outreach
+              </h2>
+            </CardHeader>
+            <CardContent className="space-y-4 flex-grow">
+              {!partnership.Campaign?.Template ? (
+                <div className="flex-1 flex items-center justify-center text-center py-12 text-gray-400 italic text-xs font-outfit">
+                  No outreach template configured for this campaign.
+                </div>
+              ) : (
+                (() => {
+                  const { subject, body } = getOfferTemplateText(
+                    partnership.Campaign.Template.subject_line_template || '',
+                    partnership.Campaign.Template.body_template || ''
+                  );
+                  return (
+                    <div className="space-y-3 font-outfit">
+                      <div>
+                        <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">Subject</div>
+                        <div className="text-xs text-gray-900 bg-white border border-gray-100 rounded-lg px-3 py-2 font-sans font-medium">
+                          {subject || <span className="text-gray-405 italic">No subject yet</span>}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">Body</div>
+                        <div className="text-xs text-gray-800 bg-white border border-gray-100 rounded-lg px-3 py-3 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto font-sans">
+                          {body || <span className="text-gray-450 italic">No body yet</span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {/* ─── Send Offer Modal ─── */}
       <Modal isOpen={showOfferModal} onClose={() => setShowOfferModal(false)} title="Draft & Send Campaign Offer">
@@ -672,6 +680,10 @@ export default function Partnerships() {
           </div>
         ) : (
           <form onSubmit={handleSendOfferEmail} className="space-y-4 font-outfit">
+            <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-xs text-indigo-700 leading-relaxed">
+              ℹ️ A styled <strong>Accept Partnership Offer</strong> button will automatically be attached to the footer of this email. When the creator clicks it, their status will update to <strong>ACCEPTED</strong> automatically.
+            </div>
+
             <div>
               <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
                 To
@@ -890,6 +902,7 @@ export default function Partnerships() {
                 <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">Address Line 1</label>
                 <input
                   type="text"
+                  required
                   placeholder="123 Main St"
                   value={shipmentForm.shipping_address_line1}
                   onChange={e => setShipmentForm(prev => ({ ...prev, shipping_address_line1: e.target.value }))}
@@ -910,6 +923,7 @@ export default function Partnerships() {
                 <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">City</label>
                 <input
                   type="text"
+                  required
                   placeholder="City"
                   value={shipmentForm.shipping_city}
                   onChange={e => setShipmentForm(prev => ({ ...prev, shipping_city: e.target.value }))}
@@ -920,6 +934,7 @@ export default function Partnerships() {
                 <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">State</label>
                 <input
                   type="text"
+                  required
                   placeholder="State"
                   value={shipmentForm.shipping_state}
                   onChange={e => setShipmentForm(prev => ({ ...prev, shipping_state: e.target.value }))}
@@ -930,6 +945,7 @@ export default function Partnerships() {
                 <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">Zip Code</label>
                 <input
                   type="text"
+                  required
                   placeholder="Zip"
                   value={shipmentForm.shipping_zip}
                   onChange={e => setShipmentForm(prev => ({ ...prev, shipping_zip: e.target.value }))}
@@ -940,6 +956,7 @@ export default function Partnerships() {
                 <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">Country</label>
                 <input
                   type="text"
+                  required
                   placeholder="e.g. US, IN"
                   value={shipmentForm.shipping_country}
                   onChange={e => setShipmentForm(prev => ({ ...prev, shipping_country: e.target.value }))}
