@@ -383,3 +383,35 @@ export const markFailedShipment = (id: string): Promise<any> =>
 export const cancelShipment = (id: string): Promise<any> =>
   api.post(`/shipments/${id}/cancel`) as any;
 
+// --- CONTENT ENDPOINTS ---
+
+export const getContents = (params?: { campaign_id?: string; status?: string; creator_id?: string; platform?: string }): Promise<any[]> =>
+  api.get('/content', { params }) as any;
+
+export const getContentById = (id: string): Promise<any> =>
+  api.get(`/content/${id}`) as any;
+
+export const createContent = (data: Partial<any>): Promise<any> =>
+  api.post('/content', data) as any;
+
+export const updateContent = (id: string, data: Partial<any>): Promise<any> =>
+  api.patch(`/content/${id}`, data) as any;
+
+export const markContentSubmitted = (id: string, data: { content_url?: string; draft_url?: string; caption?: string; thumbnail_url?: string }): Promise<any> =>
+  api.post(`/content/${id}/mark-submitted`, data) as any;
+
+export const approveContent = (id: string): Promise<any> =>
+  api.post(`/content/${id}/approve`) as any;
+
+export const requestContentRevision = (id: string, data: { notes: string }): Promise<any> =>
+  api.post(`/content/${id}/request-revision`, data) as any;
+
+export const markContentPublished = (id: string, data: { content_url?: string; published_url?: string; published_at?: string }): Promise<any> =>
+  api.post(`/content/${id}/mark-published`, data) as any;
+
+export const rejectContent = (id: string, data: { notes: string }): Promise<any> =>
+  api.post(`/content/${id}/reject`, data) as any;
+
+export const syncContentPerformance = (id: string): Promise<any> =>
+  api.post(`/content/${id}/sync-performance`) as any;
+

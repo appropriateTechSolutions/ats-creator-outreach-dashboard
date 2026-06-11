@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Drawer } from './ui/Drawer';
 import { Button } from './ui/Button';
 import { StatusBadge } from './ui/StatusBadge';
 import { ScoreBadge } from './ui/ScoreBadge';
+import { Card } from './ui/Card';
+import { LoadingState } from './ui/LoadingState';
 import { OutreachPreviewModal } from './ui/OutreachPreviewModal';
 import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
@@ -15,8 +17,13 @@ import {
   sendSingleOutreach, 
   linkAffiliate, 
   findSimilarCreators,
-  previewOutreach
+  previewOutreach,
+  getPartnerships,
+  getCreatorActivities,
+  getShipments,
+  updateShipment
 } from '../lib/api';
+import { format } from 'date-fns';
 import { 
   Instagram, 
   Youtube, 
@@ -43,7 +50,10 @@ import {
   Clock, 
   UserCheck,
   Send,
-  RefreshCw
+  RefreshCw,
+  Coins,
+  Truck,
+  Edit3
 } from 'lucide-react';
 import type { Creator } from '../types';
 
@@ -76,6 +86,14 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
   const [loadingFull, setLoadingFull] = useState(false);
   const [fullCreator, setFullCreator] = useState<Creator | null>(null);
 
+  // CRM Section State
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'partnerships' | 'shipments' | 'activities'>('partnerships');
+  const [partnerships, setPartnerships] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [creatorShipments, setCreatorShipments] = useState<any[]>([]);
+  const [partnershipsLoading, setPartnershipsLoading] = useState(false);
+
   // Affiliate Form State
   const [isAffiliateModalOpen, setIsAffiliateModalOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -84,10 +102,29 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
     link: ''
   });
 
+  const loadCrmData = async (id: string) => {
+    setPartnershipsLoading(true);
+    try {
+      const [partsList, actsList, shipments] = await Promise.all([
+        getPartnerships(),
+        getCreatorActivities(id),
+        getShipments({ creator_id: id })
+      ]);
+      setPartnerships(partsList.filter((p: any) => String(p.creator_id) === String(id) || String(p.creatorId) === String(id) || String(p.Creator?.id) === String(id)));
+      setActivities(actsList);
+      setCreatorShipments(shipments);
+    } catch (err) {
+      console.error("Failed to load CRM data:", err);
+    } finally {
+      setPartnershipsLoading(false);
+    }
+  };
+
   // Load full details dynamically when drawer opens
   useEffect(() => {
     if (isOpen && creator?.id) {
       setLoadingFull(true);
+      loadCrmData(creator.id);
       getCreatorById(creator.id)
         .then(data => {
           setFullCreator(data);
@@ -718,7 +755,7 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
           </div>
 
           {/* Conditional rendering for engaged creators */}
-          {activeCreator.lifecycle_status === 'engaged' && (
+          {['engaged', 'qualified', 'offered', 'accepted', 'activated', 'converted', 'completed'].includes(activeCreator.lifecycle_status || '') && (
             <>
               {/* Meeting Options */}
               <div className="border-t border-gray-100 pt-6">
@@ -837,7 +874,215 @@ export function CreatorPreviewDrawer({ isOpen, onClose, creator, campaignId, onA
             </>
           )}
         </div>
-      </Drawer>
+            <Card className="no-print">
+        <div className="border-b border-gray-100 bg-white rounded-t-[12px] flex items-center justify-between px-6 pt-4">
+            {(['partnerships', 'shipments', 'activities'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer outline-none ${
+                  activeTab === tab
+                    ? 'border-primary-600 text-primary-700'
+                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                {tab === 'partnerships' 
+                  ? `Campaign Partnerships (${partnerships.length})` 
+                  : tab === 'shipments'
+                    ? `Shipments (${creatorShipments.length})`
+                    : `Activity Timeline (${activities.length})`
+                }
+              </button>
+            ))}
+        </div>
+
+        {activeTab === 'partnerships' && (
+          <div className="p-6">
+            {partnershipsLoading ? (
+              <LoadingState message="Syncing partnerships..." />
+            ) : partnerships.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
+                No campaign partnerships found for this creator yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left min-w-[700px]">
+                  <thead>
+                    <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
+                      <th className="px-4 py-3">Campaign</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3 text-center">Tier</th>
+                      <th className="px-4 py-3">Offer parameters</th>
+                      <th className="px-4 py-3 text-center">Start Date</th>
+                      <th className="px-4 py-3 text-center">End Date</th>
+                      
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {partnerships.map((p) => (
+                      <tr key={p.id} onClick={() => navigate(`/partnerships/${p.id}`, { state: { fromCreatorId: activeCreator.id } })} className="hover:bg-primary-50/10 transition-colors cursor-pointer">
+                        <td className="px-4 py-4 align-middle">
+                          <div className="text-xs font-normal text-gray-900 font-outfit uppercase tracking-tight">
+                            {p.Campaign?.name}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <StatusBadge status={p.status} />
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-gray-100 text-gray-600 uppercase tracking-wider">
+                            {p.creator_tier?.replace('_', ' ') || 'unknown'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 align-middle text-xs">
+                          {p.offer_type ? (
+                            <div className="space-y-1">
+                              <div className="font-medium text-gray-800 uppercase flex items-center gap-1">
+                                <Coins size={10} className="text-amber-500" /> {p.offer_type.replace('_', ' ')}
+                              </div>
+                              {p.flat_fee > 0 && <div className="text-gray-500">${p.flat_fee} {p.currency}</div>}
+                              {p.affiliate_enabled && (
+                                <div className="text-primary-600 bg-primary-50/50 border border-primary-100/50 rounded px-1.5 py-0.5 inline-block text-[9px] uppercase font-mono mt-0.5">
+                                  Code: {p.affiliate_code || '---'} ({p.affiliate_percentage || 0}%)
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 italic">No offer drafted</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle text-[11px] text-gray-500 font-mono">
+                          {p.start_date ? format(new Date(p.start_date), 'MMM d, yyyy') : '---'}
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle text-[11px] text-gray-500 font-mono">
+                          {p.end_date ? format(new Date(p.end_date), 'MMM d, yyyy') : '---'}
+                        </td>
+                        
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'shipments' && (
+          <div className="p-6 space-y-4">
+            {creatorShipments.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
+                No shipments dispatched to this creator yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left min-w-[800px]">
+                  <thead>
+                    <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
+                      <th className="px-4 py-3">Campaign</th>
+                      <th className="px-4 py-3">Product Name</th>
+                      <th className="px-4 py-3">Recipient</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3">Tracking</th>
+                      
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 bg-white">
+                    {creatorShipments.map((s) => (
+                      <tr key={s.id} onClick={() => navigate(`/shipments/${s.id}`, { state: { fromCreatorId: activeCreator.id } })} className="hover:bg-primary-50/10 transition-colors cursor-pointer">
+                        <td className="px-4 py-4 align-middle text-xs font-medium text-gray-800">
+                          {s.Campaign?.name}
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <div className="text-xs font-medium text-gray-800">{s.product_name}</div>
+                          <div className="text-[10px] text-gray-400">Qty: {s.quantity} {s.product_sku ? `(SKU: ${s.product_sku})` : ''}</div>
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <div className="text-xs text-gray-800">{s.recipient_name}</div>
+                          <div className="text-[10px] text-gray-500 truncate max-w-[180px]" title={s.shipping_address_line1}>{s.shipping_address_line1}</div>
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle">
+                          <StatusBadge status={s.status} />
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          {s.tracking_number ? (
+                            <div>
+                              <div className="text-xs font-mono font-medium text-gray-800 flex items-center gap-1">
+                                <Truck size={10} className="text-gray-400" /> {s.carrier}: {s.tracking_number}
+                              </div>
+                              {s.tracking_url && (
+                                <a href={s.tracking_url} target="_blank" rel="noreferrer" className="text-[10px] text-primary-600 hover:underline inline-flex items-center gap-0.5 mt-0.5">
+                                  Track <ExternalLink size={8} />
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 italic">No tracking info</span>
+                          )}
+                        </td>
+                        
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'activities' && (
+          <div className="p-6">
+            {activities.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
+                No activities logged for this creator yet.
+              </div>
+            ) : (
+              <div className="flow-root animate-[fadeIn_0.2s_ease]">
+                <ul className="-mb-8">
+                  {activities.map((act, actIdx) => (
+                    <li key={act.id}>
+                      <div className="relative pb-8">
+                        {actIdx !== activities.length - 1 ? (
+                          <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true" />
+                        ) : null}
+                        <div className="relative flex space-x-3">
+                          <div>
+                            <span className="h-8 w-8 rounded-full bg-primary-50 border border-primary-100 flex items-center justify-center text-primary-600 shadow-sm">
+                              <Activity size={14} />
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0 pt-1.5 flex justify-between space-x-4">
+                            <div>
+                              <p className="text-xs text-gray-800 font-medium">
+                                {act.description}{' '}
+                                {act.Campaign && (
+                                  <span className="font-semibold text-gray-900 uppercase tracking-tight text-[11px]">
+                                    ({act.Campaign.name})
+                                  </span>
+                                )}
+                              </p>
+                              {act.metadata && Object.keys(act.metadata).length > 0 && (
+                                <div className="mt-1 text-[10px] text-gray-400 font-mono">
+                                  {JSON.stringify(act.metadata)}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right text-[10px] whitespace-nowrap text-gray-400 font-mono">
+                              {format(new Date(act.created_at || act.createdAt), 'MMM d, yyyy HH:mm')}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
+        </Drawer>
 
       <ImageLightbox
         src={lightboxOpen ? (activeCreator.profile_pic || null) : null}

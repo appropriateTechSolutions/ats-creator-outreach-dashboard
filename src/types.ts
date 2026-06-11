@@ -229,3 +229,37 @@ export interface AuthUser {
   user_type: 'internal' | 'client'
   client_id: string | null
 }
+
+export interface CreatorContent {
+  id: string;
+  creator_id: string;
+  campaign_id: string;
+  partnership_id?: string | null;
+  platform: 'instagram' | 'youtube' | 'tiktok' | 'blog' | 'website' | 'other';
+  content_type: 'instagram_reel' | 'instagram_story' | 'instagram_post' | 'youtube_video' | 'youtube_short' | 'tiktok_video' | 'blog_post' | 'other';
+  title?: string | null;
+  caption?: string | null;
+  content_url?: string | null;
+  thumbnail_url?: string | null;
+  draft_url?: string | null;
+  published_url?: string | null;
+  due_date?: string | null;
+  submitted_at?: string | null;
+  approved_at?: string | null;
+  published_at?: string | null;
+  status: 'pending' | 'submitted' | 'revision_requested' | 'approved' | 'published' | 'rejected' | 'cancelled';
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  clicks: number;
+  engagement_rate?: number | null;
+  performance_last_synced_at?: string | null;
+  notes?: string | null;
+  internal_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  Campaign?: Campaign;
+  Creator?: Creator;
+}

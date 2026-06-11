@@ -183,8 +183,11 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
     // Only count creators with real profile data that clear the follower floor.
     if (!isQualifiedCreator(c)) return false;
 
-    // Filter for onlyEngaged creators if requested
-    if (onlyEngaged && c.lifecycle_status !== 'engaged') return false;
+    // Filter for onlyEngaged creators if requested (includes approved review status or active lifecycle status)
+    if (onlyEngaged) {
+      const isMyCreator = c.review_status === 'approved' || ['engaged', 'qualified', 'converted', 'contacted', 'replied'].includes(c.lifecycle_status || '');
+      if (!isMyCreator) return false;
+    }
 
     const matchesSearch =
       c.handle?.toLowerCase().includes(search.toLowerCase()) ||

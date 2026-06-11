@@ -28,6 +28,8 @@ import Partnerships from './pages/Partnerships';
 import PartnershipDetail from './pages/PartnershipDetail';
 import Shipments from './pages/Shipments';
 import ShipmentDetail from './pages/ShipmentDetail';
+import Content from './pages/Content';
+import ContentDetail from './pages/ContentDetail';
 import AcceptOffer from './pages/AcceptOffer';
 import ProvideAddress from './pages/ProvideAddress';
 
@@ -84,6 +86,8 @@ export default function App() {
             <Route path="/partnerships/:id" element={<PartnershipDetail />} />
             <Route path="/shipments" element={<Shipments />} />
             <Route path="/shipments/:id" element={<ShipmentDetail />} />
+            <Route path="/content" element={<Content />} />
+            <Route path="/content/:id" element={<ContentDetail />} />
             <Route path="/affiliate" element={<AffiliatePerformance />} />
             <Route path="/analytics" element={<Placeholder title="Analytics" />} />
           </Route>

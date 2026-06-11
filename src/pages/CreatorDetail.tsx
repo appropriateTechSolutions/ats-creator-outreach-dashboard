@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit, getMediaKitUrl, updateCreatorNotes, getPartnerships, getCreatorActivities, markQualified, sendOffer, markAccepted, activatePartnership, completePartnership, rejectPartnership, updatePartnership, getShipments, updateShipment } from '../lib/api';
+import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit, getMediaKitUrl, updateCreatorNotes, getPartnerships, getCreatorActivities, markQualified, sendOffer, markAccepted, activatePartnership, completePartnership, rejectPartnership, updatePartnership, getShipments, updateShipment, getContents, createContent, updateContent, markContentSubmitted, approveContent, requestContentRevision, markContentPublished, syncContentPerformance } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
@@ -85,16 +85,46 @@ export default function CreatorDetail() {
   const [savingNotes, setSavingNotes] = useState(false);
 
   // V3 CRM Tab & Partnership States
-  const [activeTab, setActiveTab] = useState<'partnerships' | 'shipments' | 'activities'>('partnerships');
+  const [activeTab, setActiveTab] = useState<'partnerships' | 'shipments' | 'content' | 'activities'>('partnerships');
   const [partnerships, setPartnerships] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [creatorShipments, setCreatorShipments] = useState<any[]>([]);
+  const [creatorContent, setCreatorContent] = useState<any[]>([]);
   const [partnershipsLoading, setPartnershipsLoading] = useState(false);
 
   const [activePartnership, setActivePartnership] = useState<any | null>(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // V3 Content tracking states
+  const [showAddContentModal, setShowAddContentModal] = useState(false);
+  const [showEditContentModal, setShowEditContentModal] = useState(false);
+  const [showContentEmailModal, setShowContentEmailModal] = useState(false);
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [revisionSubject, setRevisionSubject] = useState('');
+  const [revisionBody, setRevisionBody] = useState('');
+  const [activeRevisionContentId, setActiveRevisionContentId] = useState<string | null>(null);
+  const [selectedContent, setSelectedContent] = useState<any | null>(null);
+  const [contentEmailSubject, setContentEmailSubject] = useState('');
+  const [contentEmailBody, setContentEmailBody] = useState('');
+  const [contentActionLoading, setContentActionLoading] = useState(false);
+  const [contentForm, setContentForm] = useState({
+    campaign_id: '',
+    platform: 'instagram',
+    content_type: 'instagram_reel',
+    due_date: new Date().toISOString().split('T')[0],
+    notes: ''
+  });
+  const [editContentForm, setEditContentForm] = useState({
+    id: '',
+    platform: 'instagram',
+    content_type: 'instagram_reel',
+    due_date: '',
+    notes: '',
+    draft_url: '',
+    published_url: ''
+  });
 
   const [offerForm, setOfferForm] = useState({
     offer_type: 'free_product',
@@ -193,14 +223,20 @@ export default function CreatorDetail() {
         }
 
         try {
-          const [partsList, actsList, shipmentsList] = await Promise.all([
+          const [partsList, actsList, shipmentsList, contentList] = await Promise.all([
             getPartnerships(),
             getCreatorActivities(id),
-            getShipments({ creator_id: id })
+            getShipments({ creator_id: id }),
+            getContents({ creator_id: id })
           ]);
-          setPartnerships(partsList.filter((p: any) => String(p.creator_id) === String(id) || String(p.creatorId) === String(id) || String(p.Creator?.id) === String(id)));
+          const creatorParts = partsList.filter((p: any) => String(p.creator_id) === String(id) || String(p.creatorId) === String(id) || String(p.Creator?.id) === String(id));
+          setPartnerships(creatorParts);
           setActivities(actsList);
           setCreatorShipments(shipmentsList);
+          setCreatorContent(contentList);
+          if (creatorParts.length > 0) {
+            setContentForm(f => ({ ...f, campaign_id: f.campaign_id || creatorParts[0].Campaign?.id || creatorParts[0].campaign_id || '' }));
+          }
         } catch (e) {
           console.error('Failed to load V3 partnerships/activities/shipments', e);
         }
@@ -247,6 +283,182 @@ export default function CreatorDetail() {
       alert('Action failed: ' + err);
     } finally {
       setPartnershipsLoading(false);
+    }
+  };
+
+  const handleRevisionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeRevisionContentId) return;
+    try {
+      setSubmitting(true);
+      // Save the final email message body text directly to CRM as the revision notes
+      await requestContentRevision(activeRevisionContentId, { notes: revisionBody });
+      
+      await sendSingleOutreach(
+        id!,
+        creatorContent.find(c => c.id === activeRevisionContentId)?.campaign_id || undefined,
+        revisionSubject,
+        revisionBody,
+        'initial'
+      );
+      
+      setShowRevisionModal(false);
+      await loadData(true);
+      alert('Revision request logged and email sent to creator!');
+    } catch (err: any) {
+      alert('Failed to request revision: ' + (err.message || err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleContentAction = async (contentId: string, action: string) => {
+    try {
+      setContentActionLoading(true);
+      const currentItem = creatorContent.find(c => c.id === contentId);
+      if (action === 'submit') {
+        const draftUrl = prompt("Enter Draft URL (or leave default for mock):", currentItem?.draft_url || "https://instagram.com/p/mock_draft_url");
+        if (draftUrl === null) return;
+        await markContentSubmitted(contentId, {
+          draft_url: draftUrl
+        });
+      } else if (action === 'approve') {
+        await approveContent(contentId);
+      } else if (action === 'revise') {
+        const creatorName = creator?.full_name || `@${creator?.handle}` || 'Creator';
+        const defaultNotes = "Please revise the lighting/audio.";
+        const subject = `Revision Requested: ${currentItem?.Campaign?.name || 'Campaign'} Content Deliverable`;
+        const body = `Hi ${creatorName},\n\nWe have reviewed your content draft and would like to request some revisions.\n\nRevision Notes:\n${defaultNotes}\n\nPlease update the draft and share the new link with us.\n\nBest regards,\nCampaign Management Team`;
+        
+        setActiveRevisionContentId(contentId);
+        setRevisionSubject(subject);
+        setRevisionBody(body);
+        setShowRevisionModal(true);
+        return;
+      } else if (action === 'publish') {
+        const publishedUrl = prompt("Enter Live Published URL (or leave default):", currentItem?.published_url || "https://instagram.com/p/mock_published_url");
+        if (publishedUrl === null) return;
+        await markContentPublished(contentId, { published_url: publishedUrl });
+      } else if (action === 'sync') {
+        await syncContentPerformance(contentId);
+      }
+      await loadData(true);
+    } catch (err: any) {
+      alert('Content action failed: ' + (err.message || err));
+    } finally {
+      setContentActionLoading(false);
+    }
+  };
+
+  const handleOpenEmailRequirements = () => {
+    if (creatorContent.length === 0) return;
+    
+    const creatorName = creator?.full_name || `@${creator?.handle}` || 'Creator';
+    const campaignNames = Array.from(new Set(creatorContent.map(c => c.Campaign?.name))).join(', ');
+    
+    const subject = `Campaign Deliverables and Requirements - ${campaignNames}`;
+    let body = `Hi ${creatorName},\n\nHere is the summary of your content deliverables and requirements for the upcoming campaign:\n\n`;
+    
+    creatorContent.forEach((c, index) => {
+      body += `Requirement #${index + 1}:\n`;
+      body += `- Campaign: ${c.Campaign?.name || '---'}\n`;
+      body += `- Platform: ${c.platform.toUpperCase()}\n`;
+      body += `- Content Type: ${c.content_type.replace('_', ' ').toUpperCase()}\n`;
+      body += `- Due Date: ${c.due_date ? format(new Date(c.due_date), 'MMM d, yyyy') : '---'}\n`;
+      if (c.notes) body += `- Guidelines: ${c.notes}\n`;
+      body += `\n`;
+    });
+    
+    body += `Please review these requirements and share your drafts once ready.\n\nBest regards,\nCampaign Management Team`;
+    
+    setContentEmailSubject(subject);
+    setContentEmailBody(body);
+    setShowContentEmailModal(true);
+  };
+
+  const handleSendContentEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSubmitting(true);
+      await sendSingleOutreach(
+        id!,
+        creatorContent[0]?.campaign_id || undefined,
+        contentEmailSubject,
+        contentEmailBody,
+        'initial'
+      );
+      alert('Deliverable requirements email sent to creator successfully!');
+      setShowContentEmailModal(false);
+    } catch (err: any) {
+      alert('Failed to send email: ' + (err.message || err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleOpenEditContent = (c: any) => {
+    setSelectedContent(c);
+    setEditContentForm({
+      id: c.id,
+      platform: c.platform,
+      content_type: c.content_type,
+      due_date: c.due_date || '',
+      notes: c.notes || '',
+      draft_url: c.draft_url || '',
+      published_url: c.published_url || ''
+    });
+    setShowEditContentModal(true);
+  };
+
+  const handleEditContentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSubmitting(true);
+      await updateContent(editContentForm.id, {
+        platform: editContentForm.platform,
+        content_type: editContentForm.content_type,
+        due_date: editContentForm.due_date || null,
+        notes: editContentForm.notes,
+        draft_url: editContentForm.draft_url || null,
+        published_url: editContentForm.published_url || null
+      });
+      setShowEditContentModal(false);
+      await loadData(true);
+    } catch (err: any) {
+      alert('Failed to update deliverable: ' + (err.message || err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAddContentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contentForm.campaign_id) {
+      alert("Please select a Campaign");
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const selectedPart = partnerships.find(p => String(p.campaign_id) === String(contentForm.campaign_id) || String(p.Campaign?.id) === String(contentForm.campaign_id));
+      await createContent({
+        creator_id: id,
+        campaign_id: contentForm.campaign_id,
+        partnership_id: selectedPart?.id || null,
+        platform: contentForm.platform,
+        content_type: contentForm.content_type,
+        due_date: contentForm.due_date,
+        notes: contentForm.notes
+      });
+      setShowAddContentModal(false);
+      setContentForm(prev => ({
+        ...prev,
+        notes: ''
+      }));
+      await loadData(true);
+    } catch (err: any) {
+      alert('Failed to add content requirement: ' + (err.message || err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1572,7 +1784,7 @@ export default function CreatorDetail() {
         </CardContent>
       </Card>
 
-      {creator.lifecycle_status === 'engaged' && (
+      {['engaged', 'qualified', 'offered', 'accepted', 'activated', 'converted', 'completed'].includes(creator.lifecycle_status) && (
         <>
           <div className="no-print grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
             {/* Meeting Option */}
@@ -1716,25 +1928,27 @@ export default function CreatorDetail() {
       {/* V3 Creator CRM Partnerships & Activities Section */}
       <Card className="no-print">
         <div className="border-b border-gray-100 bg-white rounded-t-[12px] flex items-center justify-between px-6 pt-4">
-            {(['partnerships', 'shipments', 'activities'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer outline-none ${
-                  activeTab === tab
-                    ? 'border-primary-600 text-primary-700'
-                    : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                {tab === 'partnerships' 
-                  ? `Campaign Partnerships (${partnerships.length})` 
-                  : tab === 'shipments'
-                    ? `Shipments (${creatorShipments.length})`
+          {['partnerships', 'shipments', 'content', 'activities'].map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab as any)}
+              className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer outline-none ${
+                activeTab === tab
+                  ? 'border-primary-600 text-primary-700'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              {tab === 'partnerships' 
+                ? `Campaign Partnerships (${partnerships.length})` 
+                : tab === 'shipments'
+                  ? `Shipments (${creatorShipments.length})`
+                  : tab === 'content'
+                    ? `Content (${creatorContent.length})`
                     : `Activity Timeline (${activities.length})`
-                }
-              </button>
-            ))}
+              }
+            </button>
+          ))}
         </div>
 
         {activeTab === 'partnerships' && (
@@ -1754,7 +1968,8 @@ export default function CreatorDetail() {
                       <th className="px-4 py-3 text-center">Status</th>
                       <th className="px-4 py-3 text-center">Tier</th>
                       <th className="px-4 py-3">Offer parameters</th>
-                      <th className="px-4 py-3 text-right">Timeline</th>
+                      <th className="px-4 py-3 text-center">Start Date</th>
+                      <th className="px-4 py-3 text-center">End Date</th>
                       <th className="px-4 py-3 text-center">Actions</th>
                     </tr>
                   </thead>
@@ -1762,7 +1977,7 @@ export default function CreatorDetail() {
                     {partnerships.map((p) => (
                       <tr key={p.id} onClick={() => navigate(`/partnerships/${p.id}`, { state: { fromCreatorId: id } })} className="hover:bg-primary-50/10 transition-colors cursor-pointer">
                         <td className="px-4 py-4 align-middle">
-                          <div className="text-xs font-semibold text-gray-900 font-outfit uppercase tracking-tight">
+                          <div className="text-xs font-normal text-gray-900 font-outfit uppercase tracking-tight">
                             {p.Campaign?.name}
                           </div>
                         </td>
@@ -1791,15 +2006,11 @@ export default function CreatorDetail() {
                             <span className="text-gray-400 italic">No offer drafted</span>
                           )}
                         </td>
-                        <td className="px-4 py-4 text-right align-middle text-[11px] text-gray-500 font-mono">
-                          {p.start_date ? (
-                            <div>
-                              <div>Start: {format(new Date(p.start_date), 'MMM d, yyyy')}</div>
-                              {p.end_date && <div className="text-gray-400 mt-0.5">End: {format(new Date(p.end_date), 'MMM d, yyyy')}</div>}
-                            </div>
-                          ) : (
-                            '---'
-                          )}
+                        <td className="px-4 py-4 text-center align-middle text-[11px] text-gray-500 font-mono">
+                          {p.start_date ? format(new Date(p.start_date), 'MMM d, yyyy') : '---'}
+                        </td>
+                        <td className="px-4 py-4 text-center align-middle text-[11px] text-gray-500 font-mono">
+                          {p.end_date ? format(new Date(p.end_date), 'MMM d, yyyy') : '---'}
                         </td>
                         <td className="px-4 py-4 align-middle relative z-10" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-2">
@@ -1943,6 +2154,138 @@ export default function CreatorDetail() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Content Tab */}
+        {activeTab === 'content' && (
+          <div className="p-6 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-700">Content Deliverables</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Track deliverables, reviews, and published metrics.</p>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                {creatorContent.length > 0 && (
+                  <Button size="sm" onClick={handleOpenEmailRequirements} className="bg-amber-600 hover:bg-amber-700 text-white font-normal uppercase tracking-widest text-[9px] h-9 px-3">
+                    Send Email of Requirements
+                  </Button>
+                )}
+                {partnerships.length > 0 ? (
+                  <Button size="sm" onClick={() => setShowAddContentModal(true)} className="bg-primary-600 hover:bg-primary-700 text-white font-normal uppercase tracking-widest text-[9px] h-9 px-3">
+                    + Add Deliverable
+                  </Button>
+                ) : (
+                  <span className="text-[10px] text-gray-400 uppercase italic">Add to a campaign first</span>
+                )}
+              </div>
+            </div>
+
+            {creatorContent.length === 0 ? (
+              <div className="p-8 text-center bg-gray-50/50 rounded-xl border border-gray-100">
+                <p className="text-sm text-gray-500 font-medium">No content deliverables found.</p>
+                <p className="text-xs text-gray-400 mt-1">Content requirements will appear here once created.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left min-w-[700px]">
+                    <thead>
+                      <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
+                        <th className="px-4 py-3">Campaign</th>
+                        <th className="px-4 py-3">Platform & Type</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Metrics</th>
+                        <th className="px-4 py-3 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {creatorContent.map((c) => (
+                        <tr 
+                          key={c.id} 
+                          onClick={() => navigate(`/content/${c.id}`, { state: { fromCreatorId: id } })}
+                          className="hover:bg-primary-50/10 transition-colors cursor-pointer"
+                        >
+                          <td className="px-4 py-4 align-middle">
+                            <div className="text-xs font-semibold text-gray-900 font-outfit uppercase tracking-tight">
+                              {c.Campaign?.name}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 align-middle">
+                            <div className="text-xs font-semibold text-gray-900 uppercase">{c.platform}</div>
+                            <div className="text-[10px] text-gray-500 uppercase">{c.content_type?.replace('_', ' ')}</div>
+                            {c.draft_url && (
+                              <div className="text-[10px] mt-1 text-gray-500" onClick={e => e.stopPropagation()}>
+                                <strong>Draft URL:</strong>{' '}
+                                <a href={c.draft_url} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">
+                                  Link <ExternalLink size={8} className="inline ml-0.5" />
+                                </a>
+                              </div>
+                            )}
+                            {c.published_url && (
+                              <div className="text-[10px] mt-0.5 text-gray-500" onClick={e => e.stopPropagation()}>
+                                <strong>Published URL:</strong>{' '}
+                                <a href={c.published_url} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">
+                                  Link <ExternalLink size={8} className="inline ml-0.5" />
+                                </a>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 align-middle">
+                            <StatusBadge status={c.status} />
+                            {c.due_date && <div className="text-[10px] text-gray-500 mt-1 uppercase">Due: {format(new Date(c.due_date), 'MMM d, yyyy')}</div>}
+                          </td>
+                          <td className="px-4 py-4 text-right align-middle">
+                            {c.status === 'published' ? (
+                              <div className="flex flex-col items-end gap-1 text-[11px] font-mono text-gray-600">
+                                <span className="flex items-center gap-1" title="Views">{c.views || 0} <Eye size={12}/></span>
+                                <span className="flex items-center gap-1" title="Likes">{c.likes || 0} <Star size={12}/></span>
+                                <span className="flex items-center gap-1" title="Comments">{c.comments || 0} <MessageCircle size={12}/></span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-gray-400 uppercase italic">Not published</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 align-middle text-center relative z-10" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-2">
+                              {c.status === 'submitted' && (
+                                <>
+                                  <Button size="sm" disabled={contentActionLoading} className="bg-green-600 hover:bg-green-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleContentAction(c.id, 'approve')}>
+                                    Approve
+                                  </Button>
+                                  <Button size="sm" disabled={contentActionLoading} className="bg-amber-600 hover:bg-amber-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleContentAction(c.id, 'revise')}>
+                                    Revise
+                                  </Button>
+                                </>
+                              )}
+                              {c.status === 'approved' && (
+                                <Button size="sm" disabled={contentActionLoading} className="bg-primary-600 hover:bg-primary-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleContentAction(c.id, 'publish')}>
+                                  Publish
+                                </Button>
+                              )}
+                              {c.status === 'published' && (
+                                <Button size="sm" disabled={contentActionLoading} className="bg-gray-800 hover:bg-gray-900 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleContentAction(c.id, 'sync')}>
+                                  Sync
+                                </Button>
+                              )}
+                              {['pending', 'revision_requested', 'rejected'].includes(c.status) && (
+                                <button 
+                                  onClick={() => handleOpenEditContent(c)}
+                                  className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                                  title="Edit requirement details"
+                                >
+                                  <Edit3 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
@@ -2252,6 +2595,300 @@ export default function CreatorDetail() {
             </Button>
             <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
               {submitting ? 'Saving...' : 'Save Parameters'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ─── Request Revision Modal ─── */}
+      <Modal isOpen={showRevisionModal} onClose={() => setShowRevisionModal(false)} title="Request Content Revision">
+        <form onSubmit={handleRevisionSubmit} className="space-y-4 font-outfit">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Subject</label>
+            <input
+              type="text"
+              value={revisionSubject}
+              onChange={e => setRevisionSubject(e.target.value)}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Message Body (Sent to Creator & Saved to CRM)</label>
+            <textarea
+              value={revisionBody}
+              onChange={e => setRevisionBody(e.target.value)}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[200px]"
+              required
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowRevisionModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-normal text-xs uppercase tracking-widest">
+              {submitting ? 'Sending Request...' : 'Send Revision Request'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ─── Edit Content Deliverable Modal ─── */}
+      <Modal isOpen={showEditContentModal} onClose={() => setShowEditContentModal(false)} title="Edit Content Deliverable">
+        <form onSubmit={handleEditContentSubmit} className="space-y-4 font-outfit">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Platform</label>
+              <select
+                value={editContentForm.platform}
+                onChange={e => {
+                  const plat = e.target.value;
+                  let defType = 'other';
+                  if (plat === 'instagram') defType = 'instagram_reel';
+                  if (plat === 'youtube') defType = 'youtube_video';
+                  if (plat === 'tiktok') defType = 'tiktok_video';
+                  if (plat === 'blog') defType = 'blog_post';
+                  setEditContentForm(prev => ({ ...prev, platform: plat, content_type: defType }));
+                }}
+                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              >
+                <option value="instagram">Instagram</option>
+                <option value="tiktok">TikTok</option>
+                <option value="youtube">YouTube</option>
+                <option value="blog">Blog</option>
+                <option value="website">Website</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Content Type</label>
+              <select
+                value={editContentForm.content_type}
+                onChange={e => setEditContentForm(prev => ({ ...prev, content_type: e.target.value }))}
+                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              >
+                {editContentForm.platform === 'instagram' && (
+                  <>
+                    <option value="instagram_reel">Instagram Reel</option>
+                    <option value="instagram_story">Instagram Story</option>
+                    <option value="instagram_post">Instagram Post</option>
+                  </>
+                )}
+                {editContentForm.platform === 'youtube' && (
+                  <>
+                    <option value="youtube_video">YouTube Video</option>
+                    <option value="youtube_short">YouTube Short</option>
+                  </>
+                )}
+                {editContentForm.platform === 'tiktok' && (
+                  <option value="tiktok_video">TikTok Video</option>
+                )}
+                {editContentForm.platform === 'blog' && (
+                  <option value="blog_post">Blog Post</option>
+                )}
+                {!['instagram', 'youtube', 'tiktok', 'blog'].includes(editContentForm.platform) && (
+                  <option value="other">Other</option>
+                )}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Due Date</label>
+            <input
+              type="date"
+              value={editContentForm.due_date}
+              onChange={e => setEditContentForm(prev => ({ ...prev, due_date: e.target.value }))}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Draft URL (Triggers Submitted State)</label>
+            <input
+              type="text"
+              value={editContentForm.draft_url}
+              onChange={e => setEditContentForm(prev => ({ ...prev, draft_url: e.target.value }))}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              placeholder="https://drive.google.com/..."
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Published URL (Triggers Live State)</label>
+            <input
+              type="text"
+              value={editContentForm.published_url}
+              onChange={e => setEditContentForm(prev => ({ ...prev, published_url: e.target.value }))}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              placeholder="https://instagram.com/p/..."
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Notes & Requirements</label>
+            <textarea
+              value={editContentForm.notes}
+              onChange={e => setEditContentForm(prev => ({ ...prev, notes: e.target.value }))}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[80px]"
+              placeholder="e.g. guidelines..."
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowEditContentModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
+              {submitting ? 'Saving...' : 'Save Deliverable'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ─── Content Email Composer Modal ─── */}
+      <Modal isOpen={showContentEmailModal} onClose={() => setShowContentEmailModal(false)} title="Send Deliverables to Creator">
+        <form onSubmit={handleSendContentEmail} className="space-y-4 font-outfit">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Subject</label>
+            <input
+              type="text"
+              value={contentEmailSubject}
+              onChange={e => setContentEmailSubject(e.target.value)}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Message Body</label>
+            <textarea
+              value={contentEmailBody}
+              onChange={e => setContentEmailBody(e.target.value)}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[220px]"
+              required
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowContentEmailModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
+              {submitting ? 'Sending...' : 'Send Email'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ─── Add Content Deliverable Modal ─── */}
+      <Modal isOpen={showAddContentModal} onClose={() => setShowAddContentModal(false)} title="Add Content Deliverable">
+        <form onSubmit={handleAddContentSubmit} className="space-y-4 font-outfit">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Select Campaign</label>
+            <select
+              value={contentForm.campaign_id}
+              onChange={e => setContentForm(prev => ({ ...prev, campaign_id: e.target.value }))}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              required
+            >
+              <option value="" disabled>Choose a Campaign...</option>
+              {partnerships.map(p => (
+                <option key={p.id} value={p.Campaign?.id || p.campaign_id}>
+                  {p.Campaign?.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Platform</label>
+              <select
+                value={contentForm.platform}
+                onChange={e => {
+                  const plat = e.target.value;
+                  let defType = 'other';
+                  if (plat === 'instagram') defType = 'instagram_reel';
+                  if (plat === 'youtube') defType = 'youtube_video';
+                  if (plat === 'tiktok') defType = 'tiktok_video';
+                  if (plat === 'blog') defType = 'blog_post';
+                  setContentForm(prev => ({ ...prev, platform: plat, content_type: defType }));
+                }}
+                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              >
+                <option value="instagram">Instagram</option>
+                <option value="tiktok">TikTok</option>
+                <option value="youtube">YouTube</option>
+                <option value="blog">Blog</option>
+                <option value="website">Website</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Content Type</label>
+              <select
+                value={contentForm.content_type}
+                onChange={e => setContentForm(prev => ({ ...prev, content_type: e.target.value }))}
+                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              >
+                {contentForm.platform === 'instagram' && (
+                  <>
+                    <option value="instagram_reel">Instagram Reel</option>
+                    <option value="instagram_story">Instagram Story</option>
+                    <option value="instagram_post">Instagram Post</option>
+                  </>
+                )}
+                {contentForm.platform === 'youtube' && (
+                  <>
+                    <option value="youtube_video">YouTube Video</option>
+                    <option value="youtube_short">YouTube Short</option>
+                  </>
+                )}
+                {contentForm.platform === 'tiktok' && (
+                  <option value="tiktok_video">TikTok Video</option>
+                )}
+                {contentForm.platform === 'blog' && (
+                  <option value="blog_post">Blog Post</option>
+                )}
+                {!['instagram', 'youtube', 'tiktok', 'blog'].includes(contentForm.platform) && (
+                  <option value="other">Other</option>
+                )}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Due Date</label>
+            <input
+              type="date"
+              value={contentForm.due_date}
+              onChange={e => setContentForm(prev => ({ ...prev, due_date: e.target.value }))}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Notes & Requirements</label>
+            <textarea
+              value={contentForm.notes}
+              onChange={e => setContentForm(prev => ({ ...prev, notes: e.target.value }))}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[80px]"
+              placeholder="e.g. mention the product in first 5 seconds, use promo code..."
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowAddContentModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
+              {submitting ? 'Creating...' : 'Create Requirement'}
             </Button>
           </div>
         </form>
