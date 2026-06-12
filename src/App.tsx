@@ -32,13 +32,11 @@ import Content from './pages/Content';
 import ContentDetail from './pages/ContentDetail';
 import AcceptOffer from './pages/AcceptOffer';
 import ProvideAddress from './pages/ProvideAddress';
+import Analytics from './pages/Analytics';
+import AnalyticsDetail from './pages/AnalyticsDetail';
+import CreatorCampaignContentDetail from './pages/CreatorCampaignContentDetail';
 
 // Temporary placeholders for missing pages
-const Placeholder = ({ title }: { title: string }) => (
-  <div className="flex items-center justify-center h-full text-gray-400">
-    <h2 className="text-xl font-normal font-outfit uppercase tracking-tight">{title} Page (Under Construction)</h2>
-  </div>
-);
 
 import { Outlet } from 'react-router-dom';
 
@@ -88,8 +86,10 @@ export default function App() {
             <Route path="/shipments/:id" element={<ShipmentDetail />} />
             <Route path="/content" element={<Content />} />
             <Route path="/content/:id" element={<ContentDetail />} />
+            <Route path="/content/creator-campaign/:creatorId/:campaignId" element={<CreatorCampaignContentDetail />} />
             <Route path="/affiliate" element={<AffiliatePerformance />} />
-            <Route path="/analytics" element={<Placeholder title="Analytics" />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/analytics/creator-campaign/:creatorId/:campaignId" element={<AnalyticsDetail />} />
           </Route>
           
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -72,6 +72,16 @@ export default function Content() {
   const [revisionBody, setRevisionBody] = useState('');
   const [activeRevisionContentId, setActiveRevisionContentId] = useState<string | null>(null);
 
+  // Custom Prompt Modal States
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [promptTitle, setPromptTitle] = useState('');
+  const [promptLabel, setPromptLabel] = useState('');
+  const [promptPlaceholder, setPromptPlaceholder] = useState('');
+  const [promptValue, setPromptValue] = useState('');
+  const [promptType, setPromptType] = useState<'input' | 'textarea'>('input');
+  const [currentPromptAction, setCurrentPromptAction] = useState('');
+  const [activePromptContentId, setActivePromptContentId] = useState<string>('');
+
   const handleOpenEditContent = (c: any) => {
     setSelectedContent(c);
     setEditContentForm({
@@ -131,6 +141,27 @@ export default function Content() {
     }
   };
 
+  const handlePromptSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activePromptContentId) return;
+    try {
+      setSubmitting(true);
+      setShowPromptModal(false);
+      if (currentPromptAction === 'submit') {
+        await markContentSubmitted(activePromptContentId, { draft_url: promptValue });
+      } else if (currentPromptAction === 'publish') {
+        await markContentPublished(activePromptContentId, { published_url: promptValue });
+      } else if (currentPromptAction === 'reject') {
+        await rejectContent(activePromptContentId, { notes: promptValue });
+      }
+      await loadData();
+    } catch (err: any) {
+      alert('Action failed: ' + (err.message || err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [selectedCampaign, selectedStatus, selectedPlatform]);
@@ -159,9 +190,15 @@ export default function Content() {
     try {
       const currentItem = contents.find(c => c.id === id);
       if (action === 'submit') {
-        const draftUrl = prompt("Enter Draft URL (or leave default for mock):", currentItem?.draft_url || "https://instagram.com/p/mock_draft_url");
-        if (draftUrl === null) return;
-        await markContentSubmitted(id, { draft_url: draftUrl });
+        setPromptTitle("Submit Content Draft");
+        setPromptLabel("Draft URL");
+        setPromptPlaceholder("https://instagram.com/p/mock_draft_url");
+        setPromptValue(currentItem?.draft_url || "https://instagram.com/p/mock_draft_url");
+        setPromptType('input');
+        setCurrentPromptAction('submit');
+        setActivePromptContentId(id);
+        setShowPromptModal(true);
+        return;
       }
       if (action === 'approve') {
         await approveContent(id);
@@ -179,17 +216,29 @@ export default function Content() {
         return;
       }
       if (action === 'publish') {
-        const publishedUrl = prompt("Enter Live Published URL:", currentItem?.published_url || "https://instagram.com/p/mock_published_url");
-        if (publishedUrl === null) return;
-        await markContentPublished(id, { published_url: publishedUrl });
+        setPromptTitle("Publish Content Deliverable");
+        setPromptLabel("Live Published URL");
+        setPromptPlaceholder("https://instagram.com/p/mock_published_url");
+        setPromptValue(currentItem?.published_url || "https://instagram.com/p/mock_published_url");
+        setPromptType('input');
+        setCurrentPromptAction('publish');
+        setActivePromptContentId(id);
+        setShowPromptModal(true);
+        return;
       }
       if (action === 'sync') {
         await syncContentPerformance(id);
       }
       if (action === 'reject') {
-        const notes = prompt("Enter rejection notes:", "Not matching campaign guidelines.");
-        if (notes === null) return;
-        await rejectContent(id, { notes });
+        setPromptTitle("Reject Content Deliverable");
+        setPromptLabel("Rejection Reason / Notes");
+        setPromptPlaceholder("Not matching campaign guidelines.");
+        setPromptValue("Not matching campaign guidelines.");
+        setPromptType('textarea');
+        setCurrentPromptAction('reject');
+        setActivePromptContentId(id);
+        setShowPromptModal(true);
+        return;
       }
       await loadData();
     } catch (err) {
@@ -704,6 +753,42 @@ export default function Content() {
             </Button>
             <Button type="submit" disabled={submitting} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-normal text-xs uppercase tracking-widest">
               {submitting ? 'Sending Request...' : 'Send Revision Request'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ─── Action Prompt Modal (Submit Draft, Publish, Reject) ─── */}
+      <Modal isOpen={showPromptModal} onClose={() => setShowPromptModal(false)} title={promptTitle}>
+        <form onSubmit={handlePromptSubmit} className="space-y-4 font-outfit">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">{promptLabel}</label>
+            {promptType === 'input' ? (
+              <input
+                type="text"
+                value={promptValue}
+                onChange={e => setPromptValue(e.target.value)}
+                placeholder={promptPlaceholder}
+                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                required
+              />
+            ) : (
+              <textarea
+                value={promptValue}
+                onChange={e => setPromptValue(e.target.value)}
+                placeholder={promptPlaceholder}
+                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all min-h-[120px]"
+                required
+              />
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowPromptModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
+              Confirm Action
             </Button>
           </div>
         </form>

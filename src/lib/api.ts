@@ -415,3 +415,17 @@ export const rejectContent = (id: string, data: { notes: string }): Promise<any>
 export const syncContentPerformance = (id: string): Promise<any> =>
   api.post(`/content/${id}/sync-performance`) as any;
 
+// --- ANALYTICS ENDPOINTS ---
+
+export const getDashboardAnalytics = (): Promise<any> =>
+  api.get('/analytics/dashboard') as any;
+
+export const getCampaignFunnel = (campaignId: string): Promise<any> =>
+  api.get(`/analytics/campaigns/${campaignId}/funnel`) as any;
+
+export const getCampaignContentPerformance = (campaignId: string): Promise<any> =>
+  api.get(`/analytics/campaigns/${campaignId}/content-performance`) as any;
+
+export const recalculateCampaignPerformance = (campaignId: string): Promise<any> =>
+  api.post(`/analytics/campaigns/${campaignId}/recalculate`) as any;
+

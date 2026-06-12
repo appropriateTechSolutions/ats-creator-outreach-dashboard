@@ -15,7 +15,8 @@ import {
   ChevronUp,
   Handshake,
   Package,
-  Image as ImageIcon
+  Image as ImageIcon,
+  TrendingUp
 } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
@@ -66,6 +67,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { name: 'Partnerships', path: '/partnerships', icon: <Handshake size={20} /> },
     { name: 'Shipments', path: '/shipments', icon: <Package size={20} /> },
     { name: 'Content', path: '/content', icon: <ImageIcon size={20} /> },
+    { name: 'Analytics', path: '/analytics', icon: <TrendingUp size={20} /> },
     { name: 'Review Queue', path: '/review', icon: <CheckSquare size={20} />, internalOnly: true },
     { name: 'Conversations', path: '/conversations', icon: <MessageSquare size={20} /> },
     { name: 'Meetings', path: '/meetings', icon: <Calendar size={20} /> },

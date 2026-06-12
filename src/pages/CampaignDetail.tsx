@@ -8,7 +8,11 @@ import {
   reviewLead,
   updateCampaign,
   getBrands,
-  deleteCampaign
+  deleteCampaign,
+  getCampaignFunnel,
+  getCampaignContentPerformance,
+  recalculateCampaignPerformance,
+  getCampaignActivities
 } from '../lib/api';
 import type { Campaign, Creator } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
@@ -27,6 +31,7 @@ import { matchesStatusFilter } from '../lib/creatorFilters';
 
 import { CreatorPreviewDrawer } from '../components/CreatorPreviewDrawer';
 import { Pagination } from '../components/ui/Pagination';
+import { format } from 'date-fns';
 
 const LEADS_PER_PAGE = 50;
 
@@ -165,6 +170,13 @@ export default function CampaignDetail() {
 
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Sprint 4 states
+  const [activeTab, setActiveTab] = useState<'leads' | 'analytics' | 'activity'>('leads');
+  const [funnelData, setFunnelData] = useState<any>(null);
+  const [perfData, setPerfData] = useState<any>(null);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [recalculating, setRecalculating] = useState(false);
+
   // Ordered list of creator IDs found in the current discovery run (most recent first).
   useEffect(() => {
     try { sessionStorage.setItem('campaign-leads-sort-v1', sortBy); } catch { /* ignore */ }
@@ -177,6 +189,36 @@ export default function CampaignDetail() {
   // Ordered list of creator IDs found in the current discovery run (most recent first).
   // Used to pin freshly discovered creators to the top while discovery is running.
   const [discoveredOrder, setDiscoveredOrder] = useState<string[]>([]);
+
+  const fetchAnalyticsAndActivities = async () => {
+    if (!id) return;
+    try {
+      const [funnel, performance, campaignActivities] = await Promise.all([
+        getCampaignFunnel(id),
+        getCampaignContentPerformance(id),
+        getCampaignActivities(id)
+      ]);
+      setFunnelData(funnel);
+      setPerfData(performance);
+      setActivities(campaignActivities);
+    } catch (err) {
+      console.error("Failed to load campaign analytics/activities:", err);
+    }
+  };
+
+  const handleRecalculate = async () => {
+    if (!id) return;
+    try {
+      setRecalculating(true);
+      await recalculateCampaignPerformance(id);
+      await Promise.all([fetchData(true), fetchAnalyticsAndActivities()]);
+      alert("Campaign performance successfully recalculated!");
+    } catch (err: any) {
+      alert("Failed to recalculate: " + (err.message || err));
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   const fetchData = async (silent = false) => {
     if (!id) return;
@@ -202,12 +244,16 @@ export default function CampaignDetail() {
         product_offer_notes: camp.product_offer_notes || '',
         discovery_channels: camp.discovery_channels || ['instagram']
       });
+      
       const campLeads = await getCampaignLeads(id);
       setLeads(campLeads);
       setPreviewCreator(prev => {
         if (!prev) return null;
         return campLeads.find(c => c.id === prev.id) || prev;
       });
+
+      // Fetch analytics in parallel
+      await fetchAnalyticsAndActivities();
     } catch (err) {
       console.error(err);
     } finally {
@@ -541,14 +587,42 @@ export default function CampaignDetail() {
             <div className="flex gap-6">
               <button
                 type="button"
-                className="pb-4 text-xs font-bold uppercase tracking-widest border-b-2 border-primary-600 text-primary-700 outline-none"
+                onClick={() => setActiveTab('leads')}
+                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 outline-none transition-all ${
+                  activeTab === 'leads'
+                    ? 'border-primary-600 text-primary-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-900'
+                }`}
               >
                 Leads ({filteredLeads.length})
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('analytics')}
+                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 outline-none transition-all ${
+                  activeTab === 'analytics'
+                    ? 'border-primary-600 text-primary-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Campaign Analytics
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('activity')}
+                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 outline-none transition-all ${
+                  activeTab === 'activity'
+                    ? 'border-primary-600 text-primary-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Activity Timeline ({activities.length})
+              </button>
             </div>
           </div>
-
-          <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white">
+          {activeTab === 'leads' && (
+            <>
+              <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white">
                 <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Creators Leads ({filteredLeads.length})</h2>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                   <select
@@ -787,8 +861,163 @@ export default function CampaignDetail() {
                 pageSize={LEADS_PER_PAGE}
                 onPageChange={setCurrentPage}
               />
+            </>
+          )}
 
+          {activeTab === 'analytics' && (
+            <div className="p-6 space-y-8 bg-white rounded-b-[12px]">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-gray-100">
+                <div>
+                  <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaign Analytics</h2>
+                  <p className="text-xs text-gray-500 uppercase tracking-widest mt-1">Aggregate views, engagement, costs, and conversion funnel</p>
+                </div>
+                <Button
+                  onClick={handleRecalculate}
+                  disabled={recalculating}
+                  className="bg-primary-600 hover:bg-primary-700 text-white font-normal uppercase tracking-widest text-[10px] h-10 px-4 self-stretch sm:self-auto"
+                  icon={recalculating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                >
+                  {recalculating ? 'Recalculating...' : 'Recalculate Performance'}
+                </Button>
+              </div>
 
+              {/* KPI Cards Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Total Content</div>
+                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">{perfData?.total_content || 0}</div>
+                </div>
+                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Published Content</div>
+                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">{perfData?.published_content || 0}</div>
+                </div>
+                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Total Views</div>
+                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">{perfData?.total_views ? formatFollowers(perfData.total_views) : 0}</div>
+                </div>
+                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Total Engagement</div>
+                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">{perfData?.total_engagement ? formatFollowers(perfData.total_engagement) : 0}</div>
+                </div>
+                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Avg ER</div>
+                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">{perfData?.avg_engagement_rate || '0.00'}%</div>
+                </div>
+                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Total Spend</div>
+                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">${perfData?.total_cost || 0}</div>
+                </div>
+                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Total Revenue</div>
+                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">${perfData?.total_revenue || 0}</div>
+                </div>
+                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">ROI</div>
+                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">
+                    {perfData?.roi !== null && perfData?.roi !== undefined ? `${Number(perfData.roi).toFixed(2)}x` : 'N/A'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Conversion Funnel Section */}
+              <div className="border-t border-gray-100 pt-6">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-900 mb-6">Campaign Conversion Funnel</h3>
+                <div className="space-y-4 max-w-2xl">
+                  {[
+                    { key: 'identified', label: 'Identified Leads' },
+                    { key: 'shortlisted', label: 'Shortlisted' },
+                    { key: 'outreach_sent', label: 'Outreach Sent' },
+                    { key: 'engaged', label: 'Engaged' },
+                    { key: 'meeting_scheduled', label: 'Meetings Scheduled' },
+                    { key: 'qualified', label: 'Qualified' },
+                    { key: 'offer_sent', label: 'Offers Sent' },
+                    { key: 'accepted', label: 'Accepted Offers' },
+                    { key: 'activated', label: 'Activated Partnerships' },
+                    { key: 'product_shipped', label: 'Product Shipped' },
+                    { key: 'product_delivered', label: 'Product Delivered' },
+                    { key: 'content_published', label: 'Content Live' },
+                    { key: 'completed', label: 'Completed' },
+                  ].map((stage) => {
+                    const val = funnelData?.[stage.key] || 0;
+                    const pct = funnelData?.identified > 0 ? Math.round((val / funnelData.identified) * 100) : 0;
+                    return (
+                      <div key={stage.key} className="flex items-center gap-4">
+                        <div className="w-44 text-xs font-normal text-gray-500 uppercase tracking-wider text-right">{stage.label}</div>
+                        <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden relative">
+                          <div 
+                            className="bg-primary-600 h-full rounded-full transition-all duration-500" 
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <div className="w-24 text-xs font-bold text-gray-900 font-mono">
+                          {val} <span className="text-gray-400 font-normal text-[10px]">({pct}%)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'activity' && (
+            <div className="p-6 space-y-6 bg-white rounded-b-[12px]">
+              <div>
+                <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Activity Timeline</h2>
+                <p className="text-xs text-gray-500 uppercase tracking-widest mt-1">Real-time log of creator outreach, approvals, shipments, and content updates</p>
+              </div>
+
+              {activities.length === 0 ? (
+                <div className="text-center text-xs text-gray-500 py-12 italic">No activity recorded yet for this campaign.</div>
+              ) : (
+                <div className="relative border-l border-gray-150 ml-4 pl-6 space-y-6 mt-4">
+                  {activities.map((act) => {
+                    const timeStr = act.created_at || act.createdAt ? format(new Date(act.created_at || act.createdAt), 'MMM d, yyyy h:mm a') : 'N/A';
+                    
+                    const getActivityIcon = (type: string) => {
+                      switch (type) {
+                        case 'outreach_sent':
+                          return <Mail size={12} className="text-indigo-500" />;
+                        case 'content_approved':
+                        case 'offer_accepted':
+                        case 'payment_paid':
+                          return <Check size={12} className="text-emerald-500" />;
+                        case 'creator_shortlisted':
+                          return <Star size={12} className="text-blue-500" fill="currentColor" />;
+                        case 'engaged':
+                        case 'meeting_scheduled':
+                          return <Activity size={12} className="text-amber-500" />;
+                        default:
+                          return <Sparkles size={12} className="text-purple-500" />;
+                      }
+                    };
+
+                    return (
+                      <div key={act.id} className="relative group">
+                        <div className="absolute -left-[31px] top-1.5 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center transition-all group-hover:scale-110">
+                          {getActivityIcon(act.activity_type)}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-bold text-gray-900 font-outfit uppercase tracking-wider">{act.title}</span>
+                            <span className="text-[10px] text-gray-400 font-mono">{timeStr}</span>
+                          </div>
+                          {act.Creator && (
+                            <div className="text-[11px] text-gray-500 uppercase tracking-widest mt-0.5">
+                              Creator: <Link to={`/creators/${act.Creator.id}`} className="text-primary-600 hover:text-primary-700 font-medium">@{act.Creator.handle}</Link>
+                            </div>
+                          )}
+                          {act.description && (
+                            <p className="text-xs text-gray-600 mt-1.5 leading-relaxed">{act.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </Card>
 
         <div className="space-y-6">

@@ -109,6 +109,14 @@ export default function CreatorDetail() {
   const [contentEmailSubject, setContentEmailSubject] = useState('');
   const [contentEmailBody, setContentEmailBody] = useState('');
   const [contentActionLoading, setContentActionLoading] = useState(false);
+  // Custom Prompt Modal States
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [promptTitle, setPromptTitle] = useState('');
+  const [promptLabel, setPromptLabel] = useState('');
+  const [promptPlaceholder, setPromptPlaceholder] = useState('');
+  const [promptValue, setPromptValue] = useState('');
+  const [activePromptContentId, setActivePromptContentId] = useState<string | null>(null);
+  const [currentPromptAction, setCurrentPromptAction] = useState('');
   const [contentForm, setContentForm] = useState({
     campaign_id: '',
     platform: 'instagram',
@@ -317,11 +325,15 @@ export default function CreatorDetail() {
       setContentActionLoading(true);
       const currentItem = creatorContent.find(c => c.id === contentId);
       if (action === 'submit') {
-        const draftUrl = prompt("Enter Draft URL (or leave default for mock):", currentItem?.draft_url || "https://instagram.com/p/mock_draft_url");
-        if (draftUrl === null) return;
-        await markContentSubmitted(contentId, {
-          draft_url: draftUrl
-        });
+        setPromptTitle("Submit Content Draft");
+        setPromptLabel("Draft URL");
+        setPromptPlaceholder("https://instagram.com/p/mock_draft_url");
+        setPromptValue(currentItem?.draft_url || "https://instagram.com/p/mock_draft_url");
+        setActivePromptContentId(contentId);
+        setCurrentPromptAction('submit');
+        setShowPromptModal(true);
+        setContentActionLoading(false);
+        return;
       } else if (action === 'approve') {
         await approveContent(contentId);
       } else if (action === 'revise') {
@@ -336,15 +348,40 @@ export default function CreatorDetail() {
         setShowRevisionModal(true);
         return;
       } else if (action === 'publish') {
-        const publishedUrl = prompt("Enter Live Published URL (or leave default):", currentItem?.published_url || "https://instagram.com/p/mock_published_url");
-        if (publishedUrl === null) return;
-        await markContentPublished(contentId, { published_url: publishedUrl });
+        setPromptTitle("Publish Content Deliverable");
+        setPromptLabel("Live Published URL");
+        setPromptPlaceholder("https://instagram.com/p/mock_published_url");
+        setPromptValue(currentItem?.published_url || "https://instagram.com/p/mock_published_url");
+        setActivePromptContentId(contentId);
+        setCurrentPromptAction('publish');
+        setShowPromptModal(true);
+        setContentActionLoading(false);
+        return;
       } else if (action === 'sync') {
         await syncContentPerformance(contentId);
       }
       await loadData(true);
     } catch (err: any) {
       alert('Content action failed: ' + (err.message || err));
+    } finally {
+      setContentActionLoading(false);
+    }
+  };
+
+  const handlePromptSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activePromptContentId) return;
+    try {
+      setContentActionLoading(true);
+      setShowPromptModal(false);
+      if (currentPromptAction === 'submit') {
+        await markContentSubmitted(activePromptContentId, { draft_url: promptValue });
+      } else if (currentPromptAction === 'publish') {
+        await markContentPublished(activePromptContentId, { published_url: promptValue });
+      }
+      await loadData(true);
+    } catch (err: any) {
+      alert('Action failed: ' + (err.message || err));
     } finally {
       setContentActionLoading(false);
     }
@@ -1784,7 +1821,7 @@ export default function CreatorDetail() {
         </CardContent>
       </Card>
 
-      {['engaged', 'qualified', 'offered', 'accepted', 'activated', 'converted', 'completed'].includes(creator.lifecycle_status) && (
+      {creator.lifecycle_status && ['engaged', 'qualified', 'offered', 'accepted', 'activated', 'converted', 'completed'].includes(creator.lifecycle_status) && (
         <>
           <div className="no-print grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
             {/* Meeting Option */}
@@ -2595,6 +2632,32 @@ export default function CreatorDetail() {
             </Button>
             <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
               {submitting ? 'Saving...' : 'Save Parameters'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ─── Action Prompt Modal (Submit Draft, Publish) ─── */}
+      <Modal isOpen={showPromptModal} onClose={() => setShowPromptModal(false)} title={promptTitle}>
+        <form onSubmit={handlePromptSubmit} className="space-y-4 font-outfit">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">{promptLabel}</label>
+            <input
+              type="text"
+              value={promptValue}
+              onChange={e => setPromptValue(e.target.value)}
+              placeholder={promptPlaceholder}
+              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+              required
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowPromptModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
+              Confirm Action
             </Button>
           </div>
         </form>
