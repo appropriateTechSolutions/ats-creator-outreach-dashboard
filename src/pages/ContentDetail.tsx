@@ -512,9 +512,10 @@ export default function ContentDetail() {
               <div className="w-full pt-4 border-t border-gray-100">
                 <Link 
                   to={`/creators/${content.creator_id}`}
+                  state={{ fromPath: location.pathname, fromLabel: 'CONTENT' }}
                   className="w-full text-center py-2 border border-gray-200 hover:border-gray-900 text-gray-750 hover:text-gray-950 rounded-lg text-xs tracking-wider uppercase font-normal block transition-colors bg-white font-outfit"
                 >
-                  View Creator CRM Profile
+                  View Creator Profile
                 </Link>
               </div>
             </div>

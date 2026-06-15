@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -23,6 +23,7 @@ import {
 export default function AnalyticsDetail() {
   const { creatorId, campaignId } = useParams<{ creatorId: string; campaignId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [contents, setContents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,14 +136,13 @@ export default function AnalyticsDetail() {
           <Card className="border-none shadow-xl bg-white p-6 sm:p-8 space-y-6">
             <div className="border-b border-gray-100 pb-4">
               <h2 className="text-sm font-normal text-gray-950 uppercase tracking-widest flex items-center gap-2 font-outfit">
-                <Activity size={16} /> Grouped Performance Metrics (Overall)
+                Grouped Performance Metrics
               </h2>
-              <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Aggregated statistics for all deliverables</p>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-outfit">
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">Total Views</span>
+                <span className="text-[9px] text-gray-400 block uppercase font-normal tracking-widest mb-1">Total Views</span>
                 <div className="flex items-center gap-1.5">
                   <Eye size={14} className="text-gray-400" />
                   <span className="text-lg font-normal text-gray-900 font-mono">
@@ -152,7 +152,7 @@ export default function AnalyticsDetail() {
               </div>
 
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">Total Likes</span>
+                <span className="text-[9px] text-gray-400 block uppercase font-normal tracking-widest mb-1">Total Likes</span>
                 <div className="flex items-center gap-1.5">
                   <Heart size={14} className="text-gray-400" />
                   <span className="text-lg font-normal text-gray-900 font-mono">
@@ -162,7 +162,7 @@ export default function AnalyticsDetail() {
               </div>
 
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">Total Comments</span>
+                <span className="text-[9px] text-gray-400 block uppercase font-normal tracking-widest mb-1">Total Comments</span>
                 <div className="flex items-center gap-1.5">
                   <MessageSquare size={14} className="text-gray-400" />
                   <span className="text-lg font-normal text-gray-900 font-mono">
@@ -172,43 +172,11 @@ export default function AnalyticsDetail() {
               </div>
 
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">Overall ER</span>
+                <span className="text-[9px] text-gray-400 block uppercase font-normal tracking-widest mb-1">Overall ER</span>
                 <div className="flex items-center gap-1.5">
                   <Activity size={14} className="text-gray-400" />
                   <span className="text-lg font-semibold text-primary-700 font-mono">
                     {overallMetrics.engagementRate.toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 font-outfit pt-2 border-t border-gray-100/50">
-              <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/50">
-                <span className="text-[9px] text-gray-450 block uppercase tracking-wider mb-1">Total Shares</span>
-                <div className="flex items-center gap-1.5">
-                  <Share2 size={13} className="text-gray-400" />
-                  <span className="text-sm font-normal text-gray-800 font-mono">
-                    {overallMetrics.shares.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/50">
-                <span className="text-[9px] text-gray-450 block uppercase tracking-wider mb-1">Total Saves</span>
-                <div className="flex items-center gap-1.5">
-                  <Bookmark size={13} className="text-gray-400" />
-                  <span className="text-sm font-normal text-gray-800 font-mono">
-                    {overallMetrics.saves.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/50">
-                <span className="text-[9px] text-gray-450 block uppercase tracking-wider mb-1">Total Clicks</span>
-                <div className="flex items-center gap-1.5">
-                  <MousePointerClick size={13} className="text-gray-400" />
-                  <span className="text-sm font-normal text-gray-800 font-mono">
-                    {overallMetrics.clicks.toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -219,7 +187,7 @@ export default function AnalyticsDetail() {
           <Card className="border-none shadow-xl bg-white p-6 sm:p-8 space-y-6">
             <div className="border-b border-gray-100 pb-4">
               <h2 className="text-sm font-normal text-gray-950 uppercase tracking-widest flex items-center gap-2 font-outfit">
-                <Video size={16} /> Individual Deliverables Breakdown
+                Individual Deliverables Breakdown
               </h2>
               <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Breakdown of metrics per post / story / reel</p>
             </div>
@@ -266,19 +234,19 @@ export default function AnalyticsDetail() {
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-outfit text-xs">
                       <div>
-                        <span className="text-[9px] text-gray-440 uppercase font-bold tracking-wider block mb-0.5">Views</span>
+                        <span className="text-[9px] text-gray-440 uppercase font-normal tracking-widest block mb-0.5">Views</span>
                         <span className="font-mono text-gray-800">{itemViews.toLocaleString()}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-gray-440 uppercase font-bold tracking-wider block mb-0.5">Likes</span>
+                        <span className="text-[9px] text-gray-440 uppercase font-normal tracking-widest block mb-0.5">Likes</span>
                         <span className="font-mono text-gray-800">{itemLikes.toLocaleString()}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-gray-440 uppercase font-bold tracking-wider block mb-0.5">Comments</span>
+                        <span className="text-[9px] text-gray-440 uppercase font-normal tracking-widest block mb-0.5">Comments</span>
                         <span className="font-mono text-gray-800">{itemComments.toLocaleString()}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-gray-440 uppercase font-bold tracking-wider block mb-0.5">Engagement Rate</span>
+                        <span className="text-[9px] text-gray-440 uppercase font-normal tracking-widest block mb-0.5">Engagement Rate</span>
                         <span className="font-mono font-semibold text-primary-700">{itemER.toFixed(2)}%</span>
                       </div>
                     </div>
@@ -314,9 +282,10 @@ export default function AnalyticsDetail() {
               <div className="w-full pt-4 border-t border-gray-100">
                 <Link 
                   to={`/creators/${groupCreator?.id}`}
+                  state={{ fromPath: location.pathname, fromLabel: 'ANALYTICS' }}
                   className="w-full text-center py-2 border border-gray-200 hover:border-gray-900 text-gray-750 hover:text-gray-950 rounded-lg text-xs tracking-wider uppercase font-normal block transition-colors bg-white font-outfit"
                 >
-                  View Creator CRM Profile
+                  View Creator Profile
                 </Link>
               </div>
             </div>
@@ -330,14 +299,8 @@ export default function AnalyticsDetail() {
               </h3>
               <div className="space-y-3">
                 <div>
-                  <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider">Campaign Name</span>
+                  <span className="text-[9px] text-gray-400 block uppercase font-normal tracking-widest">Campaign Name</span>
                   <span className="text-sm font-normal text-gray-800">{groupCampaign.name}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider">Description</span>
-                  <p className="text-xs text-gray-600 leading-relaxed mt-1">
-                    {groupCampaign.description || 'No campaign details available.'}
-                  </p>
                 </div>
               </div>
             </Card>

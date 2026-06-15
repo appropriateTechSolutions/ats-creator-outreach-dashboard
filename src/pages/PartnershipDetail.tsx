@@ -32,6 +32,8 @@ export default function PartnershipDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const fromCreatorId = location.state?.fromCreatorId;
+  const fromPath = location.state?.fromPath;
+  const fromLabel = location.state?.fromLabel;
   const [partnership, setPartnership] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -334,7 +336,14 @@ export default function PartnershipDetail() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          {fromCreatorId ? (
+          {fromPath ? (
+            <button 
+              onClick={() => navigate(fromPath)}
+              className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors mb-3"
+            >
+              <ArrowLeft size={14} /> Back to {fromLabel || 'Previous'}
+            </button>
+          ) : fromCreatorId ? (
             <button 
               onClick={() => navigate(`/creators/${fromCreatorId}`)}
               className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors mb-3"

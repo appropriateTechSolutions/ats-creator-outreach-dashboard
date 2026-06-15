@@ -83,7 +83,6 @@ export default function Analytics() {
       <Card className="border-none shadow-xl bg-white/80 backdrop-blur-md overflow-hidden">
         <CardHeader className="p-6 border-b border-gray-150/10">
           <h2 className="text-sm font-normal text-gray-900 uppercase tracking-widest font-outfit">Creator Deliverables</h2>
-          <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Creator-wise overview of content statuses and next due dates</p>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">

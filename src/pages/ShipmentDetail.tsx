@@ -178,14 +178,14 @@ export default function ShipmentDetail() {
           {fromCreatorId ? (
             <button 
               onClick={() => navigate(`/creators/${fromCreatorId}`)}
-              className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors mb-3"
+              className="flex items-center gap-2 text-xs font-normal text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors mb-3"
             >
               <ArrowLeft size={14} /> Back to Creator Detail
             </button>
           ) : (
             <button 
               onClick={() => navigate('/shipments')}
-              className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors mb-3"
+              className="flex items-center gap-2 text-xs font-normal text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors mb-3"
             >
               <ArrowLeft size={14} /> Back to Shipments
             </button>
@@ -240,7 +240,7 @@ export default function ShipmentDetail() {
               </div>
               
               <div className="flex flex-col items-end gap-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Shipment Status</span>
+                <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Shipment Status</span>
                 <StatusBadge status={shipment.status} />
               </div>
             </div>
@@ -250,16 +250,16 @@ export default function ShipmentDetail() {
               <div className="space-y-4 font-outfit">
                 <div className="space-y-3">
                   <div>
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Product Name</span>
+                    <span className="text-[9px] font-normal text-gray-400 uppercase tracking-wider block">Product Name</span>
                     <span className="text-sm font-normal text-gray-800">{shipment.product_name}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">SKU / Item ID</span>
+                      <span className="text-[9px] font-normal text-gray-400 uppercase tracking-wider block">SKU / Item ID</span>
                       <span className="text-sm font-normal text-gray-800 font-mono">{shipment.product_sku || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Quantity</span>
+                      <span className="text-[9px] font-normal text-gray-400 uppercase tracking-wider block">Quantity</span>
                       <span className="text-sm font-normal text-gray-800">{shipment.quantity}</span>
                     </div>
                   </div>
@@ -270,12 +270,12 @@ export default function ShipmentDetail() {
               <div className="space-y-4 font-outfit">
                 <div className="space-y-3">
                   <div>
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Recipient Name</span>
+                    <span className="text-[9px] font-normal text-gray-400 uppercase tracking-wider block">Recipient Name</span>
                     <span className="text-sm font-normal text-gray-800">{shipment.recipient_name || 'No Name'}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Address</span>
-                    <div className="text-sm text-gray-800 font-medium leading-relaxed bg-gray-50/50 border border-gray-100 rounded-xl p-3">
+                    <span className="text-[9px] font-normal text-gray-400 uppercase tracking-wider block">Address</span>
+                    <div className="text-sm text-gray-800 font-normal leading-relaxed bg-gray-50/50 border border-gray-100 rounded-xl p-3">
                       <div>{shipment.shipping_address_line1}</div>
                       {shipment.shipping_address_line2 && <div>{shipment.shipping_address_line2}</div>}
                       <div>
@@ -293,7 +293,7 @@ export default function ShipmentDetail() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 {/* Tracking Details */}
                 <div className="space-y-4 font-outfit">
-                  <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
+                  <h4 className="text-xs font-normal text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
                     <Truck size={14} /> Carrier & Tracking Info
                   </h4>
 
@@ -302,11 +302,11 @@ export default function ShipmentDetail() {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <span className="text-[9px] text-gray-400 block uppercase">Carrier</span>
-                          <span className="font-semibold text-gray-800 uppercase text-xs">{shipment.carrier || '---'}</span>
+                          <span className="font-normal text-gray-800 uppercase text-xs">{shipment.carrier || '---'}</span>
                         </div>
                         <div>
                           <span className="text-[9px] text-gray-400 block uppercase">Tracking Number</span>
-                          <span className="font-semibold text-gray-800 font-mono text-xs">{shipment.tracking_number}</span>
+                          <span className="font-normal text-gray-800 font-mono text-xs">{shipment.tracking_number}</span>
                         </div>
                       </div>
                       {shipment.tracking_url && (
@@ -330,22 +330,22 @@ export default function ShipmentDetail() {
 
                 {/* Date Milestones */}
                 <div className="space-y-4 font-outfit">
-                  <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
+                  <h4 className="text-xs font-normal text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
                     <Calendar size={14} /> Date Milestones
                   </h4>
 
                   <div className="space-y-2 text-xs font-mono">
                     <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
                       <span className="text-gray-400 uppercase">Created At</span>
-                      <span className="text-gray-750 font-semibold">{shipment.createdAt ? format(new Date(shipment.createdAt), 'MMM d, yyyy h:mm a') : '---'}</span>
+                      <span className="text-gray-750 font-normal">{shipment.createdAt ? format(new Date(shipment.createdAt), 'MMM d, yyyy h:mm a') : '---'}</span>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
                       <span className="text-gray-400 uppercase">Shipped At</span>
-                      <span className="text-gray-750 font-semibold">{shipment.shipped_at ? format(new Date(shipment.shipped_at), 'MMM d, yyyy h:mm a') : '---'}</span>
+                      <span className="text-gray-750 font-normal">{shipment.shipped_at ? format(new Date(shipment.shipped_at), 'MMM d, yyyy h:mm a') : '---'}</span>
                     </div>
                     <div className="flex justify-between items-center py-1.5">
                       <span className="text-gray-400 uppercase">Delivered At</span>
-                      <span className="text-gray-750 font-semibold">{shipment.delivered_at ? format(new Date(shipment.delivered_at), 'MMM d, yyyy h:mm a') : '---'}</span>
+                      <span className="text-gray-750 font-normal">{shipment.delivered_at ? format(new Date(shipment.delivered_at), 'MMM d, yyyy h:mm a') : '---'}</span>
                     </div>
                   </div>
                 </div>
@@ -353,7 +353,7 @@ export default function ShipmentDetail() {
 
               {shipment.notes && (
                 <div className="bg-yellow-50/45 border border-yellow-100/50 p-4 rounded-xl font-outfit">
-                  <span className="text-[9px] font-bold text-amber-800 uppercase tracking-wider block">Shipment Notes</span>
+                  <span className="text-[9px] font-normal text-amber-800 uppercase tracking-wider block">Shipment Notes</span>
                   <p className="text-sm text-gray-650 mt-1 whitespace-pre-wrap leading-relaxed">{shipment.notes}</p>
                 </div>
               )}
@@ -374,7 +374,7 @@ export default function ShipmentDetail() {
                   currentStatusIndex >= 0 ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'
                 }`} />
                 <div>
-                  <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">Shipment Registered</h4>
+                  <h4 className="text-xs font-normal text-gray-800 uppercase tracking-wide">Shipment Registered</h4>
                   <p className="text-[10px] text-gray-400 mt-0.5">Shipment created for campaign dispatch.</p>
                   {shipment.createdAt && (
                     <span className="text-[9px] text-indigo-600 font-mono mt-1 block">
@@ -390,7 +390,7 @@ export default function ShipmentDetail() {
                   currentStatusIndex >= 1 ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'
                 }`} />
                 <div>
-                  <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">Shipped</h4>
+                  <h4 className="text-xs font-normal text-gray-800 uppercase tracking-wide">Shipped</h4>
                   <p className="text-[10px] text-gray-400 mt-0.5">Package dispatched via carrier.</p>
                   {shipment.shipped_at && (
                     <span className="text-[9px] text-indigo-600 font-mono mt-1 block">
@@ -406,7 +406,7 @@ export default function ShipmentDetail() {
                   currentStatusIndex >= 2 ? 'border-green-600 bg-green-600' : 'border-gray-300'
                 }`} />
                 <div>
-                  <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wide">Delivered</h4>
+                  <h4 className="text-xs font-normal text-gray-800 uppercase tracking-wide">Delivered</h4>
                   <p className="text-[10px] text-gray-400 mt-0.5">Package arrived at recipient destination.</p>
                   {shipment.delivered_at && (
                     <span className="text-[9px] text-green-600 font-mono mt-1 block">
@@ -423,7 +423,7 @@ export default function ShipmentDetail() {
             <h3 className="text-sm font-normal text-gray-700 uppercase tracking-widest">Linked Campaign</h3>
             <div>
               <span className="text-[9px] text-gray-400 uppercase tracking-wider block">Campaign Name</span>
-              <span className="text-sm font-semibold text-gray-800 block mt-0.5">{shipment.Campaign?.name}</span>
+              <span className="text-sm font-normal text-gray-800 block mt-0.5">{shipment.Campaign?.name}</span>
             </div>
             {shipment.Campaign?.description && (
               <div>
@@ -433,15 +433,17 @@ export default function ShipmentDetail() {
             )}
             <div className="pt-2 border-t border-gray-100 flex gap-2">
               <Link 
-                to={`/campaigns/${shipment.campaign_id}`}
-                className="text-xs text-primary-600 hover:underline font-semibold flex items-center gap-1"
+                to={`/creators/${shipment.creator_id || shipment.Creator?.id}`}
+                state={{ fromPath: location.pathname, fromLabel: 'SHIPMENT' }}
+                className="text-xs text-primary-600 hover:underline font-normal flex items-center gap-1"
               >
-                View Campaign <ExternalLink size={12} />
+                View Creator <ExternalLink size={12} />
               </Link>
               {shipment.partnership_id && (
                 <Link 
                   to={`/partnerships/${shipment.partnership_id}`}
-                  className="text-xs text-primary-600 hover:underline font-semibold flex items-center gap-1 ml-auto"
+                  state={{ fromPath: location.pathname, fromLabel: 'SHIPMENT' }}
+                  className="text-xs text-primary-600 hover:underline font-normal flex items-center gap-1 ml-auto"
                 >
                   View Partnership <ExternalLink size={12} />
                 </Link>

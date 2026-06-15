@@ -6,7 +6,7 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Star, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock, Eye, Download, Coins, Edit3, Truck } from 'lucide-react';
+import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Star, Heart, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock, Eye, Download, Coins, Edit3, Truck } from 'lucide-react';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
 import { ImageLightbox } from '../components/ui/ImageLightbox';
@@ -866,6 +866,8 @@ export default function CreatorDetail() {
   const location = useLocation();
   const fromCampaignId = (location.state as any)?.fromCampaignId;
   const fromMyCreators = (location.state as any)?.fromMyCreators;
+  const fromPath = (location.state as any)?.fromPath;
+  const fromLabel = (location.state as any)?.fromLabel;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
@@ -942,7 +944,11 @@ export default function CreatorDetail() {
         </div>
       </div>
 
-      {fromCampaignId ? (
+      {fromPath ? (
+        <Link to={fromPath} className="no-print inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
+          <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO {fromLabel || 'CONTENT'}
+        </Link>
+      ) : fromCampaignId ? (
         <Link to={`/campaigns/${fromCampaignId}`} className="no-print inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
           <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO CAMPAIGN
         </Link>
@@ -2125,8 +2131,10 @@ export default function CreatorDetail() {
                   <tbody className="divide-y divide-gray-50 bg-white">
                     {creatorShipments.map((s) => (
                       <tr key={s.id} onClick={() => navigate(`/shipments/${s.id}`, { state: { fromCreatorId: id } })} className="hover:bg-primary-50/10 transition-colors cursor-pointer">
-                        <td className="px-4 py-4 align-middle text-xs font-medium text-gray-800">
-                          {s.Campaign?.name}
+                        <td className="px-4 py-4 align-middle">
+                          <div className="text-xs font-normal text-gray-900 font-outfit uppercase tracking-tight whitespace-nowrap">
+                            {s.Campaign?.name}
+                          </div>
                         </td>
                         <td className="px-4 py-4 align-middle">
                           <div className="text-xs font-medium text-gray-800">{s.product_name}</div>
@@ -2246,7 +2254,7 @@ export default function CreatorDetail() {
                           className="hover:bg-primary-50/10 transition-colors cursor-pointer"
                         >
                           <td className="px-4 py-4 align-middle">
-                            <div className="text-xs font-semibold text-gray-900 font-outfit uppercase tracking-tight">
+                            <div className="text-xs font-normal text-gray-900 font-outfit uppercase tracking-tight whitespace-nowrap">
                               {c.Campaign?.name}
                             </div>
                           </td>
@@ -2278,7 +2286,7 @@ export default function CreatorDetail() {
                             {c.status === 'published' ? (
                               <div className="flex flex-col items-end gap-1 text-[11px] font-mono text-gray-600">
                                 <span className="flex items-center gap-1" title="Views">{c.views || 0} <Eye size={12}/></span>
-                                <span className="flex items-center gap-1" title="Likes">{c.likes || 0} <Star size={12}/></span>
+                                <span className="flex items-center gap-1" title="Likes">{c.likes || 0} <Heart size={12}/></span>
                                 <span className="flex items-center gap-1" title="Comments">{c.comments || 0} <MessageCircle size={12}/></span>
                               </div>
                             ) : (
