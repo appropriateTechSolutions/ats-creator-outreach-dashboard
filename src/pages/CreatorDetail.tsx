@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit, getMediaKitUrl, updateCreatorNotes, getPartnerships, getCreatorActivities, markQualified, sendOffer, markAccepted, activatePartnership, completePartnership, rejectPartnership, updatePartnership, getShipments, updateShipment, getContents, createContent, updateContent, markContentSubmitted, approveContent, requestContentRevision, markContentPublished, syncContentPerformance } from '../lib/api';
+import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit, getMediaKitUrl, updateCreatorNotes, getPartnerships, getCreatorActivities, markQualified, sendOffer, markAccepted, activatePartnership, completePartnership, rejectPartnership, updatePartnership, getShipments, updateShipment, getContents, createContent, updateContent, markContentSubmitted, approveContent, requestContentRevision, markContentPublished, syncContentPerformance, syncCreator } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
@@ -265,6 +265,26 @@ export default function CreatorDetail() {
       .finally(() => {
         if (!silent) setLoading(false);
       });
+  };
+
+  const [syncingProfile, setSyncingProfile] = useState(false);
+
+  const handleSyncCreator = async () => {
+    // Use creator.id (the real database ID already loaded) instead of the URL
+    // param `id` which may contain a malformed UUID due to React Router state.
+    const creatorId = creator?.id || id;
+    if (!creatorId) return;
+    try {
+      setSyncingProfile(true);
+      await syncCreator(creatorId, creator?.campaign_id || undefined);
+      await loadData(true);
+      alert('Successfully synced Instagram profile!');
+    } catch (err: any) {
+      const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || String(err);
+      alert('Sync failed: ' + errMsg);
+    } finally {
+      setSyncingProfile(false);
+    }
   };
 
   const handlePartnershipAction = async (partnershipId: string, action: string) => {
@@ -1118,6 +1138,15 @@ export default function CreatorDetail() {
                         : (creator.latest_outreach ? 'Resend' : 'Send Outreach')}
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  className="w-full border-gray-200 text-gray-750 hover:bg-gray-50 flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all"
+                  onClick={handleSyncCreator}
+                  disabled={syncingProfile}
+                >
+                  {syncingProfile ? <RefreshCw size={13} className="animate-spin text-primary-600" /> : <RefreshCw size={13} className="text-gray-550" />}
+                  {syncingProfile ? 'Syncing...' : 'Sync Profile'}
+                </Button>
               </div>
             )}
           </div>

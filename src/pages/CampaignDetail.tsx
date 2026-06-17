@@ -12,7 +12,8 @@ import {
   getCampaignFunnel,
   getCampaignContentPerformance,
   recalculateCampaignPerformance,
-  getCampaignActivities
+  getCampaignActivities,
+  syncCampaignCreators
 } from '../lib/api';
 import type { Campaign, Creator } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
@@ -176,6 +177,7 @@ export default function CampaignDetail() {
   const [perfData, setPerfData] = useState<any>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [recalculating, setRecalculating] = useState(false);
+  const [syncingLeads, setSyncingLeads] = useState(false);
 
   // Ordered list of creator IDs found in the current discovery run (most recent first).
   useEffect(() => {
@@ -217,6 +219,21 @@ export default function CampaignDetail() {
       alert("Failed to recalculate: " + (err.message || err));
     } finally {
       setRecalculating(false);
+    }
+  };
+
+  const handleSyncCampaignCreators = async () => {
+    if (!id) return;
+    try {
+      setSyncingLeads(true);
+      await syncCampaignCreators(id);
+      await Promise.all([fetchData(true), fetchAnalyticsAndActivities()]);
+      alert("Successfully synced all creators' Instagram profiles!");
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to sync campaign creators: " + (err.response?.data?.error || err.message || err));
+    } finally {
+      setSyncingLeads(false);
     }
   };
 
@@ -688,6 +705,24 @@ export default function CampaignDetail() {
                       </>
                     )}
                   </div>
+                  
+                  <button
+                    onClick={handleSyncCampaignCreators}
+                    disabled={syncingLeads || leads.length === 0}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-700 border border-indigo-100 rounded-lg text-xs font-normal uppercase tracking-wider transition-all outline-none"
+                  >
+                    {syncingLeads ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>Syncing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Activity size={14} />
+                        <span>Sync All Creators</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
               

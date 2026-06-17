@@ -429,3 +429,11 @@ export const getCampaignContentPerformance = (campaignId: string): Promise<any> 
 export const recalculateCampaignPerformance = (campaignId: string): Promise<any> =>
   api.post(`/analytics/campaigns/${campaignId}/recalculate`) as any;
 
+// --- SYNC ENDPOINTS ---
+
+export const syncCreator = (id: string, campaignId?: string): Promise<any> =>
+  api.post(`/creators/${id}/sync`, {}, { params: { campaignId } }) as any;
+
+export const syncCampaignCreators = (campaignId: string): Promise<any> =>
+  api.post(`/campaigns/${campaignId}/sync-creators`, {}) as any;
+
