@@ -5,20 +5,19 @@ import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Modal } from '../components/ui/Modal';
-import { 
+import { OfferModal } from '../components/workflow/OfferModal';
+import { ShipmentModal } from '../components/workflow/ShipmentModal';
+import {
   getPartnerships, 
   getCampaigns,
   markQualified,
-  sendOffer,
   markAccepted,
   activatePartnership,
   completePartnership,
   rejectPartnership,
-  updatePartnership,
-  createShipment
+  updatePartnership
 } from '../lib/api';
 import { 
-  Handshake, 
   Search, 
   Coins, 
   Edit3,
@@ -43,53 +42,9 @@ export default function Partnerships() {
 
   // Modals
   const [activePartnership, setActivePartnership] = useState<any | null>(null);
-  const [showOfferModal, setShowOfferModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-
-  // Form states
-  const [offerForm, setOfferForm] = useState({
-    offer_type: 'free_product',
-    flat_fee: 0,
-    affiliate_enabled: false,
-    affiliate_percentage: 0,
-    affiliate_code: '',
-    affiliate_link: ''
-  });
-
-  const [editForm, setEditForm] = useState({
-    creator_tier: 'unknown',
-    contract_required: false,
-    contract_signed: false,
-    contract_url: '',
-    start_date: '',
-    end_date: '',
-    activation_notes: '',
-    internal_notes: ''
-  });
-
-  const [submitting, setSubmitting] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [previewSubject, setPreviewSubject] = useState('');
-  const [previewBody, setPreviewBody] = useState('');
-  const [previewToEmail, setPreviewToEmail] = useState('');
-  const [previewLoading, setPreviewLoading] = useState(false);
-
-  // Shipment states
-  const [showShipmentModal, setShowShipmentModal] = useState(false);
-  const [shipmentPartnership, setShipmentPartnership] = useState<any | null>(null);
-  const [shipmentForm, setShipmentForm] = useState({
-    product_name: '',
-    product_sku: '',
-    quantity: 1,
-    recipient_name: '',
-    shipping_address_line1: '',
-    shipping_address_line2: '',
-    shipping_city: '',
-    shipping_state: '',
-    shipping_zip: '',
-    shipping_country: 'US',
-    notes: ''
-  });
+  // Shared Modal States
+  const [showSharedOfferModal, setShowSharedOfferModal] = useState(false);
+  const [showSharedShipmentModal, setShowSharedShipmentModal] = useState(false);
 
   const fetchCampaignsAndPartnerships = async () => {
     try {
@@ -140,111 +95,26 @@ export default function Partnerships() {
 
   const openOfferModal = (p: any) => {
     setActivePartnership(p);
-    setOfferForm({
-      offer_type: p.offer_type || 'free_product',
-      flat_fee: p.flat_fee || 0,
-      affiliate_enabled: p.affiliate_enabled || false,
-      affiliate_percentage: p.affiliate_percentage || 0,
-      affiliate_code: p.affiliate_code || '',
-      affiliate_link: p.affiliate_link || ''
-    });
-    setShowOfferModal(true);
+    setShowSharedOfferModal(true);
   };
 
   const openShipmentModal = (p: any) => {
-    setShipmentPartnership(p);
-    setShipmentForm({
-      product_name: p.Campaign?.product_offer_notes || '',
-      product_sku: '',
-      quantity: 1,
-      recipient_name: p.Creator?.full_name || '',
-      shipping_address_line1: p.Creator?.shipping_address_line1 || '',
-      shipping_address_line2: p.Creator?.shipping_address_line2 || '',
-      shipping_city: p.Creator?.shipping_city || '',
-      shipping_state: p.Creator?.shipping_state || '',
-      shipping_zip: p.Creator?.shipping_zip || '',
-      shipping_country: p.Creator?.shipping_country || 'US',
-      notes: ''
-    });
-    setShowShipmentModal(true);
+    setActivePartnership(p);
+    setShowSharedShipmentModal(true);
   };
 
-  const submitShipment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!shipmentPartnership) return;
-    setSubmitting(true);
-    try {
-      await createShipment({
-        ...shipmentForm,
-        creator_id: shipmentPartnership.creator_id,
-        campaign_id: shipmentPartnership.campaign_id,
-        partnership_id: shipmentPartnership.id
-      });
-      setShowShipmentModal(false);
-      navigate('/shipments');
-    } catch (err) {
-      alert('Failed to create shipment: ' + err);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleContinueToPreview = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activePartnership) return;
-    setShowOfferModal(false);
-    setShowPreviewModal(true);
-    setPreviewLoading(true);
-    try {
-      const extraParams = {
-        offer_type: offerForm.offer_type,
-        flat_fee: offerForm.flat_fee || undefined,
-        affiliate_code: offerForm.affiliate_enabled ? offerForm.affiliate_code : undefined,
-        affiliate_percentage: offerForm.affiliate_enabled ? offerForm.affiliate_percentage : undefined,
-      };
-      
-      const { previewOutreach } = await import('../lib/api');
-      const data = await previewOutreach(
-        activePartnership.creator_id,
-        activePartnership.campaign_id,
-        'qualification',
-        extraParams
-      );
-      setPreviewSubject(data.subject || '');
-      setPreviewBody(data.body || '');
-      setPreviewToEmail(data.to || activePartnership.Creator?.email || '');
-    } catch (err) {
-      console.error(err);
-      alert('Failed to load email preview.');
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
-  const handleSendOfferEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activePartnership) return;
-    setSubmitting(true);
-    try {
-      await sendOffer(activePartnership.id, {
-        offer_type: offerForm.offer_type,
-        flat_fee: Number(offerForm.flat_fee) || undefined,
-        affiliate_enabled: offerForm.affiliate_enabled,
-        affiliate_percentage: offerForm.affiliate_enabled ? Number(offerForm.affiliate_percentage) : undefined,
-        affiliate_code: offerForm.affiliate_enabled ? offerForm.affiliate_code : undefined,
-        affiliate_link: offerForm.affiliate_enabled ? offerForm.affiliate_link : undefined,
-        customSubject: previewSubject,
-        customBody: previewBody
-      });
-      setShowPreviewModal(false);
-      const updated = await getPartnerships();
-      setPartnerships(updated);
-    } catch (err) {
-      alert('Failed to send offer email: ' + err);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    creator_tier: 'unknown',
+    contract_required: false,
+    contract_signed: false,
+    contract_url: '',
+    start_date: '',
+    end_date: '',
+    activation_notes: '',
+    internal_notes: ''
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   const openEditModal = (p: any) => {
     setActivePartnership(p);
@@ -287,6 +157,9 @@ export default function Partnerships() {
   };
 
   const filtered = partnerships.filter(p => {
+    // Hide pre-activated creators by default since they haven't been officially activated yet.
+    if (!selectedStatus && ['engaged', 'qualified', 'meeting_scheduled', 'offer_sent', 'accepted'].includes(p.status)) return false;
+
     // Search
     if (search) {
       const q = search.toLowerCase();
@@ -573,153 +446,7 @@ export default function Partnerships() {
           </div>
         )}
 
-
       </Card>
-
-      {/* ─── Send Offer Modal ─── */}
-      <Modal isOpen={showOfferModal} onClose={() => setShowOfferModal(false)} title="Draft & Send Campaign Offer">
-        <form onSubmit={handleContinueToPreview} className="space-y-4 font-outfit">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Offer Compensation Type</label>
-            <select
-              value={offerForm.offer_type}
-              onChange={e => setOfferForm(prev => ({ ...prev, offer_type: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-            >
-              <option value="free_product">Free Product</option>
-              <option value="affiliate_commission">Affiliate Commission Only</option>
-              <option value="flat_fee">Flat Fee</option>
-              <option value="hybrid">Hybrid (Flat Fee + Affiliate)</option>
-            </select>
-          </div>
-
-          {(offerForm.offer_type === 'flat_fee' || offerForm.offer_type === 'hybrid') && (
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Flat Fee Amount (USD)</label>
-              <input
-                type="number"
-                value={offerForm.flat_fee}
-                onChange={e => setOfferForm(prev => ({ ...prev, flat_fee: Number(e.target.value) }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-                min="0"
-              />
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 py-2">
-            <input
-              type="checkbox"
-              id="affiliate_enabled"
-              checked={offerForm.affiliate_enabled}
-              onChange={e => setOfferForm(prev => ({ ...prev, affiliate_enabled: e.target.checked }))}
-              className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 border-gray-300"
-            />
-            <label htmlFor="affiliate_enabled" className="text-sm text-gray-700 select-none">Enable Affiliate Parameters</label>
-          </div>
-
-          {offerForm.affiliate_enabled && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border border-dashed border-gray-100 rounded-xl p-4 bg-gray-50/50">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Percentage (%)</label>
-                <input
-                  type="number"
-                  value={offerForm.affiliate_percentage}
-                  onChange={e => setOfferForm(prev => ({ ...prev, affiliate_percentage: Number(e.target.value) }))}
-                  className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm"
-                  min="0"
-                  max="100"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Promo Code</label>
-                <input
-                  type="text"
-                  value={offerForm.affiliate_code}
-                  onChange={e => setOfferForm(prev => ({ ...prev, affiliate_code: e.target.value }))}
-                  className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm uppercase font-mono"
-                  placeholder="CODE20"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Tracking URL</label>
-                <input
-                  type="text"
-                  value={offerForm.affiliate_link}
-                  onChange={e => setOfferForm(prev => ({ ...prev, affiliate_link: e.target.value }))}
-                  className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm"
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowOfferModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
-              Continue to Preview
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* ─── Offer Email Preview Modal ─── */}
-      <Modal isOpen={showPreviewModal} onClose={() => setShowPreviewModal(false)} title="Review & Send Offer Email">
-        {previewLoading ? (
-          <div className="py-12">
-            <LoadingState message="Generating Offer Preview..." />
-          </div>
-        ) : (
-          <form onSubmit={handleSendOfferEmail} className="space-y-4 font-outfit">
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                To
-              </label>
-              <div className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 font-mono">
-                {previewToEmail || <span className="text-gray-400 italic">No email on record</span>}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                Subject Line
-              </label>
-              <input
-                type="text"
-                value={previewSubject}
-                onChange={(e) => setPreviewSubject(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-sm"
-                placeholder="Enter email subject"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-                Message Body (Plain Text)
-              </label>
-              <textarea
-                value={previewBody}
-                onChange={(e) => setPreviewBody(e.target.value)}
-                rows={10}
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all font-sans text-sm"
-                placeholder="Enter email body"
-                required
-              />
-            </div>
-
-            <div className="flex gap-3 pt-4 border-t border-gray-100">
-              <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => { setShowPreviewModal(false); setShowOfferModal(true); }}>
-                Back to Settings
-              </Button>
-              <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
-                {submitting ? 'Sending Offer...' : 'Send Offer Email'}
-              </Button>
-            </div>
-          </form>
-        )}
-      </Modal>
 
       {/* ─── Edit Partnership Modal ─── */}
       <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Update Partnership Profile">
@@ -831,144 +558,20 @@ export default function Partnerships() {
         </form>
       </Modal>
 
-      {/* ─── Shipment Create Modal ─── */}
-      <Modal isOpen={showShipmentModal} onClose={() => setShowShipmentModal(false)} title="Dispatched Product Shipment">
-        <form onSubmit={submitShipment} className="space-y-4 font-outfit">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Product Name</label>
-              <input
-                type="text"
-                required
-                value={shipmentForm.product_name}
-                onChange={e => setShipmentForm(prev => ({ ...prev, product_name: e.target.value }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-                placeholder="Product title"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Quantity</label>
-              <input
-                type="number"
-                min="1"
-                required
-                value={shipmentForm.quantity}
-                onChange={e => setShipmentForm(prev => ({ ...prev, quantity: Number(e.target.value) || 1 }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              />
-            </div>
-          </div>
+      <OfferModal
+        isOpen={showSharedOfferModal}
+        onClose={() => setShowSharedOfferModal(false)}
+        partnership={activePartnership}
+        onSuccess={() => fetchCampaignsAndPartnerships()}
+      />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">SKU / Item ID</label>
-              <input
-                type="text"
-                value={shipmentForm.product_sku}
-                onChange={e => setShipmentForm(prev => ({ ...prev, product_sku: e.target.value }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-                placeholder="SKU-xyz"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Recipient Name</label>
-              <input
-                type="text"
-                required
-                value={shipmentForm.recipient_name}
-                onChange={e => setShipmentForm(prev => ({ ...prev, recipient_name: e.target.value }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-700 mt-2 border-b border-gray-100 pb-1">Delivery Address</h4>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">Address Line 1</label>
-                <input
-                  type="text"
-                  placeholder="123 Main St"
-                  value={shipmentForm.shipping_address_line1}
-                  onChange={e => setShipmentForm(prev => ({ ...prev, shipping_address_line1: e.target.value }))}
-                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
-                />
-              </div>
-              <div>
-                <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">Address Line 2</label>
-                <input
-                  type="text"
-                  placeholder="Apt 4B"
-                  value={shipmentForm.shipping_address_line2}
-                  onChange={e => setShipmentForm(prev => ({ ...prev, shipping_address_line2: e.target.value }))}
-                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
-                />
-              </div>
-              <div>
-                <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">City</label>
-                <input
-                  type="text"
-                  placeholder="City"
-                  value={shipmentForm.shipping_city}
-                  onChange={e => setShipmentForm(prev => ({ ...prev, shipping_city: e.target.value }))}
-                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
-                />
-              </div>
-              <div>
-                <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">State</label>
-                <input
-                  type="text"
-                  placeholder="State"
-                  value={shipmentForm.shipping_state}
-                  onChange={e => setShipmentForm(prev => ({ ...prev, shipping_state: e.target.value }))}
-                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
-                />
-              </div>
-              <div>
-                <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">Zip Code</label>
-                <input
-                  type="text"
-                  placeholder="Zip"
-                  value={shipmentForm.shipping_zip}
-                  onChange={e => setShipmentForm(prev => ({ ...prev, shipping_zip: e.target.value }))}
-                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
-                />
-              </div>
-              <div>
-                <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">Country</label>
-                <input
-                  type="text"
-                  placeholder="e.g. US, IN"
-                  value={shipmentForm.shipping_country}
-                  onChange={e => setShipmentForm(prev => ({ ...prev, shipping_country: e.target.value }))}
-                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Internal Notes</label>
-            <textarea
-              value={shipmentForm.notes}
-              onChange={e => setShipmentForm(prev => ({ ...prev, notes: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[60px]"
-              placeholder="Delivery requests..."
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowShipmentModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
-              {submitting ? 'Creating...' : 'Create Shipment'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      <ShipmentModal
+        isOpen={showSharedShipmentModal}
+        onClose={() => setShowSharedShipmentModal(false)}
+        creator={activePartnership?.Creator}
+        partnership={activePartnership}
+        onSuccess={() => fetchCampaignsAndPartnerships()}
+      />
     </div>
   );
 }

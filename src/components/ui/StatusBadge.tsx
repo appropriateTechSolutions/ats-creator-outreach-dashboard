@@ -38,6 +38,10 @@ export function StatusBadge({ status }: { status: StatusType }) {
     case 'replied':
     case 'engaged':
     case 'contacted':
+    case 'offer_sent':
+    case 'accepted':
+    case 'qualified':
+    case 'activated':
       variant = 'primary';
       break;
     case 'not_respond':
@@ -49,7 +53,7 @@ export function StatusBadge({ status }: { status: StatusType }) {
     case 'draft':
     default:
       variant = 'gray';
-    }
+  }
 
   let label = status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
   if (status === 'hold') label = 'Discovered';

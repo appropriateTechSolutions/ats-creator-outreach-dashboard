@@ -62,7 +62,7 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/accept-offer/:id" element={<AcceptOffer />} />
           <Route path="/provide-address/:id" element={<ProvideAddress />} />
-          
+
           <Route element={<ProtectedLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/campaigns" element={<Campaigns />} />
@@ -91,7 +91,7 @@ export default function App() {
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/analytics/creator-campaign/:creatorId/:campaignId" element={<AnalyticsDetail />} />
           </Route>
-          
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

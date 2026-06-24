@@ -5,8 +5,8 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Modal } from '../components/ui/Modal';
 import { useNavigate } from 'react-router-dom';
-import { 
-  getShipments, 
+import {
+  getShipments,
   getCampaigns,
   getPartnerships,
   createShipment,
@@ -18,11 +18,11 @@ import {
   markFailedShipment,
   cancelShipment
 } from '../lib/api';
-import { 
-  Package, 
-  Search, 
-  Plus, 
-  Truck, 
+import {
+  Package,
+  Search,
+  Plus,
+  Truck,
   ExternalLink,
   ChevronDown,
   Calendar
@@ -36,7 +36,7 @@ export default function Shipments() {
   const [partnerships, setPartnerships] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  
+
   // Filters
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
@@ -85,6 +85,12 @@ export default function Shipments() {
     shipping_zip: '',
     shipping_country: 'US'
   });
+
+  useEffect(() => {
+    if (editForm.tracking_number && ['pending', 'ready_to_ship', 'address_requested'].includes(editForm.status)) {
+      setEditForm(prev => ({ ...prev, status: 'shipped' }));
+    }
+  }, [editForm.tracking_number]);
 
   const [emailForm, setEmailForm] = useState({
     subject: '',
@@ -140,7 +146,7 @@ export default function Shipments() {
         partnership_id: linkedPartnership ? linkedPartnership.id : undefined
       });
       setShowCreateModal(false);
-      
+
       setCreateForm({
         campaign_id: '',
         creator_id: '',
@@ -208,6 +214,27 @@ export default function Shipments() {
     setShowEditModal(true);
   };
 
+  const handleDirectMarkShipped = async (s: any) => {
+    try {
+      setLoading(true);
+      const { markShippedShipment } = await import('../lib/api');
+      await markShippedShipment(s.id, {
+        carrier: s.carrier || '',
+        tracking_number: s.tracking_number || '',
+        tracking_url: s.tracking_url || '',
+        estimated_delivery: s.estimated_delivery ? s.estimated_delivery.substring(0, 10) : null
+      });
+      const updatedList = await getShipments();
+      setShipments(updatedList);
+      setActiveShipment(s);
+      setShowSuccessModal(true);
+    } catch (err) {
+      alert('Failed to mark shipped: ' + err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdateShipment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeShipment) return;
@@ -235,7 +262,7 @@ export default function Shipments() {
       const updatedPartnerships = await getPartnerships();
       setShipments(updatedList);
       setPartnerships(updatedPartnerships);
-      
+
       if (editForm.status === 'shipped') {
         setShowSuccessModal(true);
       }
@@ -318,10 +345,10 @@ export default function Shipments() {
   const filteredShipments = shipments.filter(s => {
     const creatorHandle = s.Creator?.handle || '';
     const creatorName = s.Creator?.full_name || '';
-    const matchesSearch = creatorHandle.toLowerCase().includes(search.toLowerCase()) || 
-                          creatorName.toLowerCase().includes(search.toLowerCase()) ||
-                          s.product_name?.toLowerCase().includes(search.toLowerCase()) ||
-                          s.tracking_number?.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = creatorHandle.toLowerCase().includes(search.toLowerCase()) ||
+      creatorName.toLowerCase().includes(search.toLowerCase()) ||
+      s.product_name?.toLowerCase().includes(search.toLowerCase()) ||
+      s.tracking_number?.toLowerCase().includes(search.toLowerCase());
 
     const matchesCampaign = selectedCampaign ? s.campaign_id === selectedCampaign : true;
     const matchesStatus = selectedStatus ? s.status === selectedStatus : true;
@@ -332,12 +359,12 @@ export default function Shipments() {
       const shipDate = s.createdAt ? new Date(s.createdAt) : (s.created_at ? new Date(s.created_at) : new Date());
       if (startDate) {
         const start = new Date(startDate);
-        start.setHours(0,0,0,0);
+        start.setHours(0, 0, 0, 0);
         if (shipDate < start) matchesDate = false;
       }
       if (endDate) {
         const end = new Date(endDate);
-        end.setHours(23,59,59,999);
+        end.setHours(23, 59, 59, 999);
         if (shipDate > end) matchesDate = false;
       }
     }
@@ -356,7 +383,7 @@ export default function Shipments() {
             Product Shipments
           </h1>
         </div>
-        <Button 
+        <Button
           onClick={() => setShowCreateModal(true)}
           className="bg-primary-600 text-white font-normal uppercase tracking-widest text-xs flex items-center gap-2 h-10 px-4"
         >
@@ -485,8 +512,8 @@ export default function Shipments() {
               </thead>
               <tbody className="divide-y divide-gray-50 bg-white">
                 {filteredShipments.map((s) => (
-                  <tr 
-                    key={s.id} 
+                  <tr
+                    key={s.id}
                     onClick={() => navigate(`/shipments/${s.id}`)}
                     className="hover:bg-primary-50/10 transition-colors cursor-pointer"
                   >
@@ -553,10 +580,10 @@ export default function Shipments() {
                         <div className="space-y-0.5">
                           <div className="font-medium text-gray-855">{s.tracking_number}</div>
                           {s.tracking_url && (
-                            <a 
-                              href={s.tracking_url} 
-                              target="_blank" 
-                              rel="noreferrer" 
+                            <a
+                              href={s.tracking_url}
+                              target="_blank"
+                              rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}
                               className="text-[10px] text-primary-600 hover:underline flex items-center gap-0.5 font-mono"
                             >
@@ -583,8 +610,8 @@ export default function Shipments() {
                     <td className="px-6 py-3.5 align-middle text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2 relative">
                         {(!s.Creator?.shipping_address_line1 || !s.Creator?.shipping_city) && ['pending', 'address_requested'].includes(s.status) && (
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             className="bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200 font-bold uppercase tracking-widest text-[9px] min-h-[28px] px-3 shadow-sm"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -594,21 +621,41 @@ export default function Shipments() {
                             {s.status === 'address_requested' ? 'Resend Request' : 'Request Address'}
                           </Button>
                         )}
+                        {s.status === 'pending' && (
+                          <Button
+                            size="sm"
+                            className={s.tracking_number ? "bg-primary-100 text-primary-700 hover:bg-primary-200 border border-primary-200 font-bold uppercase tracking-widest text-[9px] min-h-[28px] px-3 shadow-sm" : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border border-indigo-200 font-bold uppercase tracking-widest text-[9px] min-h-[28px] px-3 shadow-sm"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (s.tracking_number) {
+                                handleDirectMarkShipped(s);
+                              } else {
+                                openEditModal(s);
+                              }
+                            }}
+                          >
+                            {s.tracking_number ? 'Mark Shipped' : 'Update Shipment'}
+                          </Button>
+                        )}
                         {s.status === 'ready_to_ship' && (
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             className="bg-primary-100 text-primary-700 hover:bg-primary-200 border border-primary-200 font-bold uppercase tracking-widest text-[9px] min-h-[28px] px-3 shadow-sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleMarkShippedClick(s);
+                              if (s.tracking_number) {
+                                handleDirectMarkShipped(s);
+                              } else {
+                                handleMarkShippedClick(s);
+                              }
                             }}
                           >
                             Mark Shipped
                           </Button>
                         )}
                         {s.status === 'shipped' && (
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200 font-bold uppercase tracking-widest text-[9px] min-h-[28px] px-3 shadow-sm"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -618,7 +665,7 @@ export default function Shipments() {
                             Mark Delivered
                           </Button>
                         )}
-                        <button 
+                        <button
                           onClick={() => setOpenActionDropdownId(openActionDropdownId === s.id ? null : s.id)}
                           className="flex items-center gap-1 text-[10px] font-normal uppercase tracking-widest text-gray-500 hover:text-primary-600 border border-gray-200 hover:border-primary-200 px-2 py-1.5 rounded transition-colors bg-white font-outfit"
                         >
@@ -732,8 +779,8 @@ export default function Shipments() {
                 onChange={(e) => {
                   const creatorId = e.target.value;
                   const partner = availablePartners.find(p => p.creator_id === creatorId);
-                  setCreateForm({ 
-                    ...createForm, 
+                  setCreateForm({
+                    ...createForm,
                     creator_id: creatorId,
                     recipient_name: partner?.Creator?.full_name || '',
                     shipping_address_line1: partner?.Creator?.shipping_address_line1 || '',
@@ -811,7 +858,7 @@ export default function Shipments() {
           {/* Shipping Address */}
           <div className="space-y-2">
             <h4 className="text-[10px] font-normal uppercase tracking-wider text-gray-700 mt-2 border-b border-gray-100 pb-1">Shipping Address</h4>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">Address Line 1</label>
@@ -995,7 +1042,7 @@ export default function Shipments() {
           {/* Recipient Address */}
           <div className="space-y-2">
             <h4 className="text-[10px] font-normal uppercase tracking-wider text-gray-700 mt-2 border-b border-gray-100 pb-1">Delivery Address</h4>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[9px] font-normal uppercase tracking-wider text-gray-400 mb-1">Address Line 1</label>

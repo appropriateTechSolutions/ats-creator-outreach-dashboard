@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 
 export default function AcceptOffer() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const [partnership, setPartnership] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [successType, setSuccessType] = useState<'accepted'|'rejected'|null>(null);
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [feedback, setFeedback] = useState('');
 
   const [form, setForm] = useState({
     shipping_address_line1: '',
@@ -23,7 +27,14 @@ export default function AcceptOffer() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
-  const alreadyAccepted = ['accepted', 'activated', 'product_shipped', 'product_delivered', 'completed', 'live'].includes(partnership?.status);
+  const alreadyAccepted = partnership && (partnership.status === 'offer_accepted' || partnership.status === 'contract_signed' || partnership.status === 'active');
+  const alreadyRejected = partnership && partnership.status === 'negotiating';
+
+  useEffect(() => {
+    if (searchParams.get('reject') === 'true') {
+      setShowRejectForm(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
@@ -107,6 +118,35 @@ export default function AcceptOffer() {
       const data = await res.json();
       if (data.success) {
         setSuccess(true);
+        setSuccessType('accepted');
+      } else {
+        alert(data.error || 'Something went wrong');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedback.trim()) {
+      alert("Please provide your feedback so we can review the offer terms.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
+      const res = await fetch(`${apiUrl}/partnerships/public/${id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess(true);
+        setSuccessType('rejected');
       } else {
         alert(data.error || 'Something went wrong');
       }
@@ -140,11 +180,15 @@ export default function AcceptOffer() {
       <div className="flex h-screen items-center justify-center font-outfit bg-gray-50">
         <div className="bg-white p-10 rounded-2xl shadow-xl max-w-md w-full text-center">
           <div className="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">✓</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">{alreadyAccepted ? 'Address Received!' : 'Offer Accepted!'}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">
+            {successType === 'rejected' ? 'Feedback Submitted' : (alreadyAccepted ? 'Address Received!' : 'Offer Accepted!')}
+          </h1>
           <p className="text-gray-600">
-            {alreadyAccepted 
-              ? 'Thank you for providing your shipping address. We will prepare your shipment shortly.' 
-              : 'Thank you for confirming. Your acceptance has been recorded, and the campaign manager will be in touch shortly.'}
+            {successType === 'rejected'
+              ? 'Thank you for your feedback. We will review your notes and our campaign manager will be in touch shortly.'
+              : (alreadyAccepted
+                  ? 'Thank you for providing your shipping address. We will prepare your shipment shortly.'
+                  : 'Thank you for confirming. Your acceptance has been recorded, and the campaign manager will be in touch shortly.')}
           </p>
         </div>
       </div>
@@ -159,7 +203,7 @@ export default function AcceptOffer() {
             <h1 className="text-3xl font-bold mb-2">{alreadyAccepted ? 'Provide Shipping Address' : 'Collaboration Proposal'}</h1>
             <p className="text-primary-100 text-lg opacity-90">{partnership?.Campaign?.name}</p>
           </div>
-          
+
           <div className="p-8">
             <div className="mb-8 p-5 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-4">
               <img src={partnership?.Creator?.profile_pic || 'https://via.placeholder.com/60'} alt="Profile" className="w-16 h-16 rounded-full object-cover shadow-sm" />
@@ -169,6 +213,37 @@ export default function AcceptOffer() {
               </div>
             </div>
 
+            {showRejectForm ? (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900">Provide Feedback</h3>
+                <p className="text-sm text-gray-600">Please let us know why you are declining the offer or what terms you would like to negotiate.</p>
+                <textarea
+                  rows={4}
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
+                  placeholder="Enter your feedback or counter-offer here..."
+                  required
+                />
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectForm(false)}
+                    className="flex-1 py-3 px-4 border border-gray-300 rounded-xl shadow-sm text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReject}
+                    disabled={submitting || !feedback.trim()}
+                    className="flex-1 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-all"
+                  >
+                    {submitting ? 'Submitting...' : 'Submit Feedback'}
+                  </button>
+                </div>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-8">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Shipping Address (Optional)</h3>
@@ -180,7 +255,7 @@ export default function AcceptOffer() {
                       type="text"
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                       value={form.shipping_address_line1}
-                      onChange={e => setForm({...form, shipping_address_line1: e.target.value})}
+                      onChange={e => setForm({ ...form, shipping_address_line1: e.target.value })}
                     />
                   </div>
                   <div className="col-span-2">
@@ -189,7 +264,7 @@ export default function AcceptOffer() {
                       type="text"
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                       value={form.shipping_address_line2}
-                      onChange={e => setForm({...form, shipping_address_line2: e.target.value})}
+                      onChange={e => setForm({ ...form, shipping_address_line2: e.target.value })}
                     />
                   </div>
                   <div>
@@ -198,7 +273,7 @@ export default function AcceptOffer() {
                       type="text"
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                       value={form.shipping_city}
-                      onChange={e => setForm({...form, shipping_city: e.target.value})}
+                      onChange={e => setForm({ ...form, shipping_city: e.target.value })}
                     />
                   </div>
                   <div>
@@ -207,7 +282,7 @@ export default function AcceptOffer() {
                       type="text"
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                       value={form.shipping_state}
-                      onChange={e => setForm({...form, shipping_state: e.target.value})}
+                      onChange={e => setForm({ ...form, shipping_state: e.target.value })}
                     />
                   </div>
                   <div>
@@ -216,7 +291,7 @@ export default function AcceptOffer() {
                       type="text"
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                       value={form.shipping_zip}
-                      onChange={e => setForm({...form, shipping_zip: e.target.value})}
+                      onChange={e => setForm({ ...form, shipping_zip: e.target.value })}
                     />
                   </div>
                   <div>
@@ -225,7 +300,7 @@ export default function AcceptOffer() {
                       type="text"
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                       value={form.shipping_country}
-                      onChange={e => setForm({...form, shipping_country: e.target.value})}
+                      onChange={e => setForm({ ...form, shipping_country: e.target.value })}
                     />
                   </div>
                 </div>
@@ -234,7 +309,7 @@ export default function AcceptOffer() {
               {!alreadyAccepted && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Agreements</h3>
-                  
+
                   <div className="flex items-start">
                     <div className="flex h-5 items-center">
                       <input
@@ -243,7 +318,7 @@ export default function AcceptOffer() {
                         required
                         className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                         checked={form.terms_accepted}
-                        onChange={e => setForm({...form, terms_accepted: e.target.checked})}
+                        onChange={e => setForm({ ...form, terms_accepted: e.target.checked })}
                       />
                     </div>
                     <div className="ml-3 text-sm">
@@ -271,16 +346,17 @@ export default function AcceptOffer() {
                 </div>
               )}
 
-              <div className="pt-6">
-                <button
-                  type="submit"
-                  disabled={(!alreadyAccepted && (!form.terms_accepted || !form.signature)) || submitting}
-                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  {submitting ? 'Submitting...' : (alreadyAccepted ? 'Submit Address' : 'Accept Offer')}
-                </button>
-              </div>
+                <div className="pt-6 flex flex-col gap-4">
+                  <button
+                    type="submit"
+                    disabled={(!alreadyAccepted && (!form.terms_accepted || !form.signature)) || submitting}
+                    className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    {submitting ? 'Submitting...' : (alreadyAccepted ? 'Submit Address' : 'Accept Offer')}
+                  </button>
+                </div>
             </form>
+            )}
           </div>
         </div>
       </div>

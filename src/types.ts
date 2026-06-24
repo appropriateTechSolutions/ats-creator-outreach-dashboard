@@ -263,3 +263,33 @@ export interface CreatorContent {
   Campaign?: Campaign;
   Creator?: Creator;
 }
+
+export interface CreatorPartnership {
+  id: string;
+  creator_id: string;
+  campaign_id: string;
+  status: 'engaged' | 'meeting_scheduled' | 'qualified' | 'offer_sent' | 'accepted' | 'activated' | 'completed' | 'rejected' | 'product_shipped' | 'product_delivered';
+  creator_tier?: 'unknown' | 'nano' | 'micro' | 'mid_tier' | 'macro' | 'celebrity' | null;
+  offer_type?: 'free_product' | 'affiliate_commission' | 'flat_fee' | 'hybrid' | null;
+  flat_fee?: number | null;
+  currency?: string;
+  payment_timing?: string | null;
+  payment_method?: string | null;
+  shipment_included?: boolean;
+  affiliate_enabled?: boolean;
+  affiliate_percentage?: number | null;
+  affiliate_code?: string | null;
+  affiliate_link?: string | null;
+  contract_required?: boolean;
+  contract_signed?: boolean;
+  contract_url?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  activation_notes?: string | null;
+  internal_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  Campaign?: Campaign;
+  Creator?: Creator;
+  content?: CreatorContent[];
+}

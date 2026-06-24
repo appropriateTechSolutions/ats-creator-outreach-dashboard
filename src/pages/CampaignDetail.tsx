@@ -61,10 +61,10 @@ const getEngagement = (c: Creator): number => {
 
 export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
   if (followers <= 0 || er <= 0) return null;
-  
+
   let goodThreshold = 0;
   let avgLower = 0;
-  
+
   if (followers < 10000) {
     goodThreshold = 6.0;
     avgLower = 3.0;
@@ -81,7 +81,7 @@ export const getErRating = (followers: number, er: number): { label: string; col
     goodThreshold = 1.0;
     avgLower = 0.3;
   }
-  
+
   if (er >= goodThreshold) {
     return { label: 'Good ER', colorClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
   } else if (er >= avgLower) {
@@ -261,7 +261,7 @@ export default function CampaignDetail() {
         product_offer_notes: camp.product_offer_notes || '',
         discovery_channels: camp.discovery_channels || ['instagram']
       });
-      
+
       const campLeads = await getCampaignLeads(id);
       setLeads(campLeads);
       setPreviewCreator(prev => {
@@ -300,14 +300,14 @@ export default function CampaignDetail() {
     setShowEndConfirm(false);
     try {
       const now = new Date().toISOString();
-      await updateCampaign(id, { 
-        status: 'inactive', 
-        end_date: now 
+      await updateCampaign(id, {
+        status: 'inactive',
+        end_date: now
       });
-      setCampaign({ 
-        ...campaign, 
-        status: 'inactive', 
-        end_date: now 
+      setCampaign({
+        ...campaign,
+        status: 'inactive',
+        end_date: now
       } as any);
       alert('Campaign ended successfully!');
     } catch (err: any) {
@@ -343,7 +343,7 @@ export default function CampaignDetail() {
       setOutreachModalCreatorId(creatorId);
       return;
     }
-    
+
     const previousLeads = [...leads];
 
     // Optimistically update the UI state immediately
@@ -379,7 +379,7 @@ export default function CampaignDetail() {
       throw err;
     }
   };
-  
+
   const persistTemplate = async (subject: string, body: string) => {
     if (!id) return;
     await updateCampaignTemplate(id, {
@@ -483,12 +483,12 @@ export default function CampaignDetail() {
 
   const handleUpdateStatus = async (newStatus: string) => {
     if (!id) return;
-    
+
     // Optimistically update the status for instant feedback
     if (campaign) {
       setCampaign({ ...campaign, status: newStatus } as any);
     }
-    
+
     try {
       await updateCampaign(id, { status: newStatus as Campaign['status'] });
       fetchData(true); // Silent refresh in background
@@ -512,10 +512,10 @@ export default function CampaignDetail() {
 
   const sortedLeads = [...filteredLeads];
   switch (sortBy) {
-    case 'followers_desc':  sortedLeads.sort((a, b) => getFollowers(b) - getFollowers(a)); break;
-    case 'followers_asc':   sortedLeads.sort((a, b) => getFollowers(a) - getFollowers(b)); break;
+    case 'followers_desc': sortedLeads.sort((a, b) => getFollowers(b) - getFollowers(a)); break;
+    case 'followers_asc': sortedLeads.sort((a, b) => getFollowers(a) - getFollowers(b)); break;
     case 'engagement_desc': sortedLeads.sort((a, b) => getEngagement(b) - getEngagement(a)); break;
-    case 'engagement_asc':  sortedLeads.sort((a, b) => getEngagement(a) - getEngagement(b)); break;
+    case 'engagement_asc': sortedLeads.sort((a, b) => getEngagement(a) - getEngagement(b)); break;
   }
 
   // While discovery is running, keep freshly found creators pinned to the top in
@@ -523,13 +523,13 @@ export default function CampaignDetail() {
   // and the list falls back to the selected sort order.
   const displayLeads = discovering && discoveredOrder.length > 0
     ? [...filteredLeads].sort((a, b) => {
-        const ia = discoveredOrder.indexOf(a.id);
-        const ib = discoveredOrder.indexOf(b.id);
-        if (ia === -1 && ib === -1) return 0;   // both pre-existing → keep relative order
-        if (ia === -1) return 1;                 // a pre-existing → below newly found
-        if (ib === -1) return -1;                // b pre-existing → below newly found
-        return ia - ib;                          // both newly found → by find order
-      })
+      const ia = discoveredOrder.indexOf(a.id);
+      const ib = discoveredOrder.indexOf(b.id);
+      if (ia === -1 && ib === -1) return 0;   // both pre-existing → keep relative order
+      if (ia === -1) return 1;                 // a pre-existing → below newly found
+      if (ib === -1) return -1;                // b pre-existing → below newly found
+      return ia - ib;                          // both newly found → by find order
+    })
     : sortedLeads;
 
   // Clamp the page if the list shrank below the current offset, then slice.
@@ -538,8 +538,8 @@ export default function CampaignDetail() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
-      <Link 
-        to={fromBrandsList ? "/brands" : (fromBrandId ? `/brands/${fromBrandId}` : "/campaigns")} 
+      <Link
+        to={fromBrandsList ? "/brands" : (fromBrandId ? `/brands/${fromBrandId}` : "/campaigns")}
         className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase"
       >
         <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO {fromBrandsList ? 'BRANDS' : (fromBrandId ? 'BRAND' : 'CAMPAIGNS')}
@@ -549,43 +549,43 @@ export default function CampaignDetail() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight leading-tight">{campaign.name}</h1>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
           <div className="flex flex-col items-start sm:items-end gap-2 sm:pl-6 border-gray-100">
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Campaign Status</span>
-                {['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => handleUpdateStatus(campaign.status === 'active' ? 'inactive' : 'active')}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${campaign.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
-                    >
-                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${campaign.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </button>
-                    <span className={`text-[10px] font-bold uppercase tracking-widest ${campaign.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
-                      {campaign.status === 'active' ? 'ON' : 'OFF'}
-                    </span>
-                  </div>
-                )}
-                {!['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
-                  <StatusBadge status={campaign.status as any} />
-                )}
-              </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Campaign Status</span>
               {['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleUpdateStatus(campaign.status === 'active' ? 'inactive' : 'active')}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${campaign.status === 'active' ? 'bg-primary-600' : 'bg-gray-200'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${campaign.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                  <span className={`text-[10px] font-bold uppercase tracking-widest ${campaign.status === 'active' ? 'text-primary-600' : 'text-gray-400'}`}>
+                    {campaign.status === 'active' ? 'ON' : 'OFF'}
+                  </span>
+                </div>
+              )}
+              {!['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
                 <StatusBadge status={campaign.status as any} />
               )}
+            </div>
+            {['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
+              <StatusBadge status={campaign.status as any} />
+            )}
           </div>
           {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && campaign.status === 'active' && (
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-              <button 
+              <button
                 type="button"
-                onClick={handleEndCampaign} 
+                onClick={handleEndCampaign}
                 className="w-full sm:w-auto bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-lg h-11 px-6 font-normal uppercase tracking-widest text-[10px] transition-colors focus:outline-none flex items-center justify-center"
               >
                 End Campaign
               </button>
-              <Button 
-                onClick={handleDiscovery} 
+              <Button
+                onClick={handleDiscovery}
                 disabled={discovering}
                 className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 border-none h-11 px-6 font-normal uppercase tracking-widest text-[10px]"
                 icon={discovering ? <LoadingState mini /> : <Sparkles size={16} />}
@@ -605,33 +605,30 @@ export default function CampaignDetail() {
               <button
                 type="button"
                 onClick={() => setActiveTab('leads')}
-                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 outline-none transition-all ${
-                  activeTab === 'leads'
+                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 outline-none transition-all ${activeTab === 'leads'
                     ? 'border-primary-600 text-primary-700'
                     : 'border-transparent text-gray-500 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 Leads ({filteredLeads.length})
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('analytics')}
-                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 outline-none transition-all ${
-                  activeTab === 'analytics'
+                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 outline-none transition-all ${activeTab === 'analytics'
                     ? 'border-primary-600 text-primary-700'
                     : 'border-transparent text-gray-500 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 Campaign Analytics
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('activity')}
-                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 outline-none transition-all ${
-                  activeTab === 'activity'
+                className={`pb-4 text-xs font-bold uppercase tracking-widest border-b-2 outline-none transition-all ${activeTab === 'activity'
                     ? 'border-primary-600 text-primary-700'
                     : 'border-transparent text-gray-500 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 Activity Timeline ({activities.length})
               </button>
@@ -658,8 +655,8 @@ export default function CampaignDetail() {
                       className="w-full sm:w-auto inline-flex items-center justify-between gap-2 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-normal hover:bg-gray-50 transition-all outline-none min-w-[140px]"
                     >
                       <span className="text-xs uppercase tracking-wider">
-                        {selectedStatuses.length === 0 
-                          ? 'Any Status' 
+                        {selectedStatuses.length === 0
+                          ? 'Any Status'
                           : `${selectedStatuses.length} Selected`}
                       </span>
                       <ChevronDown size={14} className="text-gray-400 ml-2" />
@@ -667,8 +664,8 @@ export default function CampaignDetail() {
 
                     {isFilterDropdownOpen && (
                       <>
-                        <div 
-                          className="fixed inset-0 z-10" 
+                        <div
+                          className="fixed inset-0 z-10"
                           onClick={() => setIsFilterDropdownOpen(false)}
                         />
                         <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1.5 animate-[fadeIn_0.15s_ease]">
@@ -683,15 +680,15 @@ export default function CampaignDetail() {
                           ].map(item => {
                             const isChecked = selectedStatuses.includes(item.id);
                             return (
-                              <label 
-                                key={item.id} 
+                              <label
+                                key={item.id}
                                 className="flex items-center gap-3 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer select-none"
                               >
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
                                   onChange={() => {
-                                    setSelectedStatuses(prev => 
+                                    setSelectedStatuses(prev =>
                                       isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
                                     );
                                   }}
@@ -705,7 +702,7 @@ export default function CampaignDetail() {
                       </>
                     )}
                   </div>
-                  
+
                   <button
                     onClick={handleSyncCampaignCreators}
                     disabled={syncingLeads || leads.length === 0}
@@ -725,7 +722,7 @@ export default function CampaignDetail() {
                   </button>
                 </div>
               </div>
-              
+
               {filteredLeads.length === 0 ? (
                 discovering ? (
                   <div className="p-16 text-center">
@@ -782,10 +779,10 @@ export default function CampaignDetail() {
                               </button>
                               <div className="flex items-center gap-2 mt-1.5">
                                 {((lead.primary_platform)?.toLowerCase() === 'instagram' || lead.has_instagram) && (
-                                  <a 
-                                    href={lead.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${lead.handle?.replace(/^@/, '')}`} 
-                                    target="_blank" 
-                                    rel="noreferrer" 
+                                  <a
+                                    href={lead.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${lead.handle?.replace(/^@/, '')}`}
+                                    target="_blank"
+                                    rel="noreferrer"
                                     className="inline-flex items-center gap-1 text-[#E1306C] hover:scale-[1.02] transition-transform"
                                     title="Instagram"
                                   >
@@ -794,10 +791,10 @@ export default function CampaignDetail() {
                                   </a>
                                 )}
                                 {((lead.primary_platform)?.toLowerCase() === 'youtube' || lead.has_youtube) && (
-                                  <a 
-                                    href={lead.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${lead.handle?.replace(/^@/, '')}`} 
-                                    target="_blank" 
-                                    rel="noreferrer" 
+                                  <a
+                                    href={lead.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${lead.handle?.replace(/^@/, '')}`}
+                                    target="_blank"
+                                    rel="noreferrer"
                                     className="inline-flex items-center gap-1 text-[#FF0000] hover:scale-[1.02] transition-transform"
                                     title="YouTube"
                                   >
@@ -806,10 +803,10 @@ export default function CampaignDetail() {
                                   </a>
                                 )}
                                 {((lead.primary_platform)?.toLowerCase() === 'tiktok' || lead.has_tiktok) && (
-                                  <a 
-                                    href={lead.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${lead.handle?.replace(/^@/, '')}`} 
-                                    target="_blank" 
-                                    rel="noreferrer" 
+                                  <a
+                                    href={lead.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${lead.handle?.replace(/^@/, '')}`}
+                                    target="_blank"
+                                    rel="noreferrer"
                                     className="inline-flex items-center gap-1 text-gray-900 hover:scale-[1.02] transition-transform"
                                     title="TikTok"
                                   >
@@ -859,14 +856,14 @@ export default function CampaignDetail() {
                               )}
                               {lead.review_status !== 'approved' && lead.review_status !== 'rejected' && lead.lifecycle_status !== 'not_respond' && (
                                 <>
-                                  <button 
+                                  <button
                                     onClick={() => handleReview(lead.id, 'approve')}
                                     className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
                                     title="Approve & Send Outreach"
                                   >
                                     <Check size={16} />
                                   </button>
-                                  <button 
+                                  <button
                                     onClick={() => handleReview(lead.id, 'reject')}
                                     className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                                     title="Reject"
@@ -979,8 +976,8 @@ export default function CampaignDetail() {
                       <div key={stage.key} className="flex items-center gap-4">
                         <div className="w-44 text-xs font-normal text-gray-500 uppercase tracking-wider text-right">{stage.label}</div>
                         <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden relative">
-                          <div 
-                            className="bg-primary-600 h-full rounded-full transition-all duration-500" 
+                          <div
+                            className="bg-primary-600 h-full rounded-full transition-all duration-500"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -1008,7 +1005,7 @@ export default function CampaignDetail() {
                 <div className="relative border-l border-gray-150 ml-4 pl-6 space-y-6 mt-4">
                   {activities.map((act) => {
                     const timeStr = act.created_at || act.createdAt ? format(new Date(act.created_at || act.createdAt), 'MMM d, yyyy h:mm a') : 'N/A';
-                    
+
                     const getActivityIcon = (type: string) => {
                       switch (type) {
                         case 'outreach_sent':
@@ -1090,13 +1087,12 @@ export default function CampaignDetail() {
 
               <div className="pt-4 border-t border-gray-100">
                 <p className="text-xs font-normal text-gray-500 uppercase tracking-widest mb-4">Metrics Intelligence</p>
-                <button 
+                <button
                   onClick={() => setSelectedStatuses(selectedStatuses.includes('pending') ? [] : ['pending'])}
-                  className={`flex justify-between items-center w-full text-sm mb-1.5 px-3 py-2 rounded-xl border transition-all duration-300 ${
-                    selectedStatuses.includes('pending')
+                  className={`flex justify-between items-center w-full text-sm mb-1.5 px-3 py-2 rounded-xl border transition-all duration-300 ${selectedStatuses.includes('pending')
                       ? 'bg-primary-50 text-primary-700 border-primary-200 shadow-sm'
                       : 'text-gray-600 border-transparent hover:bg-gray-50 hover:text-gray-900'
-                  }`}
+                    }`}
                   title="Click to filter by Pending Review"
                 >
                   <span className="font-outfit uppercase tracking-tight text-xs">Pending Review</span>
@@ -1104,13 +1100,12 @@ export default function CampaignDetail() {
                     {leads.filter(l => l.review_status === 'shortlisted' || l.review_status === 'pending_review' || !l.review_status || l.review_status === 'pending' || l.review_status === 'reviewed').length}
                   </span>
                 </button>
-                <button 
+                <button
                   onClick={() => setSelectedStatuses(selectedStatuses.includes('approved') ? [] : ['approved'])}
-                  className={`flex justify-between items-center w-full text-sm mb-1.5 px-3 py-2 rounded-xl border transition-all duration-300 ${
-                    selectedStatuses.includes('approved')
+                  className={`flex justify-between items-center w-full text-sm mb-1.5 px-3 py-2 rounded-xl border transition-all duration-300 ${selectedStatuses.includes('approved')
                       ? 'bg-green-50 text-green-700 border-green-200 shadow-sm'
                       : 'text-gray-600 border-transparent hover:bg-gray-50 hover:text-gray-900'
-                  }`}
+                    }`}
                   title="Click to filter by Approved"
                 >
                   <span className="font-outfit uppercase tracking-tight text-xs">Approved</span>
@@ -1118,13 +1113,12 @@ export default function CampaignDetail() {
                     {leads.filter(l => l.review_status === 'approved').length}
                   </span>
                 </button>
-                <button 
+                <button
                   onClick={() => setSelectedStatuses(selectedStatuses.includes('rejected') ? [] : ['rejected'])}
-                  className={`flex justify-between items-center w-full text-sm px-3 py-2 rounded-xl border transition-all duration-300 ${
-                    selectedStatuses.includes('rejected')
+                  className={`flex justify-between items-center w-full text-sm px-3 py-2 rounded-xl border transition-all duration-300 ${selectedStatuses.includes('rejected')
                       ? 'bg-red-50 text-red-700 border-red-200 shadow-sm'
                       : 'text-gray-600 border-transparent hover:bg-gray-50 hover:text-gray-900'
-                  }`}
+                    }`}
                   title="Click to filter by Rejected"
                 >
                   <span className="font-outfit uppercase tracking-tight text-xs">Rejected</span>
@@ -1195,7 +1189,7 @@ export default function CampaignDetail() {
           </Card>
         </div>
       </div>
-      
+
       <OutreachPreviewModal
         creatorId={outreachModalCreatorId || ''}
         campaignId={id}
@@ -1235,7 +1229,7 @@ export default function CampaignDetail() {
           setCustomCity={setCustomCity}
         />
       </Modal>
-      
+
       {/* Floating Actions */}
       {['super_admin', 'admin', 'client_admin'].includes(user?.role || '') && (
         <button
@@ -1329,7 +1323,7 @@ export default function CampaignDetail() {
           </Card>
         </div>
       )}
-      <CreatorPreviewDrawer 
+      <CreatorPreviewDrawer
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
         creator={previewCreator}

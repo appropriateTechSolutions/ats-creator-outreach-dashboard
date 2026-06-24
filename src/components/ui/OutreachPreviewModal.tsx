@@ -9,7 +9,10 @@ interface OutreachPreviewModalProps {
   messageType?: string;
   isOpen: boolean;
   onClose: () => void;
-  onSend: (customSubject?: string, customBody?: string, messageType?: string) => Promise<void>;
+  onSend: (customSubject?: string, customBody?: string, messageType?: string, customTo?: string) => Promise<void>;
+  initialSubject?: string;
+  initialBody?: string;
+  skipFetch?: boolean;
 }
 
 export function OutreachPreviewModal({
@@ -19,15 +22,18 @@ export function OutreachPreviewModal({
   isOpen,
   onClose,
   onSend,
+  initialSubject,
+  initialBody,
+  skipFetch,
 }: OutreachPreviewModalProps) {
-  const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
+  const [subject, setSubject] = useState(initialSubject || '');
+  const [body, setBody] = useState(initialBody || '');
   const [toEmail, setToEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (isOpen && creatorId) {
+    if (isOpen && creatorId && !skipFetch) {
       setLoading(true);
       previewOutreach(creatorId, campaignId, messageType)
         .then((data) => {
@@ -42,14 +48,21 @@ export function OutreachPreviewModal({
           setLoading(false);
         });
     }
-  }, [isOpen, creatorId, campaignId, messageType]);
+  }, [isOpen, creatorId, campaignId, messageType, skipFetch]);
+
+  useEffect(() => {
+    if (isOpen && skipFetch) {
+      setSubject(initialSubject || '');
+      setBody(initialBody || '');
+    }
+  }, [isOpen, skipFetch, initialSubject, initialBody]);
 
   if (!isOpen) return null;
 
   const handleSend = async () => {
     setSending(true);
     try {
-      await onSend(subject, body, messageType);
+      await onSend(subject, body, messageType, toEmail || undefined);
       onClose();
     } catch (error) {
       console.error(error);
@@ -83,9 +96,13 @@ export function OutreachPreviewModal({
                 <label className="block text-[10px] font-normal text-gray-700 mb-1 uppercase tracking-widest">
                   To
                 </label>
-                <div className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 font-mono">
-                  {toEmail || <span className="text-gray-400 italic">No email on record</span>}
-                </div>
+                <input
+                  type="email"
+                  value={toEmail || ''}
+                  onChange={(e) => setToEmail(e.target.value)}
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 font-mono focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+                  placeholder="Enter recipient email"
+                />
               </div>
 
               <div>

@@ -6,7 +6,7 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true 
+  withCredentials: true
 });
 
 api.interceptors.request.use(config => {
@@ -74,11 +74,11 @@ api.interceptors.response.use(
   },
   error => {
     // Enhanced error handling with more details
-    const errorMessage = error?.response?.data?.error 
-      || error?.response?.data?.message 
-      || error?.message 
+    const errorMessage = error?.response?.data?.error
+      || error?.response?.data?.message
+      || error?.message
       || 'An unexpected error occurred';
-    
+
     // Log detailed error for debugging
     if (error?.response) {
       console.error('API Error:', {
@@ -88,7 +88,7 @@ api.interceptors.response.use(
         data: error.response?.data
       });
     }
-    
+
     return Promise.reject(error?.response?.data || new Error(errorMessage));
   }
 );
@@ -100,10 +100,10 @@ export const login = async (email: string, password: string): Promise<{ user: Au
   return res;
 };
 
-export const forgotPassword = (email: string): Promise<{ success: boolean; message: string }> => 
+export const forgotPassword = (email: string): Promise<{ success: boolean; message: string }> =>
   api.post('/auth/forgot-password', { email });
 
-export const resetPassword = (data: { token: string, newPassword: string }): Promise<{ success: boolean; message: string }> => 
+export const resetPassword = (data: { token: string, newPassword: string }): Promise<{ success: boolean; message: string }> =>
   api.post('/auth/reset-password', data);
 
 export const getMe = (): Promise<AuthUser> => api.get('/auth/me');
@@ -113,13 +113,13 @@ export const logout = async (): Promise<void> => {
   localStorage.removeItem('ats_token');
 };
 
-export const inviteUser = (data: { full_name: string, email: string, role: string, client_id?: string, user_type?: string }) => 
+export const inviteUser = (data: { full_name: string, email: string, role: string, client_id?: string, user_type?: string }) =>
   api.post('/users/invite', data);
 
 export const getUsers = (): Promise<any[]> => cachedGet('users', () => api.get('/users'));
 export const getUserById = (id: string): Promise<any> => api.get(`/users/${id}`);
 
-export const verifyInvite = (token: string): Promise<any> => 
+export const verifyInvite = (token: string): Promise<any> =>
   api.get(`/auth/invite/verify?token=${token}`);
 
 export const acceptInvite = (data: { token: string, password: string }): Promise<void> => api.post('/auth/invite/accept', data);
@@ -149,7 +149,7 @@ export const getCustomCategories = (clientId?: string): Promise<any[]> => {
   const params = clientId ? { client_id: clientId } : {};
   return cachedGet(`categories:${clientId || ''}`, () => api.get('/categories', { params }));
 };
-export const createCustomCategory = (name: string, clientId?: string, brandId?: string): Promise<any> => 
+export const createCustomCategory = (name: string, clientId?: string, brandId?: string): Promise<any> =>
   api.post('/categories', { name, client_id: clientId, brand_id: brandId });
 
 // ─── Campaigns ────────────────────────────────────────
@@ -196,7 +196,7 @@ export const getDashboardStats = (campaignId?: string): Promise<any> =>
   cachedGet(`stats:${campaignId || ''}`, () => api.get('/stats/dashboard', { params: { campaignId } }));
 
 // ─── AI Discovery ─────────────────────────────────────
-export const triggerDiscovery = (categories: string[], city: string, campaignId: string, keywords: string[] = []): Promise<unknown> => 
+export const triggerDiscovery = (categories: string[], city: string, campaignId: string, keywords: string[] = []): Promise<unknown> =>
   api.post('/creators/ai-discovery', { categories, city, campaign_id: campaignId, keywords });
 
 export const findSimilarCreators = (creatorId: string, campaignId: string): Promise<any> =>
@@ -208,27 +208,27 @@ export const regenerateCreatorSummary = (creatorId: string): Promise<{ summary: 
 export const updateCreatorNotes = (creatorId: string, notes: string): Promise<Creator> =>
   api.put(`/creators/${creatorId}/notes`, { notes });
 
-export const bookMeeting = (creatorId: string, campaignId: string, date: string, notes: string): Promise<unknown> => 
+export const bookMeeting = (creatorId: string, campaignId: string, date: string, notes: string): Promise<unknown> =>
   api.post('/conversions/book-meeting', { creator_id: creatorId, campaign_id: campaignId, date, notes });
 
 export const getMeetings = (): Promise<any[]> => cachedGet('meetings', () => api.get('/conversions/meetings'));
 
-export const approvePartner = (meetingId: string): Promise<unknown> => 
+export const approvePartner = (meetingId: string): Promise<unknown> =>
   api.post('/conversions/approve-partner', { meeting_id: meetingId, outcome: 'approved' });
 
 // ─── Review ───────────────────────────────────────────
-export const reviewLead = (creatorId: string, action: 'approve' | 'reject' | 'shortlist' | 'revoke', custom_subject?: string, custom_body?: string, message_type?: string): Promise<unknown> => 
-  api.patch(`/creators/${creatorId}/review`, { action, custom_subject, custom_body, message_type });
+export const reviewLead = (creatorId: string, action: 'approve' | 'reject' | 'shortlist' | 'revoke', custom_subject?: string, custom_body?: string, message_type?: string, custom_to?: string): Promise<unknown> =>
+  api.patch(`/creators/${creatorId}/review`, { action, custom_subject, custom_body, message_type, custom_to });
 
 // ─── Outreach ─────────────────────────────────────────
-export const sendCampaignOutreach = (campaignId: string): Promise<{ sent: number; failed: number }> => 
+export const sendCampaignOutreach = (campaignId: string): Promise<{ sent: number; failed: number }> =>
   api.post('/outreach/send', { campaign_id: campaignId }).then((res: any) => res.stats || res);
 
 export const sendSingleOutreach = (creatorId: string, campaignId?: string, customSubject?: string, customBody?: string, message_type?: string): Promise<any> =>
   api.post('/outreach/send-single', { creator_id: creatorId, campaign_id: campaignId, customSubject, customBody, message_type });
 
 export const previewOutreach = (creatorId: string, campaignId?: string, message_type?: string, extraParams?: any): Promise<{ subject: string; body: string; to: string | null }> =>
-  api.get('/outreach/preview', { params: { creator_id: creatorId, campaign_id: campaignId, message_type, ...extraParams } }) as any;
+  api.get('/outreach/preview', { params: { creator_id: creatorId, campaign_id: campaignId, message_type, _t: Date.now(), ...extraParams } }) as any;
 
 export const getOutreachLogs = (): Promise<any[]> => cachedGet('outreach-logs', () => api.get('/outreach/logs'));
 
@@ -275,7 +275,7 @@ export const getPartnerships = (params?: { campaign_id?: string; status?: string
 export const getPartnershipById = (id: string): Promise<any> =>
   api.get(`/partnerships/${id}`) as any;
 
-export const createPartnership = (data: { creator_id: string; campaign_id: string; status?: string; [key: string]: any }): Promise<any> =>
+export const createPartnership = (data: { creator_id: string; campaign_id: string; status?: string;[key: string]: any }): Promise<any> =>
   api.post('/partnerships', data) as any;
 
 export const updatePartnership = (id: string, data: any): Promise<any> =>
@@ -287,12 +287,17 @@ export const markQualified = (id: string): Promise<any> =>
 export const sendOffer = (id: string, offerData: {
   offer_type: string;
   flat_fee?: number;
+  payment_timing?: string;
+  payment_method?: string;
+  shipment_included?: boolean;
+  deliverables?: { platform: string, content_type: string, due_date: string, notes: string }[];
   affiliate_enabled?: boolean;
   affiliate_percentage?: number;
   affiliate_code?: string;
   affiliate_link?: string;
   customSubject?: string;
   customBody?: string;
+  customTo?: string;
 }): Promise<any> =>
   api.post(`/partnerships/${id}/send-offer`, offerData) as any;
 
@@ -436,4 +441,5 @@ export const syncCreator = (id: string, campaignId?: string): Promise<any> =>
 
 export const syncCampaignCreators = (campaignId: string): Promise<any> =>
   api.post(`/campaigns/${campaignId}/sync-creators`, {}) as any;
+
 

@@ -3,13 +3,17 @@ import { Card } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Search, ArrowLeft, ChevronDown, SlidersHorizontal } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
-import { getAllCreators, getCampaigns, reviewLead } from '../lib/api';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { getAllCreators, getCampaigns, reviewLead, getPartnerships, getShipments, getContents } from '../lib/api';
 import type { Creator } from '../types';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Check, X, Instagram, Youtube, Activity, Star } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
+import { WorkflowActionEngine } from '../components/workflow/WorkflowActionEngine';
+import { OfferModal } from '../components/workflow/OfferModal';
+import { ShipmentModal } from '../components/workflow/ShipmentModal';
+import { ContentPromptModal } from '../components/workflow/ContentPromptModal';
 import { getFollowers, getEngagement, isQualifiedCreator, matchesStatusFilter } from '../lib/creatorFilters';
 import { Pagination } from '../components/ui/Pagination';
 
@@ -17,10 +21,10 @@ const PAGE_SIZE = 50;
 
 export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
   if (followers <= 0 || er <= 0) return null;
-  
+
   let goodThreshold = 0;
   let avgLower = 0;
-  
+
   if (followers < 10000) {
     goodThreshold = 6.0;
     avgLower = 3.0;
@@ -37,7 +41,7 @@ export const getErRating = (followers: number, er: number): { label: string; col
     goodThreshold = 1.0;
     avgLower = 0.3;
   }
-  
+
   if (er >= goodThreshold) {
     return { label: 'Good ER', colorClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
   } else if (er >= avgLower) {
@@ -84,12 +88,34 @@ const loadStoredFilters = (): StoredFilters => {
 };
 
 export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolean } = {}) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const location = useLocation();
   const [creators, setCreators] = useState<Creator[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
+  const [partnerships, setPartnerships] = useState<any[]>([]);
+  const [shipments, setShipments] = useState<any[]>([]);
+  const [contents, setContents] = useState<any[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
+  const [outreachModalType, setOutreachModalType] = useState<string | undefined>(undefined);
+  
+  // Workflow Modal States
+  const [activeCreator, setActiveCreator] = useState<any>(null);
+  const [activePartnership, setActivePartnership] = useState<any>(null);
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [showShipmentModal, setShowShipmentModal] = useState(false);
+  const [showContentPromptModal, setShowContentPromptModal] = useState(false);
+  const [contentPromptAction, setContentPromptAction] = useState<'submit' | 'publish'>('submit');
+  const [activeContentId, setActiveContentId] = useState<string | null>(null);
+  const [initialContentValue, setInitialContentValue] = useState('');
+  
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [activeFeedback, setActiveFeedback] = useState<string>('');
+  const [outreachInitialSubject, setOutreachInitialSubject] = useState<string | undefined>(undefined);
+  const [outreachInitialBody, setOutreachInitialBody] = useState<string | undefined>(undefined);
+  
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [openMobileDropdown, setOpenMobileDropdown] = useState<'followers' | 'engagement' | 'campaign' | 'sort' | null>(null);
@@ -102,15 +128,26 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
   const [sortBy, setSortBy] = useState(() => loadStoredFilters().sortBy || 'followers_desc');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const fetchCreators = () => {
-    setLoading(true);
-    Promise.all([getAllCreators(), getCampaigns()])
-      .then(([creatorsData, campaignsData]) => {
-        setCreators(creatorsData);
-        setCampaigns(campaignsData.map(c => ({ id: c.id, name: c.name })));
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+  const fetchCreators = async () => {
+    try {
+      setLoading(true);
+      const [creatorsData, campaignsData, partnershipsData, shipmentsData, contentsData] = await Promise.all([
+        getAllCreators(),
+        getCampaigns(),
+        getPartnerships(),
+        getShipments(),
+        getContents()
+      ]);
+      setCreators(creatorsData);
+      setCampaigns(campaignsData.map(c => ({ id: c.id, name: c.name })));
+      setPartnerships(partnershipsData);
+      setShipments(shipmentsData);
+      setContents(contentsData);
+    } catch (err) {
+      console.error('Failed to load creators:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -168,14 +205,76 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
     }
   };
 
-  const handleConfirmApprove = async (customSubject?: string, customBody?: string) => {
+  const handleConfirmApprove = async (customSubject?: string, customBody?: string, messageType?: string, customTo?: string) => {
     if (!outreachModalCreatorId) return;
     try {
-      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody);
+      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody, messageType, customTo);
       fetchCreators();
     } catch (err) {
       alert('Failed to approve lead and send outreach.');
       throw err;
+    }
+  };
+
+  const handleWorkflowAction = async (creator: any, actionType: string, payload?: any) => {
+    const partnership = partnerships.find(p => p.creator_id === creator.id || p.Creator?.id === creator.id);
+    setActiveCreator(creator);
+    
+    if (actionType === 'view_feedback') {
+      setActiveFeedback(partnership?.creator_feedback || 'No feedback provided.');
+      setActivePartnership(partnership);
+      setShowFeedbackModal(true);
+    } else if (actionType === 'review') {
+      handleReview(creator.id, 'shortlist');
+    } else if (actionType === 'outreach') {
+      setOutreachModalType(undefined);
+      setOutreachModalCreatorId(creator.id);
+    } else if (actionType === 'follow_up') {
+      setOutreachModalType('followup_1');
+      setOutreachModalCreatorId(creator.id);
+    } else if (actionType === 'draft_offer') {
+      setActivePartnership(partnership || { creator_id: creator.id, campaign_id: creator.campaign_id || creator.campaign_ids?.[0] });
+      setShowOfferModal(true);
+    } else if (actionType === 'mark_accepted') {
+      try {
+        const { markAccepted } = await import('../lib/api');
+        await markAccepted(partnership.id);
+        fetchCreators();
+      } catch (err) { alert('Failed to mark accepted: ' + err); }
+    } else if (actionType === 'add_shipment') {
+      setActivePartnership(partnership);
+      setShowShipmentModal(true);
+    } else if (actionType === 'activate') {
+      try {
+        const { activatePartnership } = await import('../lib/api');
+        await activatePartnership(partnership.id);
+        fetchCreators();
+      } catch (err) { alert('Failed to activate: ' + err); }
+    } else if (actionType === 'mark_delivered') {
+      // Find the shipment and update it
+      try {
+        const { updateShipment } = await import('../lib/api');
+        const shipment = shipments.find(s => s.creator_id === creator.id);
+        if (shipment) {
+          await updateShipment(shipment.id, { status: 'delivered' });
+          fetchCreators();
+        }
+      } catch (err) { alert('Failed to mark delivered: ' + err); }
+    } else if (actionType === 'add_draft_url' || actionType === 'add_live_url') {
+      setActiveContentId(payload?.id || null);
+      setContentPromptAction(actionType === 'add_draft_url' ? 'submit' : 'publish');
+      setInitialContentValue(actionType === 'add_draft_url' ? (payload?.draft_url || '') : (payload?.published_url || ''));
+      setShowContentPromptModal(true);
+    } else if (actionType === 'view_shipments') {
+      navigate('/shipments');
+    } else if (actionType === 'review_content') {
+      navigate('/content');
+    } else if (actionType === 'complete') {
+      try {
+        const { completePartnership } = await import('../lib/api');
+        await completePartnership(partnership.id);
+        fetchCreators();
+      } catch (err) { alert('Failed to complete: ' + err); }
     }
   };
 
@@ -224,10 +323,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
 
   const sortedCreators = [...filteredCreators];
   switch (sortBy) {
-    case 'followers_desc':  sortedCreators.sort((a, b) => getFollowers(b) - getFollowers(a)); break;
-    case 'followers_asc':   sortedCreators.sort((a, b) => getFollowers(a) - getFollowers(b)); break;
+    case 'followers_desc': sortedCreators.sort((a, b) => getFollowers(b) - getFollowers(a)); break;
+    case 'followers_asc': sortedCreators.sort((a, b) => getFollowers(a) - getFollowers(b)); break;
     case 'engagement_desc': sortedCreators.sort((a, b) => getEngagement(b) - getEngagement(a)); break;
-    case 'engagement_asc':  sortedCreators.sort((a, b) => getEngagement(a) - getEngagement(b)); break;
+    case 'engagement_asc': sortedCreators.sort((a, b) => getEngagement(a) - getEngagement(b)); break;
   }
 
   // Clamp the page if the result set shrank below the current offset, then slice.
@@ -288,8 +387,8 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                   className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px] flex items-center justify-between shadow-sm hover:bg-gray-50"
                 >
                   <span>
-                    {selectedStatuses.length === 0 
-                      ? 'Any Status' 
+                    {selectedStatuses.length === 0
+                      ? 'Any Status'
                       : `${selectedStatuses.length} Selected`}
                   </span>
                   <ChevronDown size={14} className="text-gray-400 ml-2" />
@@ -297,8 +396,8 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
 
                 {isFilterDropdownOpen && (
                   <>
-                    <div 
-                      className="fixed inset-0 z-10" 
+                    <div
+                      className="fixed inset-0 z-10"
                       onClick={() => setIsFilterDropdownOpen(false)}
                     />
                     <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-150 rounded-xl shadow-xl z-20 py-1.5 animate-[fadeIn_0.15s_ease]">
@@ -313,15 +412,15 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                       ].map(item => {
                         const isChecked = selectedStatuses.includes(item.id);
                         return (
-                          <label 
-                            key={item.id} 
+                          <label
+                            key={item.id}
                             className="flex items-center gap-3 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer select-none"
                           >
                             <input
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => {
-                                setSelectedStatuses(prev => 
+                                setSelectedStatuses(prev =>
                                   isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
                                 );
                               }}
@@ -400,6 +499,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                     <Th className="text-center">Followers</Th>
                     <Th className="text-center">Engagement</Th>
                     <Th>Status</Th>
+                    <Th className="text-center w-40">Next Action</Th>
                     <Th className="text-right">Actions</Th>
                   </Tr>
                 </Thead>
@@ -421,10 +521,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                             </Link>
                             <div className="flex gap-2 mt-1.5">
                               {c.has_instagram && (
-                                <a 
-                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
+                                <a
+                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
                                   className="inline-flex items-center gap-1 text-[#E1306C] hover:scale-[1.02] transition-transform"
                                   title="Instagram"
                                 >
@@ -433,10 +533,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                                 </a>
                               )}
                               {c.has_youtube && (
-                                <a 
-                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${c.handle?.replace(/^@/, '')}`} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
+                                <a
+                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${c.handle?.replace(/^@/, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
                                   className="inline-flex items-center gap-1 text-[#FF0000] hover:scale-[1.02] transition-transform"
                                   title="YouTube"
                                 >
@@ -445,10 +545,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                                 </a>
                               )}
                               {c.has_tiktok && (
-                                <a 
-                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
+                                <a
+                                  href={c.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
                                   className="inline-flex items-center gap-1 text-gray-900 hover:scale-[1.02] transition-transform"
                                   title="TikTok"
                                 >
@@ -483,7 +583,20 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                           );
                         })()}
                       </Td>
-                      <Td><StatusBadge status={['contacted', 'replied', 'engaged', 'qualified', 'converted', 'not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} /></Td>
+                        <Td>
+                          <StatusBadge 
+                            status={partnerships.find(p => p.creator_id === c.id || p.Creator?.id === c.id)?.status || (['contacted', 'replied', 'engaged', 'qualified', 'converted', 'not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending'))} 
+                          />
+                        </Td>
+                      <Td className="text-center align-middle">
+                        <WorkflowActionEngine 
+                          creator={c}
+                          partnership={partnerships.find(p => p.creator_id === c.id || p.Creator?.id === c.id)}
+                          shipment={shipments.find(s => s.creator_id === c.id)}
+                          contents={contents.filter(cnt => String(cnt.creator_id) === String(c.id))}
+                          onAction={(type, payload) => handleWorkflowAction(c, type, payload)}
+                        />
+                      </Td>
                       <Td className="text-right">
                         {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
                           <div className="flex justify-end gap-2">
@@ -528,7 +641,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                   ))}
                   {sortedCreators.length === 0 && (
                     <Tr>
-                      <Td colSpan={5} className="text-center py-16 text-gray-500">
+                      <Td colSpan={6} className="text-center py-16 text-gray-500">
                         <div className="flex justify-center mb-3">
                           <Search size={32} className="text-gray-300" />
                         </div>
@@ -562,10 +675,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                           </Link>
                           <div className="flex gap-2.5 mt-1.5">
                             {c.has_instagram && (
-                              <a 
-                                href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`} 
-                                target="_blank" 
-                                rel="noreferrer" 
+                              <a
+                                href={c.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${c.handle?.replace(/^@/, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
                                 className="inline-flex items-center gap-1 text-[#E1306C] hover:scale-[1.02] transition-transform"
                                 title="Instagram"
                               >
@@ -574,10 +687,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                               </a>
                             )}
                             {c.has_youtube && (
-                              <a 
-                                href={c.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${c.handle?.replace(/^@/, '')}`} 
-                                target="_blank" 
-                                rel="noreferrer" 
+                              <a
+                                href={c.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${c.handle?.replace(/^@/, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
                                 className="inline-flex items-center gap-1 text-[#FF0000] hover:scale-[1.02] transition-transform"
                                 title="YouTube"
                               >
@@ -586,10 +699,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                               </a>
                             )}
                             {c.has_tiktok && (
-                              <a 
-                                href={c.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`} 
-                                target="_blank" 
-                                rel="noreferrer" 
+                              <a
+                                href={c.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
                                 className="inline-flex items-center gap-1 text-gray-900 hover:scale-[1.02] transition-transform"
                                 title="TikTok"
                               >
@@ -600,7 +713,9 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                           </div>
                         </div>
                       </div>
-                      <StatusBadge status={['contacted', 'replied', 'engaged', 'qualified', 'converted', 'not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending')} />
+                      <StatusBadge 
+                          status={partnerships.find(p => p.creator_id === c.id || p.Creator?.id === c.id)?.status || (['contacted', 'replied', 'engaged', 'qualified', 'converted', 'not_respond'].includes(c.lifecycle_status || '') ? c.lifecycle_status : (c.review_status as any || 'pending'))} 
+                        />
                     </div>
 
                     <div className="grid grid-cols-2 gap-y-3 gap-x-4 pt-1 text-xs">
@@ -625,38 +740,41 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                     </div>
 
                     {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
-                      <div className="pt-3 border-t border-gray-50 flex gap-2 justify-center">
-                        {c.review_status === 'rejected' && (
-                          <button
-                            onClick={() => handleReview(c.id, 'revoke')}
-                            className="px-3 py-1.5 rounded-lg text-xs font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
-                          >
-                            Revoke Rejection
-                          </button>
-                        )}
-                        {c.review_status !== 'approved' && c.review_status !== 'rejected' && c.lifecycle_status !== 'not_respond' && (
-                          <>
+                      <div className="pt-3 border-t border-gray-50 flex flex-col gap-2 justify-center">
+                        <WorkflowActionEngine 
+                          creator={c}
+                          partnership={partnerships.find(p => p.creator_id === c.id || p.Creator?.id === c.id)}
+                          shipment={shipments.find(s => s.creator_id === c.id)}
+                          contents={contents.filter(cnt => String(cnt.creator_id) === String(c.id))}
+                          onAction={(type, payload) => handleWorkflowAction(c, type, payload)}
+                        />
+                        <div className="flex gap-2 justify-center mt-2">
+                          {c.review_status === 'rejected' && (
                             <button
-                              onClick={() => setOutreachModalCreatorId(c.id)}
-                              className="px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 transition-colors text-xs font-normal flex items-center gap-1 font-outfit rounded-lg"
+                              onClick={() => handleReview(c.id, 'revoke')}
+                              className="px-3 py-1.5 rounded-lg text-xs font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
                             >
-                              <Check size={14} /> Approve & Send
+                              Revoke Rejection
                             </button>
-                            <button
-                              onClick={() => handleReview(c.id, 'reject')}
-                              className="px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 transition-colors text-xs font-normal flex items-center gap-1 font-outfit rounded-lg"
-                            >
-                              <X size={14} /> Reject
-                            </button>
-                            <button
-                              onClick={() => handleReview(c.id, (c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? 'revoke' : 'shortlist')}
-                              className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-xs font-normal flex items-center gap-1 font-outfit rounded-lg"
-                            >
-                              <Star size={14} fill={(c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? "currentColor" : "none"} /> 
-                              {(c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? "Shortlisted" : "Shortlist"}
-                            </button>
-                          </>
-                        )}
+                          )}
+                          {c.review_status !== 'approved' && c.review_status !== 'rejected' && c.lifecycle_status !== 'not_respond' && (
+                            <>
+                              <button
+                                onClick={() => handleReview(c.id, 'reject')}
+                                className="px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 transition-colors text-xs font-normal flex items-center gap-1 font-outfit rounded-lg"
+                              >
+                                <X size={14} /> Reject
+                              </button>
+                              <button
+                                onClick={() => handleReview(c.id, (c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? 'revoke' : 'shortlist')}
+                                className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-xs font-normal flex items-center gap-1 font-outfit rounded-lg"
+                              >
+                                <Star size={14} fill={(c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? "currentColor" : "none"} />
+                                {(c.review_status === 'shortlisted' || c.review_status === 'pending_review') ? "Shortlisted" : "Shortlist"}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -680,28 +798,77 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
       <OutreachPreviewModal
         creatorId={outreachModalCreatorId || ''}
         campaignId={creators.find(c => c.id === outreachModalCreatorId)?.campaign_id || undefined}
+        messageType={outreachModalType}
         isOpen={!!outreachModalCreatorId}
-        onClose={() => setOutreachModalCreatorId(null)}
+        onClose={() => {
+          setOutreachModalCreatorId(null);
+          setOutreachInitialSubject(undefined);
+          setOutreachInitialBody(undefined);
+        }}
         onSend={handleConfirmApprove}
+        initialSubject={outreachInitialSubject}
+        initialBody={outreachInitialBody}
+        skipFetch={!!outreachInitialSubject}
       />
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">Creator Feedback</h2>
+              <button
+                onClick={() => setShowFeedbackModal(false)}
+                className="p-2 text-gray-400 hover:bg-gray-50 hover:text-gray-600 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <p className="text-sm text-gray-600 whitespace-pre-wrap">{activeFeedback}</p>
+            </div>
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50">
+              <button
+                onClick={() => setShowFeedbackModal(false)}
+                className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setShowFeedbackModal(false);
+                  setOutreachModalType('qualification');
+                  setOutreachModalCreatorId(activeCreator.id);
+                  const publicUrl = `${window.location.origin}/public/offer/${activePartnership.id}`;
+                  setOutreachInitialSubject(`Re: Partnership Offer - @${activeCreator.handle}`);
+                  setOutreachInitialBody(`Hi ${activeCreator.full_name},\n\nWe reviewed your feedback regarding the offer terms.\n\n[YOUR NEGOTIATION MESSAGE HERE]\n\nIf these new terms work for you, you can click the link below to accept the updated offer:\n<br><br><a href="${publicUrl}" style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Review and Accept Offer</a>\n<br><br>Thanks,\nThe ATS Team`);
+                }}
+                className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
+              >
+                Reply to Creator
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Filters Modal */}
       {isMobileFiltersOpen && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-end justify-center p-0">
-          <div 
-            className="fixed inset-0" 
+          <div
+            className="fixed inset-0"
             onClick={() => setIsMobileFiltersOpen(false)}
           />
           <div className="relative w-full bg-white rounded-t-3xl shadow-3xl flex flex-col max-h-[85vh] z-10 animate-in slide-in-from-bottom duration-250">
             {/* Drag Handle */}
             <div className="w-12 h-1 bg-gray-200 rounded-full mx-auto my-3 shrink-0" />
-            
+
             {/* Header */}
             <div className="px-6 pb-4 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
               <h3 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight flex items-center gap-2">
                 <SlidersHorizontal size={18} className="text-primary-600" /> Filters
               </h3>
-              <button 
+              <button
                 type="button"
                 onClick={() => {
                   setSelectedStatuses([]);
@@ -716,238 +883,237 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
               </button>
             </div>
 
-             {/* Scrollable Body */}
-             <div 
-               className="flex-1 overflow-y-auto p-6 space-y-6"
-               onClick={() => setOpenMobileDropdown(null)}
-             >
-               {/* Status Section */}
-               {!onlyEngaged && (
-                 <div className="space-y-2.5">
-                   <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Status</label>
-                   <div className="grid grid-cols-2 gap-2">
-                     {[
-                       { id: 'hold', label: 'Discovered' },
-                       { id: 'pending', label: 'Shortlisted' },
-                       { id: 'approved', label: 'Approved' },
-                       { id: 'contacted', label: 'Contacted' },
-                       { id: 'engaged', label: 'Engaged' },
-                       { id: 'rejected', label: 'Rejected' },
-                       { id: 'not_respond', label: 'Not Responsive' }
-                     ].map(item => {
-                       const isChecked = selectedStatuses.includes(item.id);
-                       return (
-                         <button
-                           type="button"
-                           key={item.id}
-                           onClick={() => {
-                             setSelectedStatuses(prev => 
-                               isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
-                             );
-                           }}
-                           className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-xs text-left transition-all ${
-                             isChecked 
-                               ? 'border-primary-500 bg-primary-50/30 text-primary-700 font-medium' 
-                               : 'border-slate-100 bg-slate-50/50 text-slate-700'
-                           }`}
-                         >
-                           <input
-                             type="checkbox"
-                             checked={isChecked}
-                             readOnly
-                             className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 pointer-events-none"
-                           />
-                           <span>{item.label}</span>
-                         </button>
-                       );
-                     })}
-                   </div>
-                 </div>
-               )}
- 
-               {/* Followers Section */}
-               <div className="space-y-1.5 relative">
-                 <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Followers</label>
-                 <button
-                   type="button"
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     setOpenMobileDropdown(openMobileDropdown === 'followers' ? null : 'followers');
-                   }}
-                   className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
-                 >
-                   <span>
-                     {followersFilter === '' ? 'Any Followers' :
-                      followersFilter === '<10k' ? '< 10K' :
-                      followersFilter === '10k-100k' ? '10K – 100K' :
-                      followersFilter === '100k-1m' ? '100K – 1M' :
-                      followersFilter === '1m+' ? '1M+' : 'Any Followers'}
-                   </span>
-                   <ChevronDown size={16} className="text-gray-400" />
-                 </button>
-                 {openMobileDropdown === 'followers' && (
-                   <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
-                     {[
-                       { val: '', label: 'Any Followers' },
-                       { val: '<10k', label: '< 10K' },
-                       { val: '10k-100k', label: '10K – 100K' },
-                       { val: '100k-1m', label: '100K – 1M' },
-                       { val: '1m+', label: '1M+' }
-                     ].map(opt => (
-                       <button
-                         type="button"
-                         key={opt.val}
-                         onClick={() => {
-                           setFollowersFilter(opt.val);
-                           setOpenMobileDropdown(null);
-                         }}
-                         className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${followersFilter === opt.val ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
-                       >
-                         {opt.label}
-                       </button>
-                     ))}
-                   </div>
-                 )}
-               </div>
- 
-               {/* Engagement Section */}
-               <div className="space-y-1.5 relative">
-                 <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Engagement</label>
-                 <button
-                   type="button"
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     setOpenMobileDropdown(openMobileDropdown === 'engagement' ? null : 'engagement');
-                   }}
-                   className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
-                 >
-                   <span>
-                     {engagementFilter === '' ? 'Any Engagement' :
-                      engagementFilter === '<1' ? '< 1%' :
-                      engagementFilter === '1-3' ? '1 – 3%' :
-                      engagementFilter === '3-6' ? '3 – 6%' :
-                      engagementFilter === '6+' ? '6%+' : 'Any Engagement'}
-                   </span>
-                   <ChevronDown size={16} className="text-gray-400" />
-                 </button>
-                 {openMobileDropdown === 'engagement' && (
-                   <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
-                     {[
-                       { val: '', label: 'Any Engagement' },
-                       { val: '<1', label: '< 1%' },
-                       { val: '1-3', label: '1 – 3%' },
-                       { val: '3-6', label: '3 – 6%' },
-                       { val: '6+', label: '6%+' }
-                     ].map(opt => (
-                       <button
-                         type="button"
-                         key={opt.val}
-                         onClick={() => {
-                           setEngagementFilter(opt.val);
-                           setOpenMobileDropdown(null);
-                         }}
-                         className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${engagementFilter === opt.val ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
-                       >
-                         {opt.label}
-                       </button>
-                     ))}
-                   </div>
-                 )}
-               </div>
+            {/* Scrollable Body */}
+            <div
+              className="flex-1 overflow-y-auto p-6 space-y-6"
+              onClick={() => setOpenMobileDropdown(null)}
+            >
+              {/* Status Section */}
+              {!onlyEngaged && (
+                <div className="space-y-2.5">
+                  <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Status</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'hold', label: 'Discovered' },
+                      { id: 'pending', label: 'Shortlisted' },
+                      { id: 'approved', label: 'Approved' },
+                      { id: 'contacted', label: 'Contacted' },
+                      { id: 'engaged', label: 'Engaged' },
+                      { id: 'rejected', label: 'Rejected' },
+                      { id: 'not_respond', label: 'Not Responsive' }
+                    ].map(item => {
+                      const isChecked = selectedStatuses.includes(item.id);
+                      return (
+                        <button
+                          type="button"
+                          key={item.id}
+                          onClick={() => {
+                            setSelectedStatuses(prev =>
+                              isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
+                            );
+                          }}
+                          className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-xs text-left transition-all ${isChecked
+                              ? 'border-primary-500 bg-primary-50/30 text-primary-700 font-medium'
+                              : 'border-slate-100 bg-slate-50/50 text-slate-700'
+                            }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            readOnly
+                            className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 pointer-events-none"
+                          />
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-               {/* Campaign Section */}
-               <div className="space-y-1.5 relative">
-                 <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Campaign</label>
-                 <button
-                   type="button"
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     setOpenMobileDropdown(openMobileDropdown === 'campaign' ? null : 'campaign');
-                   }}
-                   className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
-                 >
-                   <span>
-                     {campaignFilter === '' ? 'Any Campaign' :
+              {/* Followers Section */}
+              <div className="space-y-1.5 relative">
+                <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Followers</label>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMobileDropdown(openMobileDropdown === 'followers' ? null : 'followers');
+                  }}
+                  className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
+                >
+                  <span>
+                    {followersFilter === '' ? 'Any Followers' :
+                      followersFilter === '<10k' ? '< 10K' :
+                        followersFilter === '10k-100k' ? '10K – 100K' :
+                          followersFilter === '100k-1m' ? '100K – 1M' :
+                            followersFilter === '1m+' ? '1M+' : 'Any Followers'}
+                  </span>
+                  <ChevronDown size={16} className="text-gray-400" />
+                </button>
+                {openMobileDropdown === 'followers' && (
+                  <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
+                    {[
+                      { val: '', label: 'Any Followers' },
+                      { val: '<10k', label: '< 10K' },
+                      { val: '10k-100k', label: '10K – 100K' },
+                      { val: '100k-1m', label: '100K – 1M' },
+                      { val: '1m+', label: '1M+' }
+                    ].map(opt => (
+                      <button
+                        type="button"
+                        key={opt.val}
+                        onClick={() => {
+                          setFollowersFilter(opt.val);
+                          setOpenMobileDropdown(null);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${followersFilter === opt.val ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Engagement Section */}
+              <div className="space-y-1.5 relative">
+                <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Engagement</label>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMobileDropdown(openMobileDropdown === 'engagement' ? null : 'engagement');
+                  }}
+                  className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
+                >
+                  <span>
+                    {engagementFilter === '' ? 'Any Engagement' :
+                      engagementFilter === '<1' ? '< 1%' :
+                        engagementFilter === '1-3' ? '1 – 3%' :
+                          engagementFilter === '3-6' ? '3 – 6%' :
+                            engagementFilter === '6+' ? '6%+' : 'Any Engagement'}
+                  </span>
+                  <ChevronDown size={16} className="text-gray-400" />
+                </button>
+                {openMobileDropdown === 'engagement' && (
+                  <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
+                    {[
+                      { val: '', label: 'Any Engagement' },
+                      { val: '<1', label: '< 1%' },
+                      { val: '1-3', label: '1 – 3%' },
+                      { val: '3-6', label: '3 – 6%' },
+                      { val: '6+', label: '6%+' }
+                    ].map(opt => (
+                      <button
+                        type="button"
+                        key={opt.val}
+                        onClick={() => {
+                          setEngagementFilter(opt.val);
+                          setOpenMobileDropdown(null);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${engagementFilter === opt.val ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Campaign Section */}
+              <div className="space-y-1.5 relative">
+                <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Campaign</label>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMobileDropdown(openMobileDropdown === 'campaign' ? null : 'campaign');
+                  }}
+                  className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
+                >
+                  <span>
+                    {campaignFilter === '' ? 'Any Campaign' :
                       campaigns.find(camp => camp.id === campaignFilter)?.name || 'Any Campaign'}
-                   </span>
-                   <ChevronDown size={16} className="text-gray-400" />
-                 </button>
-                 {openMobileDropdown === 'campaign' && (
-                   <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
-                     <button
-                       type="button"
-                       onClick={() => {
-                         setCampaignFilter('');
-                         setOpenMobileDropdown(null);
-                       }}
-                       className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${campaignFilter === '' ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
-                     >
-                       Any Campaign
-                     </button>
-                     {campaigns.map(camp => (
-                       <button
-                         type="button"
-                         key={camp.id}
-                         onClick={() => {
-                           setCampaignFilter(camp.id);
-                           setOpenMobileDropdown(null);
-                         }}
-                         className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${campaignFilter === camp.id ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
-                       >
-                         {camp.name}
-                       </button>
-                     ))}
-                   </div>
-                 )}
-               </div>
- 
-               {/* Sort By Section */}
-               <div className="space-y-1.5 relative">
-                 <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Sort By</label>
-                 <button
-                   type="button"
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     setOpenMobileDropdown(openMobileDropdown === 'sort' ? null : 'sort');
-                   }}
-                   className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
-                 >
-                   <span>
-                     {sortBy === 'followers_desc' ? 'Followers (High→Low)' :
+                  </span>
+                  <ChevronDown size={16} className="text-gray-400" />
+                </button>
+                {openMobileDropdown === 'campaign' && (
+                  <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCampaignFilter('');
+                        setOpenMobileDropdown(null);
+                      }}
+                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${campaignFilter === '' ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                    >
+                      Any Campaign
+                    </button>
+                    {campaigns.map(camp => (
+                      <button
+                        type="button"
+                        key={camp.id}
+                        onClick={() => {
+                          setCampaignFilter(camp.id);
+                          setOpenMobileDropdown(null);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${campaignFilter === camp.id ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                      >
+                        {camp.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Sort By Section */}
+              <div className="space-y-1.5 relative">
+                <label className="text-[10px] font-normal text-slate-400 block font-outfit uppercase tracking-widest">Sort By</label>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMobileDropdown(openMobileDropdown === 'sort' ? null : 'sort');
+                  }}
+                  className="w-full flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-normal text-slate-900 text-left font-outfit"
+                >
+                  <span>
+                    {sortBy === 'followers_desc' ? 'Followers (High→Low)' :
                       sortBy === 'followers_asc' ? 'Followers (Low→High)' :
-                      sortBy === 'engagement_desc' ? 'Engagement (High→Low)' :
-                      sortBy === 'engagement_asc' ? 'Engagement (Low→High)' : 'Followers (High→Low)'}
-                   </span>
-                   <ChevronDown size={16} className="text-gray-400" />
-                 </button>
-                 {openMobileDropdown === 'sort' && (
-                   <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
-                     {[
-                       { val: 'followers_desc', label: 'Followers (High→Low)' },
-                       { val: 'followers_asc', label: 'Followers (Low→High)' },
-                       { val: 'engagement_desc', label: 'Engagement (High→Low)' },
-                       { val: 'engagement_asc', label: 'Engagement (Low→High)' }
-                     ].map(opt => (
-                       <button
-                         type="button"
-                         key={opt.val}
-                         onClick={() => {
-                           setSortBy(opt.val);
-                           setOpenMobileDropdown(null);
-                         }}
-                         className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${sortBy === opt.val ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
-                       >
-                         {opt.label}
-                       </button>
-                     ))}
-                   </div>
-                 )}
-               </div>
-             </div>
+                        sortBy === 'engagement_desc' ? 'Engagement (High→Low)' :
+                          sortBy === 'engagement_asc' ? 'Engagement (Low→High)' : 'Followers (High→Low)'}
+                  </span>
+                  <ChevronDown size={16} className="text-gray-400" />
+                </button>
+                {openMobileDropdown === 'sort' && (
+                  <div className="absolute left-0 mt-1 w-full bg-white border border-gray-150 rounded-xl shadow-xl z-30 py-1.5 max-h-60 overflow-y-auto">
+                    {[
+                      { val: 'followers_desc', label: 'Followers (High→Low)' },
+                      { val: 'followers_asc', label: 'Followers (Low→High)' },
+                      { val: 'engagement_desc', label: 'Engagement (High→Low)' },
+                      { val: 'engagement_asc', label: 'Engagement (Low→High)' }
+                    ].map(opt => (
+                      <button
+                        type="button"
+                        key={opt.val}
+                        onClick={() => {
+                          setSortBy(opt.val);
+                          setOpenMobileDropdown(null);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition-colors ${sortBy === opt.val ? 'text-primary-600 bg-primary-50/30 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Footer */}
             <div className="p-6 border-t border-gray-100 bg-white rounded-b-3xl shrink-0">
-              <button 
+              <button
                 type="button"
                 onClick={() => setIsMobileFiltersOpen(false)}
                 className="w-full bg-primary-600 hover:bg-primary-700 text-white rounded-xl py-3 text-center text-xs font-normal uppercase tracking-widest font-outfit shadow-xl shadow-primary-500/20 transition-all active:scale-[0.98]"
@@ -958,6 +1124,30 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
           </div>
         </div>
       )}
+      {/* Modals */}
+      <OfferModal 
+        isOpen={showOfferModal}
+        onClose={() => setShowOfferModal(false)}
+        partnership={activePartnership}
+        onSuccess={() => fetchCreators()}
+      />
+
+      <ShipmentModal
+        isOpen={showShipmentModal}
+        onClose={() => setShowShipmentModal(false)}
+        creator={activeCreator}
+        partnership={activePartnership}
+        onSuccess={() => fetchCreators()}
+      />
+
+      <ContentPromptModal
+        isOpen={showContentPromptModal}
+        onClose={() => setShowContentPromptModal(false)}
+        actionType={contentPromptAction}
+        contentId={activeContentId}
+        initialValue={initialContentValue}
+        onSuccess={() => fetchCreators()}
+      />
     </div>
   );
 }
