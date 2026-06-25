@@ -40,9 +40,23 @@ export function WorkflowActionEngine({ creator, partnership, shipment, contents,
     }
   }
 
-  // Step 4: Replied / Engaged
-  if (!partnership || (partnership.status === 'engaged' || partnership.status === 'qualified')) {
-    if (creator.lifecycle_status === 'replied' || (partnership && (partnership.status === 'engaged' || partnership.status === 'qualified'))) {
+  // Step 4: Replied / In Discussion -> Show Draft Offer and Eye Icon to go to Conversation
+  if (partnership?.status === 'replied' || partnership?.status === 'in_discussion' || creator.lifecycle_status === 'replied') {
+    return (
+      <div className="flex w-full gap-1">
+        <Button size="sm" className="flex-1 text-[10px] uppercase tracking-widest font-normal bg-blue-600 hover:bg-blue-700 text-white" onClick={() => onAction('draft_offer')}>
+          Draft Offer
+        </Button>
+        <Button size="sm" className="px-2 bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center" onClick={() => onAction('view_discussion')} title={partnership?.status === 'in_discussion' ? 'In Discussion' : 'View Reply'}>
+          <Eye size={14} />
+        </Button>
+      </div>
+    );
+  }
+
+  // Step 5: Qualified
+  if (!partnership || partnership.status === 'qualified') {
+    if (partnership && partnership.status === 'qualified') {
       return (
         <Button size="sm" className="w-full text-[10px] uppercase tracking-widest font-normal bg-blue-600 hover:bg-blue-700 text-white" onClick={() => onAction('draft_offer')}>
           Draft Offer
@@ -75,8 +89,8 @@ export function WorkflowActionEngine({ creator, partnership, shipment, contents,
       );
     }
 
-    // Step 5: Accepted (Check Shipment)
-    if (partnership.status === 'accepted') {
+    // Step 5: Accepted / Engaged (Check Shipment)
+    if (partnership.status === 'accepted' || partnership.status === 'engaged') {
       if (partnership.shipment_included) {
         if (!shipment) {
           return (

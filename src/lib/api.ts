@@ -23,7 +23,7 @@ api.interceptors.request.use(config => {
 // network call (kills StrictMode double-fire and overlapping fetches) and
 // (b) serves repeat reads from memory for a short window so switching tabs is
 // instant instead of re-fetching the same lists. Any write clears the cache.
-const CACHE_TTL = 30000; // 30s — sits under the backend's 60s cache horizon
+const CACHE_TTL = 60000; // 60s — sit under the backend's cache horizon
 const responseCache = new Map<string, { data: any; ts: number }>();
 const inFlight = new Map<string, Promise<any>>();
 
@@ -60,12 +60,32 @@ export function invalidateCache(prefix?: string) {
   }
 }
 
+// Map URL patterns → the cache key prefix they should invalidate.
+// Only the resource that changed is cleared — everything else stays warm.
+const MUTATION_INVALIDATION_MAP: Array<{ pattern: RegExp; prefix: string }> = [
+  { pattern: /\/partnerships/, prefix: 'partnerships' },
+  { pattern: /\/shipments/, prefix: 'shipments' },
+  { pattern: /\/content/, prefix: 'content' },
+  { pattern: /\/activities/, prefix: 'activities' },
+  { pattern: /\/campaigns/, prefix: 'campaigns' },
+  { pattern: /\/creators/, prefix: 'creators' },
+  { pattern: /\/outreach/, prefix: 'outreach-logs' },
+  { pattern: /\/conversations/, prefix: 'conversations' },
+];
+
 api.interceptors.response.use(
   response => {
-    // Any successful mutation invalidates cached reads so stale lists aren't served.
+    // Any successful mutation invalidates only the related cache prefix.
     const method = (response.config.method || 'get').toLowerCase();
     if (method !== 'get') {
-      invalidateCache();
+      const url = response.config.url || '';
+      const matched = MUTATION_INVALIDATION_MAP.find(({ pattern }) => pattern.test(url));
+      if (matched) {
+        invalidateCache(matched.prefix);
+      } else {
+        // Unknown endpoint — fall back to clearing everything to be safe
+        invalidateCache();
+      }
     }
     if (!response.data.success && response.data.error) {
       return Promise.reject(new Error(response.data.error));
@@ -154,7 +174,7 @@ export const createCustomCategory = (name: string, clientId?: string, brandId?: 
 
 // ─── Campaigns ────────────────────────────────────────
 export const getCampaigns = (): Promise<Campaign[]> => cachedGet('campaigns', () => api.get('/campaigns'));
-export const getCampaignById = (id: string): Promise<Campaign> => api.get(`/campaigns/${id}`);
+export const getCampaignById = (id: string): Promise<Campaign> => cachedGet(`campaigns:${id}`, () => api.get(`/campaigns/${id}`));
 export const createCampaign = (data: Partial<Campaign>): Promise<Campaign> => api.post('/campaigns', data);
 export const updateCampaign = (id: string, data: Partial<Campaign>): Promise<Campaign> => api.patch(`/campaigns/${id}`, data);
 export const deleteCampaign = (id: string): Promise<any> => api.post(`/campaigns/${id}/delete`);
@@ -170,7 +190,8 @@ export const suggestCampaignKeywords = (payload: { name: string; description?: s
   api.post('/campaigns/ai/suggest-keywords', payload) as any;
 
 // ─── Campaign Leads ───────────────────────────────────
-export const getCampaignLeads = (campaignId: string): Promise<Creator[]> => api.get(`/campaigns/${campaignId}/leads`);
+export const getCampaignLeads = (campaignId: string): Promise<Creator[]> =>
+  cachedGet(`campaigns:leads:${campaignId}`, () => api.get(`/campaigns/${campaignId}/leads`));
 
 // ─── Global Dashboard (NEW ENDPOINTS) ──────────────────
 // Note: For testing the Dashboard pipeline UI, we fetch all campaigns and creators across the system
@@ -270,10 +291,10 @@ export const getMediaKitUrl = (creatorId: string, download = false): Promise<{ s
 
 // ─── Partnerships ──────────────────────────────────────
 export const getPartnerships = (params?: { campaign_id?: string; status?: string; creator_tier?: string; offer_type?: string }): Promise<any[]> =>
-  api.get('/partnerships', { params }) as any;
+  cachedGet(`partnerships:${JSON.stringify(params || {})}`, () => api.get('/partnerships', { params }) as any);
 
 export const getPartnershipById = (id: string): Promise<any> =>
-  api.get(`/partnerships/${id}`) as any;
+  cachedGet(`partnerships:${id}`, () => api.get(`/partnerships/${id}`) as any);
 
 export const createPartnership = (data: { creator_id: string; campaign_id: string; status?: string;[key: string]: any }): Promise<any> =>
   api.post('/partnerships', data) as any;
@@ -283,6 +304,9 @@ export const updatePartnership = (id: string, data: any): Promise<any> =>
 
 export const markQualified = (id: string): Promise<any> =>
   api.post(`/partnerships/${id}/mark-qualified`) as any;
+
+export const sendDiscoveryEmail = (id: string, customSubject?: string, customBody?: string, testEmail?: string): Promise<any> =>
+  api.post(`/partnerships/${id}/send-discovery`, { customSubject, customBody, testEmail }) as any;
 
 export const sendOffer = (id: string, offerData: {
   offer_type: string;
@@ -315,20 +339,20 @@ export const rejectPartnership = (id: string): Promise<any> =>
 
 // ─── Activities ────────────────────────────────────────
 export const getActivities = (params?: { creator_id?: string; campaign_id?: string; activity_type?: string }): Promise<any[]> =>
-  api.get('/activities', { params }) as any;
+  cachedGet(`activities:${JSON.stringify(params || {})}`, () => api.get('/activities', { params }) as any);
 
 export const getCreatorActivities = (creatorId: string): Promise<any[]> =>
-  api.get(`/activities/creators/${creatorId}`) as any;
+  cachedGet(`activities:creator:${creatorId}`, () => api.get(`/activities/creators/${creatorId}`) as any);
 
 export const getCampaignActivities = (campaignId: string): Promise<any[]> =>
-  api.get(`/activities/campaigns/${campaignId}`) as any;
+  cachedGet(`activities:campaign:${campaignId}`, () => api.get(`/activities/campaigns/${campaignId}`) as any);
 
 // ─── Shipments ──────────────────────────────────────────
 export const getShipments = (params?: { campaign_id?: string; status?: string; creator_id?: string }): Promise<any[]> =>
-  api.get('/shipments', { params }) as any;
+  cachedGet(`shipments:${JSON.stringify(params || {})}`, () => api.get('/shipments', { params }) as any);
 
 export const getShipmentById = (id: string): Promise<any> =>
-  api.get(`/shipments/${id}`) as any;
+  cachedGet(`shipments:${id}`, () => api.get(`/shipments/${id}`) as any);
 
 export const createShipment = (data: {
   creator_id: string;
@@ -391,10 +415,10 @@ export const cancelShipment = (id: string): Promise<any> =>
 // --- CONTENT ENDPOINTS ---
 
 export const getContents = (params?: { campaign_id?: string; status?: string; creator_id?: string; platform?: string }): Promise<any[]> =>
-  api.get('/content', { params }) as any;
+  cachedGet(`content:${JSON.stringify(params || {})}`, () => api.get('/content', { params }) as any);
 
 export const getContentById = (id: string): Promise<any> =>
-  api.get(`/content/${id}`) as any;
+  cachedGet(`content:${id}`, () => api.get(`/content/${id}`) as any);
 
 export const createContent = (data: Partial<any>): Promise<any> =>
   api.post('/content', data) as any;

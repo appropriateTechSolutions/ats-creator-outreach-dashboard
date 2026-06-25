@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit, getMediaKitUrl, updateCreatorNotes, getPartnerships, getCreatorActivities, markQualified, sendOffer, markAccepted, activatePartnership, completePartnership, rejectPartnership, updatePartnership, getShipments, updateShipment, getContents, createContent, updateContent, markContentSubmitted, approveContent, requestContentRevision, markContentPublished, syncContentPerformance, syncCreator } from '../lib/api';
+import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit, getMediaKitUrl, updateCreatorNotes, getPartnerships, getCreatorActivities, markQualified, sendOffer, sendDiscoveryEmail, markAccepted, activatePartnership, completePartnership, rejectPartnership, updatePartnership, getShipments, updateShipment, getContents, createContent, updateContent, markContentSubmitted, approveContent, requestContentRevision, markContentPublished, syncContentPerformance, syncCreator } from '../lib/api';
 import type { Creator, Campaign } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
@@ -13,6 +13,7 @@ import { ImageLightbox } from '../components/ui/ImageLightbox';
 import { InfoTip } from '../components/ui/InfoTip';
 import { useAuth } from '../contexts/AuthContext';
 import { Modal } from '../components/ui/Modal';
+import { DiscussionModal } from '../components/workflow/DiscussionModal';
 import { format } from 'date-fns';
 
 export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
@@ -51,6 +52,7 @@ export default function CreatorDetail() {
   const { user: currentUser } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [creator, setCreator] = useState<Creator | null>(null);
   const [, setCampaign] = useState<Campaign | null>(null);
@@ -95,6 +97,7 @@ export default function CreatorDetail() {
   const [activePartnership, setActivePartnership] = useState<any | null>(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDiscussionModal, setShowDiscussionModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // V3 Content tracking states
@@ -532,6 +535,21 @@ export default function CreatorDetail() {
     setShowOfferModal(true);
   };
 
+  const submitDiscussion = async (subject: string, body: string, testEmail?: string) => {
+    if (!activePartnership) return;
+    setSubmitting(true);
+    try {
+      await sendDiscoveryEmail(activePartnership.id, subject, body, testEmail);
+      setShowDiscussionModal(false);
+      await loadData(true);
+    } catch (err: any) {
+      alert(`Failed to send discussion email: ${err.response?.data?.message || err.message || err}`);
+      console.error(err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const submitOffer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activePartnership) return;
@@ -595,7 +613,15 @@ export default function CreatorDetail() {
 
   useEffect(() => {
     loadData();
-  }, [id]);
+    // Scroll to conversation if requested
+    const params = new URLSearchParams(location.search);
+    if (params.get('scroll') === 'conversation') {
+      setTimeout(() => {
+        const el = document.getElementById('conversation-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 500);
+    }
+  }, [id, location.search]);
 
   const handleReview = async (action: 'approve' | 'reject' | 'shortlist' | 'revoke') => {
     if (!creator) return;
@@ -882,8 +908,6 @@ export default function CreatorDetail() {
     { key: 'youtube', label: 'YouTube', icon: <Youtube size={14} className="text-red-600"/> },
     { key: 'tiktok', label: 'TikTok', icon: <Activity size={14} className="text-black"/> }
   ];
-
-  const location = useLocation();
   const fromCampaignId = (location.state as any)?.fromCampaignId;
   const fromMyCreators = (location.state as any)?.fromMyCreators;
   const fromPath = (location.state as any)?.fromPath;
@@ -1770,7 +1794,7 @@ export default function CreatorDetail() {
       </Card>
 
       {/* Conversation History Section */}
-      <Card className="no-print">
+      <Card className="no-print" id="conversation-section">
         <CardHeader className="border-b border-gray-100 flex flex-row items-center justify-between py-4">
           <div className="flex items-center gap-2 font-normal text-gray-900 uppercase tracking-widest text-sm font-outfit">
             <MessageCircle size={18} className="text-primary-600" />
@@ -1804,7 +1828,8 @@ export default function CreatorDetail() {
                         channel: log.channel,
                         subject: log.subject_line,
                         text: log.message_content,
-                        time: new Date(logTime).getTime()
+                        time: new Date(logTime).getTime(),
+                        message_type: log.message_type
                       };
                     }),
                     ...messages.map((msg: any) => ({
@@ -1833,7 +1858,7 @@ export default function CreatorDetail() {
                             </>
                           ) : (
                             <>
-                              <Mail size={10} /> {item.type === 'outreach' ? `Outreach Sent (${item.channel})` : 'You (ATS Agent)'}
+                              <Mail size={10} /> {item.type === 'outreach' ? (item.message_type === 'discovery' ? `Discussion Sent (${item.channel})` : `Outreach Sent (${item.channel})`) : 'You (ATS Agent)'}
                             </>
                           )}
                         </p>
@@ -1853,6 +1878,35 @@ export default function CreatorDetail() {
               </div>
             )}
           </div>
+          
+          {/* Action Buttons for Conversation */}
+          {partnerships.length > 0 && (
+            <div className="p-4 border-t border-gray-100 bg-white flex justify-end gap-3">
+              {(partnerships[0].status === 'replied' || partnerships[0].status === 'in_discussion' || creator.lifecycle_status === 'replied') && (
+                <>
+                  <Button 
+                    onClick={() => {
+                      setActivePartnership(partnerships[0]);
+                      setShowDiscussionModal(true);
+                    }}
+                    variant="outline"
+                    className="text-gray-700 text-xs uppercase tracking-widest font-normal border-gray-200"
+                  >
+                    Start / Continue Discussion
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setActivePartnership(partnerships[0]);
+                      setShowOfferModal(true);
+                    }}
+                    className="bg-primary-600 hover:bg-primary-700 text-white text-xs uppercase tracking-widest font-normal"
+                  >
+                    Draft Offer
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -2476,7 +2530,15 @@ export default function CreatorDetail() {
         </div>
       )}
       
-      {/* ─── Send Offer Modal ─── */}
+      <DiscussionModal
+        isOpen={showDiscussionModal}
+        onClose={() => setShowDiscussionModal(false)}
+        onSubmit={submitDiscussion}
+        creator={creator}
+        submitting={submitting}
+      />
+
+      {/* 📝 Send Offer Modal 📝 */}
       <Modal isOpen={showOfferModal} onClose={() => setShowOfferModal(false)} title="Draft & Send Campaign Offer">
         <form onSubmit={submitOffer} className="space-y-4 font-outfit">
           <div className="space-y-1">

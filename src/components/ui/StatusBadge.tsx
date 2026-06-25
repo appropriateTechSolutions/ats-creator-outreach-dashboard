@@ -12,9 +12,12 @@ export function StatusBadge({ status }: { status: StatusType }) {
     case 'converted':
       variant = 'success';
       break;
+    case 'replied':
     case 'pending':
     case 'pending_review':
     case 'shortlisted':
+    case 'address_requested':
+    case 'not_respond':
       variant = 'warning';
       break;
     case 'shipped':
@@ -25,17 +28,12 @@ export function StatusBadge({ status }: { status: StatusType }) {
     case 'product_delivered':
       variant = 'success';
       break;
-    case 'address_requested':
-      variant = 'warning';
-      break;
-    case 'ready_to_ship':
-      variant = 'primary';
-      break;
     case 'failed':
     case 'rejected':
       variant = 'error';
       break;
-    case 'replied':
+    case 'ready_to_ship':
+    case 'in_discussion':
     case 'engaged':
     case 'contacted':
     case 'offer_sent':
@@ -60,6 +58,7 @@ export function StatusBadge({ status }: { status: StatusType }) {
   if (status === 'archived') label = 'Inactive';
   if (status === 'not_respond') label = 'Not Responsive';
   if (status === 'inactive') label = 'Inactive';
+  if (status === 'accepted') label = 'Engaged';
   if (status === 'pending_review' || status === 'shortlisted') label = 'Shortlisted';
   if (status === 'pending') label = 'Pending';
   if (status === 'address_requested') label = 'Address Requested';

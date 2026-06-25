@@ -265,6 +265,8 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
       setContentPromptAction(actionType === 'add_draft_url' ? 'submit' : 'publish');
       setInitialContentValue(actionType === 'add_draft_url' ? (payload?.draft_url || '') : (payload?.published_url || ''));
       setShowContentPromptModal(true);
+    } else if (actionType === 'view_discussion') {
+      navigate(`/creators/${creator.id}?scroll=conversation`);
     } else if (actionType === 'view_shipments') {
       navigate('/shipments');
     } else if (actionType === 'review_content') {
@@ -284,7 +286,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
 
     // Filter for onlyEngaged creators if requested (includes approved review status or active lifecycle status)
     if (onlyEngaged) {
-      const isMyCreator = c.review_status === 'approved' || ['engaged', 'qualified', 'converted', 'contacted', 'replied'].includes(c.lifecycle_status || '');
+      const isMyCreator = c.review_status === 'approved' || ['engaged', 'qualified', 'converted', 'contacted', 'replied', 'in_discussion'].includes(c.lifecycle_status || '');
       if (!isMyCreator) return false;
     }
 
