@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { EmptyState } from '../components/ui/EmptyState';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { LoadingState } from '../components/ui/LoadingState';
 import { useNavigate } from 'react-router-dom';
@@ -27,7 +28,8 @@ import {
   RefreshCw,
   Edit3,
   Calendar,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ImageIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -295,7 +297,7 @@ export default function Content() {
   if (loading) return <LoadingState message="Loading content..." />;
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.2s_ease]">
       {/* Page Header (Outside of Card) */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -345,15 +347,15 @@ export default function Content() {
             </div>
           </div>
 
-          {/* Collapsible Filters Horizontal Strip */}
+          {/* Collapsible Filters Grid */}
           {showFilters && (
-            <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-150/10 text-xs font-outfit animate-[fadeIn_0.2s_ease]">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Campaign</span>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 pt-5 border-t border-gray-150/10 animate-[fadeIn_0.2s_ease]">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Campaign</label>
                 <select
                   value={selectedCampaign}
                   onChange={(e) => setSelectedCampaign(e.target.value)}
-                  className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit max-w-[160px] truncate"
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit truncate"
                 >
                   <option value="">All Campaigns</option>
                   {campaigns.map(c => (
@@ -362,12 +364,12 @@ export default function Content() {
                 </select>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</span>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit max-w-[130px]"
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
                 >
                   <option value="">All Statuses</option>
                   <option value="pending">Pending</option>
@@ -379,12 +381,12 @@ export default function Content() {
                 </select>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Platform</span>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Platform</label>
                 <select
                   value={selectedPlatform}
                   onChange={(e) => setSelectedPlatform(e.target.value)}
-                  className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit max-w-[130px]"
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
                 >
                   <option value="">All Platforms</option>
                   <option value="instagram">Instagram</option>
@@ -396,12 +398,12 @@ export default function Content() {
                 </select>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Type</span>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Type</label>
                 <select
                   value={selectedContentType}
                   onChange={(e) => setSelectedContentType(e.target.value)}
-                  className="bg-white border border-gray-250 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit max-w-[130px]"
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
                 >
                   <option value="">All Types</option>
                   <option value="instagram_reel">Instagram Reel</option>
@@ -416,61 +418,63 @@ export default function Content() {
               </div>
 
               {/* Due Date Range Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Due</span>
-                <div className="flex items-center gap-2 border border-gray-200 rounded-lg py-1.5 px-2.5 bg-white shadow-sm text-[11px] font-outfit">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Due</label>
+                <div className="flex items-center gap-2 border border-gray-200 rounded-lg py-1.5 px-2 bg-white shadow-sm text-[11px] font-outfit w-full">
                   <input
                     type="date"
                     value={dueStartDate}
                     onChange={(e) => setDueStartDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-[95px]"
+                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-full"
                   />
                   <span className="text-gray-300">|</span>
                   <input
                     type="date"
                     value={dueEndDate}
                     onChange={(e) => setDueEndDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-[95px]"
+                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-full"
                   />
                 </div>
               </div>
 
               {/* Published Date Range Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Pub</span>
-                <div className="flex items-center gap-2 border border-gray-200 rounded-lg py-1.5 px-2.5 bg-white shadow-sm text-[11px] font-outfit">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Pub</label>
+                <div className="flex items-center gap-2 border border-gray-200 rounded-lg py-1.5 px-2 bg-white shadow-sm text-[11px] font-outfit w-full">
                   <input
                     type="date"
                     value={pubStartDate}
                     onChange={(e) => setPubStartDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-[95px]"
+                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-full"
                   />
                   <span className="text-gray-300">|</span>
                   <input
                     type="date"
                     value={pubEndDate}
                     onChange={(e) => setPubEndDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-[95px]"
+                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-full"
                   />
                 </div>
               </div>
 
               {activeFiltersCount > 0 && (
-                <button
-                  onClick={() => {
-                    setSelectedCampaign('');
-                    setSelectedStatus('');
-                    setSelectedPlatform('');
-                    setSelectedContentType('');
-                    setDueStartDate('');
-                    setDueEndDate('');
-                    setPubStartDate('');
-                    setPubEndDate('');
-                  }}
-                  className="text-xs text-primary-600 hover:text-primary-700 font-outfit uppercase tracking-widest pl-2 font-semibold ml-auto"
-                >
-                  Clear All
-                </button>
+                <div className="col-span-full flex justify-end">
+                  <button
+                    onClick={() => {
+                      setSelectedCampaign('');
+                      setSelectedStatus('');
+                      setSelectedPlatform('');
+                      setSelectedContentType('');
+                      setDueStartDate('');
+                      setDueEndDate('');
+                      setPubStartDate('');
+                      setPubEndDate('');
+                    }}
+                    className="text-xs text-primary-600 hover:text-primary-700 font-outfit uppercase tracking-widest font-semibold"
+                  >
+                    Clear All
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -497,8 +501,12 @@ export default function Content() {
             <tbody className="divide-y divide-gray-50">
               {filteredContents.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500 text-sm">
-                    No content deliverables found matching filters.
+                  <td colSpan={11} className="p-12">
+                    <EmptyState 
+                      icon={ImageIcon} 
+                      title="No Content Deliverables" 
+                      description="No content deliverables found matching filters." 
+                    />
                   </td>
                 </tr>
               ) : (

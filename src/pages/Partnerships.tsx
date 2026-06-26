@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../contexts/ToastContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { LoadingState } from '../components/ui/LoadingState';
@@ -21,12 +24,16 @@ import {
   Search, 
   Coins, 
   Edit3,
-  Calendar
+  Calendar,
+  Handshake,
+  SlidersHorizontal
 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Partnerships() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const [partnerships, setPartnerships] = useState<any[]>([]);
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +46,13 @@ export default function Partnerships() {
   const [selectedOfferType, setSelectedOfferType] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  const activeFiltersCount = (selectedCampaign ? 1 : 0) +
+    (selectedStatus ? 1 : 0) +
+    (selectedTier ? 1 : 0) +
+    (selectedOfferType ? 1 : 0) +
+    (startDate || endDate ? 1 : 0);
 
   // Modals
   const [activePartnership, setActivePartnership] = useState<any | null>(null);
@@ -77,7 +91,13 @@ export default function Partnerships() {
       } else if (action === 'complete') {
         await completePartnership(id);
       } else if (action === 'reject') {
-        if (window.confirm('Are you sure you want to reject this partnership?')) {
+        const isConfirmed = await confirm({
+          title: 'Reject Partnership',
+          message: 'Are you sure you want to reject this partnership?',
+          confirmText: 'Reject',
+          isDestructive: true
+        });
+        if (isConfirmed) {
           await rejectPartnership(id);
         } else {
           setLoading(false);
@@ -87,7 +107,7 @@ export default function Partnerships() {
       const updated = await getPartnerships();
       setPartnerships(updated);
     } catch (err) {
-      alert('Action failed: ' + err);
+      showToast('Action failed: ' + err, 'error');
     } finally {
       setLoading(false);
     }
@@ -150,7 +170,7 @@ export default function Partnerships() {
       const updated = await getPartnerships();
       setPartnerships(updated);
     } catch (err) {
-      alert('Failed to update details: ' + err);
+      showToast('Failed to update details: ' + err, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -193,20 +213,19 @@ export default function Partnerships() {
   });
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.2s_ease]">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
-            Creator Partnerships
-          </h1>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Creator Partnerships</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage and track your active influencer collaborations.</p>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <Card className="border-none shadow-xl bg-white/80 backdrop-blur-md">
+      <Card className="mb-6 border-none shadow-xl bg-white/80 backdrop-blur-md">
         <div className="p-6 flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex gap-2 w-full sm:max-w-md flex-1">
+            <div className="flex gap-2 w-full sm:max-w-xl flex-1">
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-gray-400" />
                 <input 
@@ -217,89 +236,120 @@ export default function Partnerships() {
                   className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-outfit"
                 />
               </div>
+
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center justify-center gap-2 px-4 py-2 border rounded-lg text-sm font-outfit uppercase tracking-wider transition-all select-none min-h-[40px] ${
+                  showFilters || activeFiltersCount > 0
+                    ? 'bg-primary-600 border-primary-600 text-white font-medium shadow-md shadow-primary-500/20'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <SlidersHorizontal size={14} />
+                <span>Filters</span>
+                {activeFiltersCount > 0 && (
+                  <span className={`flex items-center justify-center rounded-full min-w-[18px] h-[18px] px-1 text-[10px] font-bold ${
+                    showFilters || activeFiltersCount > 0 ? 'bg-white text-primary-700' : 'bg-primary-600 text-white'
+                  }`}>
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
             </div>
             <div className="text-sm text-gray-500 font-normal sm:ml-auto">
               {filtered.length} records found
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={selectedCampaign}
-              onChange={(e) => setSelectedCampaign(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit min-w-[150px]"
-            >
-              <option value="">All Campaigns</option>
-              {campaigns.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit min-w-[150px]"
-            >
-              <option value="">All Statuses</option>
-              <option value="engaged">Engaged</option>
-              <option value="meeting_scheduled">Meeting Scheduled</option>
-              <option value="qualified">Qualified</option>
-              <option value="offer_sent">Offer Sent</option>
-              <option value="accepted">Accepted</option>
-              <option value="activated">Activated</option>
-              <option value="completed">Completed</option>
-              <option value="rejected">Rejected</option>
-            </select>
-
-            <select
-              value={selectedTier}
-              onChange={(e) => setSelectedTier(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit min-w-[150px]"
-            >
-              <option value="">All Tiers</option>
-              <option value="nano">Nano (&lt;10k)</option>
-              <option value="micro">Micro (10k-50k)</option>
-              <option value="mid_tier">Mid Tier (50k-100k)</option>
-              <option value="macro">Macro (100k-500k)</option>
-              <option value="celebrity">Celebrity (500k+)</option>
-            </select>
-
-            <select
-              value={selectedOfferType}
-              onChange={(e) => setSelectedOfferType(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit min-w-[150px]"
-            >
-              <option value="">All Offer Types</option>
-              <option value="free_product">Free Product</option>
-              <option value="affiliate_commission">Affiliate Only</option>
-              <option value="flat_fee">Flat Fee</option>
-              <option value="hybrid">Hybrid</option>
-            </select>
-
-            {/* Date Range Selector */}
-            <div className="flex items-center gap-3 border border-gray-200 rounded-lg py-2 px-3 bg-white shadow-sm">
-              <Calendar size={14} className="text-gray-400" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest font-outfit">From</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-transparent border-none text-gray-700 text-xs font-normal uppercase tracking-tight outline-none focus:ring-0 font-outfit p-0 cursor-pointer focus:outline-none"
-                />
+          {/* Collapsible Filters Grid */}
+          {showFilters && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 pt-5 border-t border-gray-100 animate-[fadeIn_0.2s_ease]">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Campaign</label>
+                <select
+                  value={selectedCampaign}
+                  onChange={(e) => setSelectedCampaign(e.target.value)}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit truncate"
+                >
+                  <option value="">All Campaigns</option>
+                  {campaigns.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
               </div>
-              <span className="text-gray-300">|</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest font-outfit">To</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-transparent border-none text-gray-700 text-xs font-normal uppercase tracking-tight outline-none focus:ring-0 font-outfit p-0 cursor-pointer focus:outline-none"
-                />
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="engaged">Engaged</option>
+                  <option value="meeting_scheduled">Meeting Scheduled</option>
+                  <option value="qualified">Qualified</option>
+                  <option value="offer_sent">Offer Sent</option>
+                  <option value="accepted">Engaged</option>
+                  <option value="activated">Activated</option>
+                  <option value="completed">Completed</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tier</label>
+                <select
+                  value={selectedTier}
+                  onChange={(e) => setSelectedTier(e.target.value)}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
+                >
+                  <option value="">All Tiers</option>
+                  <option value="nano">Nano (&lt;10k)</option>
+                  <option value="micro">Micro (10k-50k)</option>
+                  <option value="mid_tier">Mid Tier (50k-100k)</option>
+                  <option value="macro">Macro (100k-500k)</option>
+                  <option value="celebrity">Celebrity (500k+)</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Offer</label>
+                <select
+                  value={selectedOfferType}
+                  onChange={(e) => setSelectedOfferType(e.target.value)}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
+                >
+                  <option value="">All Types</option>
+                  <option value="free_product">Free Product</option>
+                  <option value="affiliate_commission">Affiliate Only</option>
+                  <option value="flat_fee">Flat Fee</option>
+                  <option value="hybrid">Hybrid</option>
+                </select>
+              </div>
+
+              {/* Date Range Selector */}
+              <div className="flex flex-col gap-1.5 lg:col-span-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Date</label>
+                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg py-1.5 px-3 shadow-sm text-xs font-outfit w-full">
+                  <Calendar size={12} className="text-gray-400 flex-shrink-0" />
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer w-full text-[11px]"
+                  />
+                  <span className="text-gray-200">|</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer w-full text-[11px]"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </Card>
 
@@ -438,7 +488,13 @@ export default function Partnerships() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center py-20 text-gray-400 italic">No partnerships matching criteria.</td>
+                    <td colSpan={7} className="p-12">
+                      <EmptyState 
+                        icon={Handshake} 
+                        title="No Partnerships" 
+                        description="No partnerships matching criteria." 
+                      />
+                    </td>
                   </tr>
                 )}
               </tbody>

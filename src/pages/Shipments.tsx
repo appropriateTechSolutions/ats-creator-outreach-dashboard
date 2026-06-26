@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../contexts/ToastContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { LoadingState } from '../components/ui/LoadingState';
@@ -25,12 +28,15 @@ import {
   Truck,
   ExternalLink,
   ChevronDown,
-  Calendar
+  Calendar,
+  SlidersHorizontal
 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Shipments() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const [shipments, setShipments] = useState<any[]>([]);
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [partnerships, setPartnerships] = useState<any[]>([]);
@@ -43,9 +49,24 @@ export default function Shipments() {
   const [selectedCarrier, setSelectedCarrier] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  const activeFiltersCount = (selectedCampaign ? 1 : 0) +
+    (selectedStatus ? 1 : 0) +
+    (selectedCarrier ? 1 : 0) +
+    (startDate || endDate ? 1 : 0);
 
   // Dropdown states
   const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest('.action-dropdown-container')) return;
+      setOpenActionDropdownId(null);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -132,7 +153,7 @@ export default function Shipments() {
   const handleCreateShipment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!createForm.campaign_id || !createForm.creator_id || !createForm.product_name) {
-      alert('Campaign, Creator, and Product Name are required');
+      showToast('Campaign, Creator, and Product Name are required', 'error');
       return;
     }
     setSubmitting(true);
@@ -167,7 +188,7 @@ export default function Shipments() {
       const updated = await getShipments();
       setShipments(updated);
     } catch (err) {
-      alert('Failed to create shipment: ' + err);
+      showToast('Failed to create shipment: ' + err, 'error');
     } finally {
       setSubmitting(false);
       setLoading(false);
@@ -229,7 +250,7 @@ export default function Shipments() {
       setActiveShipment(s);
       setShowSuccessModal(true);
     } catch (err) {
-      alert('Failed to mark shipped: ' + err);
+      showToast('Failed to mark shipped: ' + err, 'error');
     } finally {
       setLoading(false);
     }
@@ -267,7 +288,7 @@ export default function Shipments() {
         setShowSuccessModal(true);
       }
     } catch (err) {
-      alert('Failed to update shipment: ' + err);
+      showToast('Failed to update shipment: ' + err, 'error');
     } finally {
       setSubmitting(false);
       setLoading(false);
@@ -308,7 +329,7 @@ export default function Shipments() {
         setShowSuccessModal(true);
       }
     } catch (err) {
-      alert('Failed to update status: ' + err);
+      showToast('Failed to update status: ' + err, 'error');
     } finally {
       setLoading(false);
     }
@@ -328,7 +349,7 @@ export default function Shipments() {
       setShipments(updatedList);
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || JSON.stringify(err);
-      alert('Failed to send address request: ' + msg);
+      showToast('Failed to send address request: ' + msg, 'error');
     } finally {
       setSubmitting(false);
       setLoading(false);
@@ -375,109 +396,133 @@ export default function Shipments() {
   const availablePartners = partnerships.filter(p => p.campaign_id === createForm.campaign_id);
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.2s_ease]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
-            Product Shipments
-          </h1>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Product Shipments</h1>
+          <p className="text-sm text-gray-500 mt-1">Track and manage product deliveries to your creators.</p>
         </div>
         <Button
           onClick={() => setShowCreateModal(true)}
-          className="bg-primary-600 text-white font-normal uppercase tracking-widest text-xs flex items-center gap-2 h-10 px-4"
+          className="bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 shadow-soft hover:shadow-hover text-white flex items-center gap-2"
         >
           <Plus size={16} /> New Shipment
         </Button>
       </div>
 
       {/* Filters Bar */}
-      <Card className="border-none shadow-xl bg-white/80 backdrop-blur-md">
-        <div className="p-6 border-b border-gray-100 bg-gray-50/30 flex flex-col gap-4">
+      <Card className="mb-6 border-none shadow-xl bg-white/80 backdrop-blur-md">
+        <div className="p-6 flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex gap-2 w-full sm:max-w-md">
+            <div className="flex gap-2 w-full sm:max-w-xl flex-1">
               <div className="relative flex-1">
-                <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search shipments..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm font-outfit"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-outfit"
                 />
               </div>
+
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center justify-center gap-2 px-4 py-2 border rounded-lg text-sm font-outfit uppercase tracking-wider transition-all select-none min-h-[40px] ${
+                  showFilters || activeFiltersCount > 0
+                    ? 'bg-primary-600 border-primary-600 text-white font-medium shadow-md shadow-primary-500/20'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <SlidersHorizontal size={14} />
+                <span>Filters</span>
+                {activeFiltersCount > 0 && (
+                  <span className={`flex items-center justify-center rounded-full min-w-[18px] h-[18px] px-1 text-[10px] font-bold ${
+                    showFilters || activeFiltersCount > 0 ? 'bg-white text-primary-700' : 'bg-primary-600 text-white'
+                  }`}>
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
             </div>
             <div className="text-sm text-gray-500 font-normal sm:ml-auto">
               {filteredShipments.length} records found
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Campaign Filter */}
-            <select
-              value={selectedCampaign}
-              onChange={(e) => setSelectedCampaign(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit min-w-[150px]"
-            >
-              <option value="">All Campaigns</option>
-              {campaigns.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-
-            {/* Status Filter */}
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit min-w-[150px]"
-            >
-              <option value="">All Statuses</option>
-              <option value="address_requested">Address Requested</option>
-              <option value="ready_to_ship">Ready to Ship</option>
-              <option value="pending">Pending Dispatch</option>
-              <option value="shipped">Shipped</option>
-              <option value="delivered">Delivered</option>
-              <option value="failed">Failed</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="returned">Returned</option>
-            </select>
-
-            {/* Carrier Filter */}
-            <select
-              value={selectedCarrier}
-              onChange={(e) => setSelectedCarrier(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit min-w-[150px]"
-            >
-              <option value="">All Carriers</option>
-              {uniqueCarriers.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-
-            {/* Date Range Selector */}
-            <div className="flex items-center gap-3 border border-gray-200 rounded-lg py-2.5 px-3 bg-white shadow-sm">
-              <Calendar size={14} className="text-gray-400" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest font-outfit">From</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-transparent border-none text-gray-700 text-xs font-normal uppercase tracking-tight outline-none focus:ring-0 font-outfit p-0 cursor-pointer focus:outline-none"
-                />
+          {/* Collapsible Filters Grid */}
+          {showFilters && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 pt-5 border-t border-gray-100 animate-[fadeIn_0.2s_ease]">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Campaign</label>
+                <select
+                  value={selectedCampaign}
+                  onChange={(e) => setSelectedCampaign(e.target.value)}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit truncate"
+                >
+                  <option value="">All Campaigns</option>
+                  {campaigns.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
               </div>
-              <span className="text-gray-300">|</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-normal text-gray-500 uppercase tracking-widest font-outfit">To</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-transparent border-none text-gray-700 text-xs font-normal uppercase tracking-tight outline-none focus:ring-0 font-outfit p-0 cursor-pointer focus:outline-none"
-                />
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="address_requested">Address Requested</option>
+                  <option value="ready_to_ship">Ready to Ship</option>
+                  <option value="pending">Pending Dispatch</option>
+                  <option value="shipped">Shipped</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="failed">Failed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="returned">Returned</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Carrier</label>
+                <select
+                  value={selectedCarrier}
+                  onChange={(e) => setSelectedCarrier(e.target.value)}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
+                >
+                  <option value="">All Carriers</option>
+                  {uniqueCarriers.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date Range Selector */}
+              <div className="flex flex-col gap-1.5 lg:col-span-2">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Date</label>
+                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg py-1.5 px-3 shadow-sm text-xs font-outfit w-full">
+                  <Calendar size={12} className="text-gray-400 flex-shrink-0" />
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer w-full text-[11px]"
+                  />
+                  <span className="text-gray-200">|</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer w-full text-[11px]"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </Card>
 
@@ -488,10 +533,12 @@ export default function Shipments() {
             <LoadingState message="Loading product shipments..." />
           </div>
         ) : filteredShipments.length === 0 ? (
-          <div className="py-20 text-center">
-            <Package size={40} className="mx-auto text-gray-300 mb-3" />
-            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 font-outfit">No Shipments Found</h3>
-            <p className="text-xs text-gray-500 mt-1">Create a new shipment or adjust your search filters.</p>
+          <div className="py-12">
+            <EmptyState 
+              icon={Package} 
+              title="No Shipments Found" 
+              description="Create a new shipment or adjust your search filters." 
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -608,7 +655,7 @@ export default function Shipments() {
 
                     {/* Dropdown Action Menu */}
                     <td className="px-6 py-3.5 align-middle text-center" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-2 relative">
+                      <div className="flex items-center justify-end gap-2 relative action-dropdown-container">
                         {(!s.Creator?.shipping_address_line1 || !s.Creator?.shipping_city) && ['pending', 'address_requested'].includes(s.status) && (
                           <Button
                             size="sm"

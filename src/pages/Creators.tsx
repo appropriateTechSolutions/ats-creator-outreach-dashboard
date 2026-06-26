@@ -127,6 +127,13 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
   const [campaignFilter, setCampaignFilter] = useState(() => loadStoredFilters().campaignFilter || '');
   const [sortBy, setSortBy] = useState(() => loadStoredFilters().sortBy || 'followers_desc');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
+
+  const activeFiltersCount = selectedStatuses.length + 
+    (followersFilter ? 1 : 0) + 
+    (engagementFilter ? 1 : 0) + 
+    (campaignFilter ? 1 : 0) + 
+    (sortBy !== 'followers_desc' ? 1 : 0);
 
   const fetchCreators = async () => {
     try {
@@ -354,24 +361,35 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
       <Card>
         <div className="p-6 border-b border-gray-100 bg-gray-50/30 flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex gap-2 w-full sm:max-w-md">
+            <div className="flex gap-2 w-full sm:max-w-xl flex-1">
               <div className="relative flex-1">
-                <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search global identities..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-outfit"
                 />
               </div>
+
               <button
-                type="button"
-                onClick={() => setIsMobileFiltersOpen(true)}
-                className="sm:hidden flex items-center justify-center p-3 bg-white border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors shadow-sm w-12"
-                aria-label="Toggle Filters"
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center justify-center gap-2 px-4 py-2 border rounded-lg text-sm font-outfit uppercase tracking-wider transition-all select-none min-h-[40px] ${
+                  showFilters || activeFiltersCount > 0
+                    ? 'bg-primary-600 border-primary-600 text-white font-medium shadow-md shadow-primary-500/20'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
               >
-                <SlidersHorizontal size={18} />
+                <SlidersHorizontal size={14} />
+                <span>Filters</span>
+                {activeFiltersCount > 0 && (
+                  <span className={`flex items-center justify-center rounded-full min-w-[18px] h-[18px] px-1 text-[10px] font-bold ${
+                    showFilters || activeFiltersCount > 0 ? 'bg-white text-primary-700' : 'bg-primary-600 text-white'
+                  }`}>
+                    {activeFiltersCount}
+                  </span>
+                )}
               </button>
             </div>
             <div className="text-sm text-gray-500 font-normal sm:ml-auto">
@@ -379,111 +397,129 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
             </div>
           </div>
 
-          {/* Desktop Filters (hidden on mobile) */}
-          <div className="hidden sm:flex flex-wrap items-center gap-3">
-            {!onlyEngaged && (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                  className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px] flex items-center justify-between shadow-sm hover:bg-gray-50"
+          {/* Collapsible Filters Grid */}
+          {showFilters && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 pt-5 border-t border-gray-100 animate-[fadeIn_0.2s_ease]">
+              {/* Status Dropdown */}
+              {!onlyEngaged && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                      className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 flex justify-between items-center focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
+                    >
+                      <span className="truncate">
+                        {selectedStatuses.length === 0
+                          ? 'All Statuses'
+                          : `${selectedStatuses.length} Selected`}
+                      </span>
+                      <ChevronDown size={14} className={`text-gray-400 transition-transform ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isFilterDropdownOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setIsFilterDropdownOpen(false)}
+                        />
+                        <div className="absolute left-0 mt-1 w-full min-w-[200px] bg-white border border-gray-150 rounded-xl shadow-hover z-20 py-1.5 animate-[fadeIn_0.15s_ease]">
+                          {[
+                            { id: 'hold', label: 'Discovered' },
+                            { id: 'pending', label: 'Shortlisted' },
+                            { id: 'approved', label: 'Approved' },
+                            { id: 'contacted', label: 'Contacted' },
+                            { id: 'engaged', label: 'Engaged' },
+                            { id: 'rejected', label: 'Rejected' },
+                            { id: 'not_respond', label: 'Not Responsive' }
+                          ].map(item => {
+                            const isChecked = selectedStatuses.includes(item.id);
+                            return (
+                              <label
+                                key={item.id}
+                                className="flex items-center gap-3 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer select-none normal-case"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    setSelectedStatuses(prev =>
+                                      isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
+                                    );
+                                  }}
+                                  className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 cursor-pointer"
+                                />
+                                <span>{item.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Followers</label>
+                <select
+                  value={followersFilter}
+                  onChange={e => setFollowersFilter(e.target.value)}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
                 >
-                  <span>
-                    {selectedStatuses.length === 0
-                      ? 'Any Status'
-                      : `${selectedStatuses.length} Selected`}
-                  </span>
-                  <ChevronDown size={14} className="text-gray-400 ml-2" />
-                </button>
-
-                {isFilterDropdownOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setIsFilterDropdownOpen(false)}
-                    />
-                    <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-150 rounded-xl shadow-xl z-20 py-1.5 animate-[fadeIn_0.15s_ease]">
-                      {[
-                        { id: 'hold', label: 'Discovered' },
-                        { id: 'pending', label: 'Shortlisted' },
-                        { id: 'approved', label: 'Approved' },
-                        { id: 'contacted', label: 'Contacted' },
-                        { id: 'engaged', label: 'Engaged' },
-                        { id: 'rejected', label: 'Rejected' },
-                        { id: 'not_respond', label: 'Not Responsive' }
-                      ].map(item => {
-                        const isChecked = selectedStatuses.includes(item.id);
-                        return (
-                          <label
-                            key={item.id}
-                            className="flex items-center gap-3 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer select-none"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {
-                                setSelectedStatuses(prev =>
-                                  isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
-                                );
-                              }}
-                              className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 cursor-pointer"
-                            />
-                            <span>{item.label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
+                  <option value="">All Sizes</option>
+                  <option value="<10k">&lt; 10K</option>
+                  <option value="10k-100k">10K – 100K</option>
+                  <option value="100k-1m">100K – 1M</option>
+                  <option value="1m+">1M+</option>
+                </select>
               </div>
-            )}
 
-            <select
-              value={followersFilter}
-              onChange={e => setFollowersFilter(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px]"
-            >
-              <option value="">Any Followers</option>
-              <option value="<10k">&lt; 10K</option>
-              <option value="10k-100k">10K – 100K</option>
-              <option value="100k-1m">100K – 1M</option>
-              <option value="1m+">1M+</option>
-            </select>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Engagement</label>
+                <select
+                  value={engagementFilter}
+                  onChange={e => setEngagementFilter(e.target.value)}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
+                >
+                  <option value="">Any %</option>
+                  <option value="<1">&lt; 1%</option>
+                  <option value="1-3">1 – 3%</option>
+                  <option value="3-6">3 – 6%</option>
+                  <option value="6+">6%+</option>
+                </select>
+              </div>
 
-            <select
-              value={engagementFilter}
-              onChange={e => setEngagementFilter(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px]"
-            >
-              <option value="">Any Engagement</option>
-              <option value="<1">&lt; 1%</option>
-              <option value="1-3">1 – 3%</option>
-              <option value="3-6">3 – 6%</option>
-              <option value="6+">6%+</option>
-            </select>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Campaign</label>
+                <select
+                  value={campaignFilter}
+                  onChange={e => setCampaignFilter(e.target.value)}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit truncate"
+                >
+                  <option value="">All Campaigns</option>
+                  {campaigns.map(campaign => (
+                    <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+                  ))}
+                </select>
+              </div>
 
-            <select
-              value={campaignFilter}
-              onChange={e => setCampaignFilter(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[210px]"
-            >
-              <option value="">Any Campaign</option>
-              {campaigns.map(campaign => (
-                <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
-              ))}
-            </select>
-
-            <select
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value)}
-              className="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[200px] sm:ml-auto"
-            >
-              <option value="followers_desc">Sort: Followers (High→Low)</option>
-              <option value="followers_asc">Sort: Followers (Low→High)</option>
-              <option value="engagement_desc">Sort: Engagement (High→Low)</option>
-              <option value="engagement_asc">Sort: Engagement (Low→High)</option>
-            </select>
-          </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sort</label>
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value)}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
+                >
+                  <option value="followers_desc">Followers (High→Low)</option>
+                  <option value="followers_asc">Followers (Low→High)</option>
+                  <option value="engagement_desc">Engagement (High→Low)</option>
+                  <option value="engagement_asc">Engagement (Low→High)</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         {loading ? (
