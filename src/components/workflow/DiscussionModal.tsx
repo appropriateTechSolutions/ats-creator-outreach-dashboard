@@ -6,7 +6,7 @@ import { RefreshCw, Send, Sparkles } from 'lucide-react';
 interface DiscussionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (subject: string, body: string) => Promise<void>;
+  onSubmit: (subject: string, body: string, testEmailOverride?: string) => Promise<void>;
   creator: any;
   submitting: boolean;
 }

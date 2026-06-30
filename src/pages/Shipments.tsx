@@ -501,23 +501,16 @@ export default function Shipments() {
                 </select>
               </div>
 
-              {/* Date Range Selector */}
-              <div className="flex flex-col gap-1.5 lg:col-span-2">
+              {/* Date Selector */}
+              <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Date</label>
-                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg py-1.5 px-3 shadow-sm text-xs font-outfit w-full">
-                  <Calendar size={12} className="text-gray-400 flex-shrink-0" />
+                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg py-2 px-3 shadow-sm text-xs font-outfit w-full">
+                  <Calendar size={14} className="text-gray-400 flex-shrink-0" />
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer w-full text-[11px]"
-                  />
-                  <span className="text-gray-200">|</span>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer w-full text-[11px]"
+                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer w-full text-xs placeholder-gray-400 font-medium"
                   />
                 </div>
               </div>
@@ -569,7 +562,16 @@ export default function Shipments() {
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
                           {s.Creator?.profile_pic ? (
-                            <img src={s.Creator.profile_pic} alt="" className="w-full h-full object-cover" />
+                            <img 
+                              src={s.Creator.profile_pic} 
+                              alt="" 
+                              className="w-full h-full object-cover" 
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.onerror = null;
+                                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(s.Creator.full_name || s.Creator.handle || 'C')}&background=E0E7FF&color=4338CA`;
+                              }}
+                            />
                           ) : (
                             (s.Creator?.full_name || s.Creator?.handle)?.charAt(0) || 'C'
                           )}
@@ -687,7 +689,7 @@ export default function Shipments() {
                         {s.status === 'ready_to_ship' && (
                           <Button
                             size="sm"
-                            className="bg-primary-100 text-primary-700 hover:bg-primary-200 border border-primary-200 font-bold uppercase tracking-widest text-[9px] min-h-[28px] px-3 shadow-sm"
+                            className="min-h-[32px] py-1 px-4 text-xs font-medium capitalize bg-primary-600 hover:bg-primary-700 text-white shadow-sm"
                             onClick={(e) => {
                               e.stopPropagation();
                               if (s.tracking_number) {
@@ -703,7 +705,7 @@ export default function Shipments() {
                         {s.status === 'shipped' && (
                           <Button
                             size="sm"
-                            className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200 font-bold uppercase tracking-widest text-[9px] min-h-[28px] px-3 shadow-sm"
+                            className="min-h-[32px] py-1 px-4 text-xs font-medium capitalize bg-primary-600 hover:bg-primary-700 text-white shadow-sm"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleStatusChange(s.id, 'delivered');

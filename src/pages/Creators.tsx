@@ -548,7 +548,16 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
                             {c.profile_pic ? (
-                              <img src={c.profile_pic} alt="" className="w-full h-full object-cover" />
+                              <img 
+                                src={c.profile_pic} 
+                                alt="" 
+                                className="w-full h-full object-cover" 
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.onerror = null;
+                                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.full_name || c.handle || 'C')}&background=E0E7FF&color=4338CA`;
+                                }}
+                              />
                             ) : (
                               (c.full_name || c.handle)?.charAt(0)
                             )}
@@ -700,13 +709,22 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                   <div key={c.id} className="p-5 active:bg-gray-50 transition-all space-y-4">
                     <div className="flex justify-between items-start gap-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
-                          {c.profile_pic ? (
-                            <img src={c.profile_pic} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            (c.full_name || c.handle)?.charAt(0)
-                          )}
-                        </div>
+                          <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
+                            {c.profile_pic ? (
+                              <img 
+                                src={c.profile_pic} 
+                                alt="" 
+                                className="w-full h-full object-cover" 
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.onerror = null;
+                                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.full_name || c.handle || 'C')}&background=E0E7FF&color=4338CA`;
+                                }}
+                              />
+                            ) : (
+                              (c.full_name || c.handle)?.charAt(0)
+                            )}
+                          </div>
                         <div>
                           <Link to={`/creators/${c.id}`} state={{ fromMyCreators: onlyEngaged }} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit block">
                             {c.full_name || `@${c.handle}`}

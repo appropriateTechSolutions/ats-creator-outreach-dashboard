@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { inviteUser, getClients, getUsers, resendInvite } from '../lib/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -11,6 +12,7 @@ import { LoadingState } from '../components/ui/LoadingState';
 export default function Users() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,10 +62,9 @@ export default function Users() {
     setActionLoading(userId);
     try {
       await resendInvite(userId);
-      // Show success toast or alert
-      alert('Invitation resent successfully!');
+      showToast('Invitation resent successfully!', 'success');
     } catch (err: any) {
-      alert(err || 'Failed to resend invitation.');
+      showToast(err || 'Failed to resend invitation.', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -96,7 +97,7 @@ export default function Users() {
   );
 
   return (
-    <div className="space-y-6 animate-[fadeIn_0.3s_ease] max-w-7xl mx-auto pb-12">
+    <div className="space-y-6 animate-[fadeIn_0.2s_ease] max-w-7xl mx-auto pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>

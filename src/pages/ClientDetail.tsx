@@ -251,7 +251,7 @@ export default function ClientDetail() {
   }
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-6xl mx-auto pb-20 animate-[fadeIn_0.2s_ease]">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
         <div className="space-y-4">

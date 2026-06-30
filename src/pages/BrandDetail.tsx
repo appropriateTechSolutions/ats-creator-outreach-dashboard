@@ -157,7 +157,7 @@ export default function BrandDetail() {
   }
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.2s_ease] px-4 sm:px-0">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
         <div className="space-y-4">

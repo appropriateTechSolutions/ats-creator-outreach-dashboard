@@ -98,18 +98,9 @@ export default function Campaigns() {
         const selectedBrand = brands.find(b => b.id === formData.brand_id);
         const clientId = selectedBrand?.client_id;
         
-        console.log('🔍 Brand selected, fetching categories:', {
-          brandId: formData.brand_id,
-          brandName: selectedBrand?.name,
-          clientId: clientId
-        });
-        
         if (clientId) {
           try {
             const categoriesData = await getCustomCategories(clientId);
-            console.log('✅ Categories fetched successfully:', categoriesData);
-            console.log('📊 Number of categories:', categoriesData?.length || 0);
-            console.log('📋 Category names:', categoriesData?.map(c => typeof c === 'string' ? c : c.name));
             setDbCustomCategories(categoriesData || []);
           } catch (err) {
             console.error('❌ Failed to fetch categories:', err);
@@ -230,11 +221,8 @@ export default function Campaigns() {
         return;
       }
       
-      console.log('📤 Creating category:', catName, 'for client:', clientId);
-      
       // Pass both client_id and brand_id to the backend
       await createCustomCategory(catName, clientId, formData.brand_id);
-      console.log('✅ Category created successfully');
       
       // Refresh custom categories
       const updatedCats = await getCustomCategories(clientId);
@@ -269,7 +257,7 @@ export default function Campaigns() {
   const activeInitiativesCount = filteredCampaigns.filter(c => c.status?.toLowerCase() === 'active').length;
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.2s_ease] px-4 sm:px-0">
       {location.state?.fromBrandsList && (
         <Link 
           to="/brands" 
@@ -280,12 +268,13 @@ export default function Campaigns() {
       )}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaigns</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Campaigns</h1>
+          <p className="text-sm text-gray-500 mt-1">Create and manage your influencer outreach initiatives.</p>
         </div>
         {['super_admin', 'admin', 'operator', 'client_admin'].includes(user?.role || '') && (
           <Button 
             onClick={() => setIsModalOpen(true)} 
-            className="hidden sm:inline-flex bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
+            className="hidden sm:inline-flex bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 shadow-soft hover:shadow-hover whitespace-nowrap"
             icon={<Plus size={20} />}
           >
             Launch Campaign
@@ -293,23 +282,25 @@ export default function Campaigns() {
         )}
       </div>
 
-      <Card className="overflow-hidden border-none shadow-2xl bg-white/80 backdrop-blur-md">
-        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gray-50/30">
-          <div className="relative w-full sm:max-w-md">
-            <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+      <Card className="mb-6 border-none shadow-xl bg-white/80 backdrop-blur-md">
+        <div className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="relative w-full sm:max-w-md flex-1">
+            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-gray-400" />
             <input 
               type="text" 
               placeholder="Filter by campaign name..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-outfit"
             />
           </div>
-          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest bg-white px-3 py-1.5 rounded-lg border border-gray-100 whitespace-nowrap">
+          <div className="text-sm text-gray-500 font-normal sm:ml-auto whitespace-nowrap">
             {activeInitiativesCount} Active Initiatives
           </div>
         </div>
+      </Card>
 
+      <Card className="overflow-hidden border-none shadow-2xl bg-white">
         {loading ? (
           <div className="py-20">
             <LoadingState message="Synchronizing Outreach Data..." />
@@ -496,8 +487,8 @@ export default function Campaigns() {
         <button
           onClick={() => setIsModalOpen(true)}
           className="sm:hidden fixed bottom-6 right-6 z-50 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-4 shadow-2xl shadow-primary-500/40 flex items-center justify-center transition-transform active:scale-95 border border-primary-500/20"
-          aria-label="Launch Campaign"
-        >
+          aria-label="New Campaign"
+      >
           <Plus size={24} />
         </button>
       )}

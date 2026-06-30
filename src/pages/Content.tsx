@@ -417,42 +417,28 @@ export default function Content() {
                 </select>
               </div>
 
-              {/* Due Date Range Selector */}
+              {/* Due Date Selector */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Due</label>
-                <div className="flex items-center gap-2 border border-gray-200 rounded-lg py-1.5 px-2 bg-white shadow-sm text-[11px] font-outfit w-full">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Due Date</label>
+                <div className="flex items-center gap-2 border border-gray-200 rounded-lg py-2 px-3 bg-white shadow-sm text-xs font-outfit w-full">
                   <input
                     type="date"
                     value={dueStartDate}
                     onChange={(e) => setDueStartDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-full"
-                  />
-                  <span className="text-gray-300">|</span>
-                  <input
-                    type="date"
-                    value={dueEndDate}
-                    onChange={(e) => setDueEndDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-full"
+                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-full placeholder-gray-400 font-medium"
                   />
                 </div>
               </div>
 
-              {/* Published Date Range Selector */}
+              {/* Published Date Selector */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Pub</label>
-                <div className="flex items-center gap-2 border border-gray-200 rounded-lg py-1.5 px-2 bg-white shadow-sm text-[11px] font-outfit w-full">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Pub Date</label>
+                <div className="flex items-center gap-2 border border-gray-200 rounded-lg py-2 px-3 bg-white shadow-sm text-xs font-outfit w-full">
                   <input
                     type="date"
                     value={pubStartDate}
                     onChange={(e) => setPubStartDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-full"
-                  />
-                  <span className="text-gray-300">|</span>
-                  <input
-                    type="date"
-                    value={pubEndDate}
-                    onChange={(e) => setPubEndDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 text-xs outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-full"
+                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer focus:outline-none w-full placeholder-gray-400 font-medium"
                   />
                 </div>
               </div>
@@ -522,6 +508,11 @@ export default function Content() {
                           src={c.Creator?.profile_pic || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.Creator?.full_name || 'C')}&background=random`} 
                           alt="" 
                           className="w-8 h-8 rounded-full border border-gray-200 object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.onerror = null;
+                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.Creator?.full_name || c.Creator?.handle || 'C')}&background=E0E7FF&color=4338CA`;
+                          }}
                         />
                         <div>
                           <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">{c.Creator?.full_name}</div>

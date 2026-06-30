@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { useToast } from '../contexts/ToastContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -29,6 +30,7 @@ export default function ShipmentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToast();
   const fromCreatorId = location.state?.fromCreatorId;
   const [shipment, setShipment] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,7 +100,7 @@ export default function ShipmentDetail() {
       const updated = await getShipmentById(id);
       setShipment(updated);
     } catch (err) {
-      alert('Action failed: ' + err);
+      showToast('Action failed: ' + err, 'error');
     } finally {
       setLoading(false);
     }
@@ -141,7 +143,7 @@ export default function ShipmentDetail() {
       const updated = await getShipmentById(shipment.id);
       setShipment(updated);
     } catch (err) {
-      alert('Failed to update shipment details: ' + err);
+      showToast('Failed to update shipment details: ' + err, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -171,7 +173,7 @@ export default function ShipmentDetail() {
   const currentStatusIndex = statuses.indexOf(shipment.status);
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.2s_ease]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -198,12 +200,12 @@ export default function ShipmentDetail() {
         {/* Actions panel */}
         <div className="flex items-center gap-2">
           {shipment.status === 'pending' && (
-            <Button className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={() => handleStatusChange('shipped')}>
+            <Button className="bg-primary-600 hover:bg-primary-700 text-white font-medium capitalize text-sm min-h-[40px] px-6 shadow-sm" onClick={() => handleStatusChange('shipped')}>
               Mark Shipped
             </Button>
           )}
           {shipment.status === 'shipped' && (
-            <Button className="bg-green-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={() => handleStatusChange('delivered')}>
+            <Button className="bg-primary-600 hover:bg-primary-700 text-white font-medium capitalize text-sm min-h-[40px] px-6 shadow-sm" onClick={() => handleStatusChange('delivered')}>
               Mark Delivered
             </Button>
           )}
@@ -225,7 +227,16 @@ export default function ShipmentDetail() {
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-2xl uppercase ring-4 ring-white shadow-md overflow-hidden">
                   {shipment.Creator?.profile_pic ? (
-                    <img src={shipment.Creator.profile_pic} alt="" className="w-full h-full object-cover" />
+                    <img 
+                      src={shipment.Creator.profile_pic} 
+                      alt="" 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(shipment.Creator.full_name || shipment.Creator.handle || 'C')}&background=E0E7FF&color=4338CA`;
+                      }}
+                    />
                   ) : (
                     (shipment.Creator?.full_name || shipment.Creator?.handle)?.charAt(0) || 'C'
                   )}

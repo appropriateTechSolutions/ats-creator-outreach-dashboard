@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '../components/ui/Card';
-import { CheckCircle, AlertCircle, MessageSquare, ExternalLink } from 'lucide-react';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Button } from '../components/ui/Button';
+import { CheckCircle, AlertCircle, MessageSquare, ExternalLink, RefreshCw } from 'lucide-react';
 import { getCampaigns, getAllCreators, getOutreachLogs } from '../lib/api';
 import type { Campaign, Creator } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,9 +33,6 @@ export default function Outreach() {
 
   useEffect(() => {
     fetchData();
-    // Poll for updates every 10 seconds while on this dashboard
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
@@ -57,11 +56,14 @@ export default function Outreach() {
   });
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-6xl mx-auto pb-12 animate-[fadeIn_0.2s_ease]">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-2">
         <div>
           <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Outreach Dashboard</h1>
         </div>
+        <Button onClick={fetchData} variant="outline" size="sm" icon={<RefreshCw size={16} />}>
+          Refresh
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -147,9 +149,12 @@ export default function Outreach() {
                   </button>
                 </div>
               )) : (
-                <div className="py-12 text-center">
-                   <MessageSquare size={32} className="mx-auto text-gray-200 mb-2" />
-                    <p className="text-xs text-gray-400 font-normal">No recent outreach activity.</p>
+                <div className="py-8">
+                  <EmptyState 
+                    icon={MessageSquare} 
+                    title="No Outreach Activity" 
+                    description="No recent outreach activity." 
+                  />
                 </div>
               )}
             </div>

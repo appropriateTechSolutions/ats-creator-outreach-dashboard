@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { LoadingState } from '../components/ui/LoadingState';
@@ -38,12 +40,11 @@ interface UserDetailData {
   };
 }
 
-import { useAuth } from '../contexts/AuthContext';
-
 export default function UserDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
+  const { showToast } = useToast();
   const [userData, setUserData] = useState<UserDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -85,7 +86,7 @@ export default function UserDetail() {
       await api.disableUser(id);
       await fetchUser();
     } catch (err: any) {
-      alert(err || 'Failed to update user status.');
+      showToast(err || 'Failed to update user status.', 'error');
     } finally {
       setStatusLoading(false);
     }
@@ -96,9 +97,9 @@ export default function UserDetail() {
     setInviteLoading(true);
     try {
       await api.resendInvite(id);
-      alert('Invitation resent successfully!');
+      showToast('Invitation resent successfully!', 'success');
     } catch (err: any) {
-      alert(err || 'Failed to resend invitation.');
+      showToast(err || 'Failed to resend invitation.', 'error');
     } finally {
       setInviteLoading(false);
     }
@@ -117,7 +118,7 @@ export default function UserDetail() {
       await api.deleteUser(id);
       navigate('/users');
     } catch (err: any) {
-      alert(err || 'Failed to delete user.');
+      showToast(err || 'Failed to delete user.', 'error');
     } finally {
       setDeleteLoading(false);
     }
@@ -142,7 +143,7 @@ export default function UserDetail() {
   }
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-5xl mx-auto pb-20 animate-[fadeIn_0.2s_ease]">
       {/* Header with responsive stacking */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="space-y-4">

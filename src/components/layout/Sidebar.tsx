@@ -12,7 +12,8 @@ import {
   Building2,
   Briefcase,
   LogOut,
-  ChevronUp,
+  ChevronDown,
+  UserCheck,
   Handshake,
   Package,
   Image as ImageIcon,
@@ -46,11 +47,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   useEffect(() => {
     if (user?.user_type === 'client' && user?.client_id) {
+      const cachedName = localStorage.getItem('client_name');
+      if (cachedName) setClientName(cachedName);
+
       import('../../lib/api').then((api) => {
         api.getBrands().then((brandsData) => {
           if (brandsData && brandsData.length > 0) {
             const name = brandsData[0]?.Client?.name || 'ATS Outreach';
             setClientName(name);
+            localStorage.setItem('client_name', name);
           }
         }).catch((err) => console.error('Failed to load client name in sidebar', err));
       });
@@ -63,7 +68,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { name: 'Brands', path: '/brands', icon: <Briefcase size={20} /> },
     { name: 'Campaigns', path: '/campaigns', icon: <Target size={20} /> },
     { name: 'Creators', path: '/creators', icon: <Users size={20} /> },
-    { name: 'My Creators', path: '/my-creators', icon: <Users size={20} /> },
+    { name: 'My Creators', path: '/my-creators', icon: <UserCheck size={20} /> },
     { name: 'Partnerships', path: '/partnerships', icon: <Handshake size={20} /> },
     { name: 'Shipments', path: '/shipments', icon: <Package size={20} /> },
     { name: 'Content', path: '/content', icon: <ImageIcon size={20} /> },
@@ -108,7 +113,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* Sidebar panel */}
       <aside
         className={`
-          fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-200 shadow-sm
+          fixed left-0 top-0 bottom-0 w-64 bg-gray-50/30 backdrop-blur-xl border-r border-gray-200/60 shadow-soft
           flex flex-col z-40 transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
@@ -131,8 +136,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* Nav Items */}
         <div className="px-4 py-2 flex-1 overflow-y-auto">
-          <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-4 px-2">
-            Main Menu
+          <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4 px-3">
+            Menu
           </div>
           <nav className="space-y-1">
             {filteredNavItems.map((item) => (
@@ -143,10 +148,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   if (window.innerWidth < 1024) onClose();
                 }}
                 className={({ isActive }) => 
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors font-normal text-sm ${
+                  `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
                     isActive 
-                      ? 'bg-primary-50 text-primary-700' 
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-white shadow-soft text-primary-700 border border-gray-200/50 translate-x-1' 
+                      : 'text-gray-500 hover:bg-gray-100/50 hover:text-gray-900 border border-transparent'
                   }`
                 }
               >
@@ -189,7 +194,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 <div className="text-[10px] uppercase tracking-wider text-gray-500 mt-0.5 truncate max-w-[110px]">{user?.role?.replace('client_', '').replace('_', ' ') || 'Role'}</div>
               </div>
             </div>
-            <ChevronUp size={16} className={`text-gray-400 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`} />
           </button>
         </div>
       </aside>

@@ -21,13 +21,13 @@ export function Drawer({ isOpen, onClose, title, children, footer }: DrawerProps
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div 
-        className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
       
-      <div className="relative w-full max-w-md h-full bg-white shadow-2xl flex flex-col animate-[slideLeft_0.3s_ease]">
+      <div className="relative w-full max-w-md h-full bg-white shadow-2xl flex flex-col animate-[slideLeft_0.2s_ease]">
         <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100 bg-gray-50/50">
-          <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">{title}</h2>
+          <h2 className="text-lg font-semibold text-gray-900 tracking-tight">{title}</h2>
           <button 
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-md hover:bg-gray-100"

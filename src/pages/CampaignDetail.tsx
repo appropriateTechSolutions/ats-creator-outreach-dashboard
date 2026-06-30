@@ -31,28 +31,29 @@ import { useDiscovery } from '../contexts/DiscoveryContext';
 import { matchesStatusFilter } from '../lib/creatorFilters';
 
 import { CreatorPreviewDrawer } from '../components/CreatorPreviewDrawer';
-import { Pagination } from '../components/ui/Pagination';
+import { CampaignTemplateEditor } from '../components/campaigns/CampaignTemplateEditor';
+import { CampaignPerformancePanel } from '../components/campaigns/CampaignPerformancePanel';
+import { CampaignLeadsTable } from '../components/campaigns/CampaignLeadsTable';
 import { format } from 'date-fns';
 
-const LEADS_PER_PAGE = 50;
 
 const COUNTRIES = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar (formerly Burma)", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
 ];
 
-const toNumber = (value: unknown): number => {
+export const toNumber = (value: unknown): number => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const getFollowers = (c: Creator): number => {
+export const getFollowers = (c: Creator): number => {
   const direct = toNumber(c.followers_count ?? (c as any).followers);
   if (direct > 0) return direct;
   const fromProfiles = c.profiles?.map(p => toNumber(p.followers)) ?? [];
   return fromProfiles.length ? Math.max(...fromProfiles) : 0;
 };
 
-const getEngagement = (c: Creator): number => {
+export const getEngagement = (c: Creator): number => {
   const direct = toNumber(c.engagement_rate);
   if (direct > 0) return direct;
   const fromProfiles = c.profiles?.map(p => toNumber(p.engagement_rate)) ?? [];
@@ -91,7 +92,7 @@ export const getErRating = (followers: number, er: number): { label: string; col
   }
 };
 
-const hasPublicProfileSignal = (c: Creator): boolean => {
+export const hasPublicProfileSignal = (c: Creator): boolean => {
   const hasProfileMetrics = c.profiles?.some(profile =>
     toNumber(profile.followers) > 0 ||
     toNumber(profile.avg_likes) > 0 ||
@@ -109,13 +110,13 @@ const hasPublicProfileSignal = (c: Creator): boolean => {
   );
 };
 
-const formatFollowers = (n: number): string => {
+export const formatFollowers = (n: number): string => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
   return String(n);
 };
 
-const getPlatformHandle = (creator: Creator, platform: string) => {
+export const getPlatformHandle = (creator: Creator, platform: string) => {
   const profileHandle = creator.profiles?.find(p => p.platform.toLowerCase() === platform)?.handle;
   return (profileHandle || creator.handle || '').replace(/^@/, '');
 };
@@ -163,14 +164,6 @@ export default function CampaignDetail() {
   });
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
-  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
-  const [sortBy, setSortBy] = useState(() => {
-    try { return sessionStorage.getItem('campaign-leads-sort-v1') || 'followers_desc'; }
-    catch { return 'followers_desc'; }
-  });
-
-  const [currentPage, setCurrentPage] = useState(1);
-
   // Sprint 4 states
   const [activeTab, setActiveTab] = useState<'leads' | 'analytics' | 'activity'>('leads');
   const [funnelData, setFunnelData] = useState<any>(null);
@@ -179,15 +172,7 @@ export default function CampaignDetail() {
   const [recalculating, setRecalculating] = useState(false);
   const [syncingLeads, setSyncingLeads] = useState(false);
 
-  // Ordered list of creator IDs found in the current discovery run (most recent first).
-  useEffect(() => {
-    try { sessionStorage.setItem('campaign-leads-sort-v1', sortBy); } catch { /* ignore */ }
-  }, [sortBy]);
-
   // Reset to the first page whenever the filtered/sorted result set changes.
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedStatuses, sortBy]);
   // Ordered list of creator IDs found in the current discovery run (most recent first).
   // Used to pin freshly discovered creators to the top while discovery is running.
   const [discoveredOrder, setDiscoveredOrder] = useState<string[]>([]);
@@ -510,34 +495,8 @@ export default function CampaignDetail() {
     return true;
   });
 
-  const sortedLeads = [...filteredLeads];
-  switch (sortBy) {
-    case 'followers_desc': sortedLeads.sort((a, b) => getFollowers(b) - getFollowers(a)); break;
-    case 'followers_asc': sortedLeads.sort((a, b) => getFollowers(a) - getFollowers(b)); break;
-    case 'engagement_desc': sortedLeads.sort((a, b) => getEngagement(b) - getEngagement(a)); break;
-    case 'engagement_asc': sortedLeads.sort((a, b) => getEngagement(a) - getEngagement(b)); break;
-  }
-
-  // While discovery is running, keep freshly found creators pinned to the top in
-  // find-order (most recent first). Once the run completes, discoveredOrder is cleared
-  // and the list falls back to the selected sort order.
-  const displayLeads = discovering && discoveredOrder.length > 0
-    ? [...filteredLeads].sort((a, b) => {
-      const ia = discoveredOrder.indexOf(a.id);
-      const ib = discoveredOrder.indexOf(b.id);
-      if (ia === -1 && ib === -1) return 0;   // both pre-existing → keep relative order
-      if (ia === -1) return 1;                 // a pre-existing → below newly found
-      if (ib === -1) return -1;                // b pre-existing → below newly found
-      return ia - ib;                          // both newly found → by find order
-    })
-    : sortedLeads;
-
-  // Clamp the page if the list shrank below the current offset, then slice.
-  const leadsPageStart = (Math.min(currentPage, Math.max(1, Math.ceil(displayLeads.length / LEADS_PER_PAGE))) - 1) * LEADS_PER_PAGE;
-  const pagedLeads = displayLeads.slice(leadsPageStart, leadsPageStart + LEADS_PER_PAGE);
-
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.2s_ease] px-4 sm:px-0">
       <Link
         to={fromBrandsList ? "/brands" : (fromBrandId ? `/brands/${fromBrandId}` : "/campaigns")}
         className="inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase"
@@ -635,421 +594,33 @@ export default function CampaignDetail() {
             </div>
           </div>
           {activeTab === 'leads' && (
-            <>
-              <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white">
-                <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Creators Leads ({filteredLeads.length})</h2>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                  <select
-                    value={sortBy}
-                    onChange={e => setSortBy(e.target.value)}
-                    className="bg-white border border-gray-200 text-gray-700 text-xs uppercase tracking-wider rounded-lg py-1.5 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 min-w-[150px]"
-                  >
-                    <option value="followers_desc">Sort: Followers (High→Low)</option>
-                    <option value="followers_asc">Sort: Followers (Low→High)</option>
-                    <option value="engagement_desc">Sort: Engagement (High→Low)</option>
-                    <option value="engagement_asc">Sort: Engagement (Low→High)</option>
-                  </select>
-                  <div className="relative">
-                    <button
-                      onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                      className="w-full sm:w-auto inline-flex items-center justify-between gap-2 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-normal hover:bg-gray-50 transition-all outline-none min-w-[140px]"
-                    >
-                      <span className="text-xs uppercase tracking-wider">
-                        {selectedStatuses.length === 0
-                          ? 'Any Status'
-                          : `${selectedStatuses.length} Selected`}
-                      </span>
-                      <ChevronDown size={14} className="text-gray-400 ml-2" />
-                    </button>
-
-                    {isFilterDropdownOpen && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-10"
-                          onClick={() => setIsFilterDropdownOpen(false)}
-                        />
-                        <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1.5 animate-[fadeIn_0.15s_ease]">
-                          {[
-                            { id: 'hold', label: 'Discovered' },
-                            { id: 'pending', label: 'Shortlisted' },
-                            { id: 'approved', label: 'Approved' },
-                            { id: 'contacted', label: 'Contacted' },
-                            { id: 'engaged', label: 'Engaged' },
-                            { id: 'rejected', label: 'Rejected' },
-                            { id: 'not_respond', label: 'Not Responsive' }
-                          ].map(item => {
-                            const isChecked = selectedStatuses.includes(item.id);
-                            return (
-                              <label
-                                key={item.id}
-                                className="flex items-center gap-3 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer select-none"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => {
-                                    setSelectedStatuses(prev =>
-                                      isChecked ? prev.filter(s => s !== item.id) : [...prev, item.id]
-                                    );
-                                  }}
-                                  className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500/20 cursor-pointer"
-                                />
-                                <span>{item.label}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={handleSyncCampaignCreators}
-                    disabled={syncingLeads || leads.length === 0}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-700 border border-indigo-100 rounded-lg text-xs font-normal uppercase tracking-wider transition-all outline-none"
-                  >
-                    {syncingLeads ? (
-                      <>
-                        <Loader2 size={14} className="animate-spin" />
-                        <span>Syncing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Activity size={14} />
-                        <span>Sync All Creators</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {filteredLeads.length === 0 ? (
-                discovering ? (
-                  <div className="p-16 text-center">
-                    <div className="relative w-16 h-16 mx-auto mb-4">
-                      <div className="absolute inset-0 rounded-full border-2 border-primary-100 border-t-primary-500 animate-spin" />
-                      <div className="absolute inset-0 flex items-center justify-center text-primary-500">
-                        <Sparkles size={26} className="animate-pulse" />
-                      </div>
-                    </div>
-                    <h3 className="text-lg font-normal text-gray-900 uppercase tracking-widest font-outfit">Search in progress 🕵️</h3>
-                    <p className="text-gray-500 mt-1 max-w-sm mx-auto">Our AI is combing the internet for the perfect creators. Hang tight — the first finds will pop in right here any moment. Grab a coffee ☕</p>
-                  </div>
-                ) : (
-                  <div className="p-16 text-center">
-                    <div className="w-16 h-16 bg-primary-50 text-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Sparkles size={32} />
-                    </div>
-                    <h3 className="text-lg font-normal text-gray-900 uppercase tracking-widest font-outfit">No leads found yet</h3>
-                    <p className="text-gray-500 mt-1 max-w-sm mx-auto">Trigger the AI Discovery engine to automatically scrape, score, and qualify influencers matching this campaign's target profile.</p>
-                  </div>
-                )
-              ) : (
-                <Table>
-                  <Thead>
-                    <Tr>
-                      <Th>Creator</Th>
-                      <Th className="text-center">Followers</Th>
-                      <Th className="text-center">Engagement</Th>
-                      <Th>Review Status</Th>
-                      <Th className="text-right">Actions</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {pagedLeads.map(lead => (
-                      <Tr key={lead.id}>
-                        <Td>
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-xs overflow-hidden">
-                              {lead.profile_pic ? (
-                                <img src={lead.profile_pic} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                (lead.full_name || lead.handle)?.charAt(0).toUpperCase()
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <button
-                                onClick={() => {
-                                  setPreviewCreator(lead);
-                                  setIsPreviewOpen(true);
-                                }}
-                                className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-left text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[140px]"
-                              >
-                                {lead.full_name || `@${lead.handle}`}
-                              </button>
-                              <div className="flex items-center gap-2 mt-1.5">
-                                {((lead.primary_platform)?.toLowerCase() === 'instagram' || lead.has_instagram) && (
-                                  <a
-                                    href={lead.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${lead.handle?.replace(/^@/, '')}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-[#E1306C] hover:scale-[1.02] transition-transform"
-                                    title="Instagram"
-                                  >
-                                    <Instagram size={14} />
-                                    <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(lead, 'instagram')}</span>
-                                  </a>
-                                )}
-                                {((lead.primary_platform)?.toLowerCase() === 'youtube' || lead.has_youtube) && (
-                                  <a
-                                    href={lead.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${lead.handle?.replace(/^@/, '')}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-[#FF0000] hover:scale-[1.02] transition-transform"
-                                    title="YouTube"
-                                  >
-                                    <Youtube size={14} />
-                                    <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(lead, 'youtube')}</span>
-                                  </a>
-                                )}
-                                {((lead.primary_platform)?.toLowerCase() === 'tiktok' || lead.has_tiktok) && (
-                                  <a
-                                    href={lead.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${lead.handle?.replace(/^@/, '')}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-gray-900 hover:scale-[1.02] transition-transform"
-                                    title="TikTok"
-                                  >
-                                    <Activity size={14} />
-                                    <span className="text-[11px] text-gray-500 normal-case tracking-normal">@{getPlatformHandle(lead, 'tiktok')}</span>
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </Td>
-                        <Td className="text-center">
-                          {(() => {
-                            const followers = getFollowers(lead);
-                            return <span className="text-sm text-gray-700 font-normal">{followers > 0 ? formatFollowers(followers) : '—'}</span>;
-                          })()}
-                        </Td>
-                        <Td className="text-center">
-                          {(() => {
-                            const engagement = getEngagement(lead);
-                            const followers = getFollowers(lead);
-                            const rating = getErRating(followers, engagement);
-                            return (
-                              <div className="flex flex-col items-center gap-1">
-                                <span className="text-sm text-gray-700 font-normal">{engagement > 0 ? `${engagement.toFixed(1)}%` : '—'}</span>
-                                {rating && (
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${rating.colorClass}`}>
-                                    {rating.label}
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </Td>
-                        <Td><StatusBadge status={['contacted', 'replied', 'engaged', 'qualified', 'converted', 'not_respond'].includes(lead.lifecycle_status || '') ? lead.lifecycle_status : (lead.review_status as any || 'pending')} /></Td>
-                        <Td className="text-right">
-                          {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
-                            <div className="flex items-center justify-end gap-2">
-                              {lead.review_status === 'rejected' && (
-                                <button
-                                  onClick={() => handleReview(lead.id, 'revoke')}
-                                  className="px-2.5 py-1 rounded text-[11px] font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
-                                  title="Revoke Rejection"
-                                >
-                                  Revoke
-                                </button>
-                              )}
-                              {lead.review_status !== 'approved' && lead.review_status !== 'rejected' && lead.lifecycle_status !== 'not_respond' && (
-                                <>
-                                  <button
-                                    onClick={() => handleReview(lead.id, 'approve')}
-                                    className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                                    title="Approve & Send Outreach"
-                                  >
-                                    <Check size={16} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleReview(lead.id, 'reject')}
-                                    className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                                    title="Reject"
-                                  >
-                                    <X size={16} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleReview(lead.id, (lead.review_status === 'shortlisted' || lead.review_status === 'pending_review') ? 'revoke' : 'shortlist')}
-                                    className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                                    title={(lead.review_status === 'shortlisted' || lead.review_status === 'pending_review') ? "Remove from Shortlist" : "Shortlist → Move to Review Queue"}
-                                  >
-                                    <Star size={16} fill={(lead.review_status === 'shortlisted' || lead.review_status === 'pending_review') ? "currentColor" : "none"} />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              )}
-              <Pagination
-                currentPage={currentPage}
-                totalItems={displayLeads.length}
-                pageSize={LEADS_PER_PAGE}
-                onPageChange={setCurrentPage}
-              />
-            </>
+            <CampaignLeadsTable
+              leads={leads}
+              userRole={user?.role || ''}
+              discovering={discovering}
+              discoveredOrder={discoveredOrder}
+              syncingLeads={syncingLeads}
+              handleSyncCampaignCreators={handleSyncCampaignCreators}
+              handleReview={handleReview}
+              setPreviewCreator={setPreviewCreator}
+              setIsPreviewOpen={setIsPreviewOpen}
+              selectedStatuses={selectedStatuses}
+              setSelectedStatuses={setSelectedStatuses}
+            />
           )}
 
-          {activeTab === 'analytics' && (
-            <div className="p-6 space-y-8 bg-white rounded-b-[12px]">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-gray-100">
-                <div>
-                  <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Campaign Analytics</h2>
-                  <p className="text-xs text-gray-500 uppercase tracking-widest mt-1">Aggregate views, engagement, costs, and conversion funnel</p>
-                </div>
-                <Button
-                  onClick={handleRecalculate}
-                  disabled={recalculating}
-                  className="bg-primary-600 hover:bg-primary-700 text-white font-normal uppercase tracking-widest text-[10px] h-10 px-4 self-stretch sm:self-auto"
-                  icon={recalculating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                >
-                  {recalculating ? 'Recalculating...' : 'Recalculate Performance'}
-                </Button>
-              </div>
-
-              {/* KPI Cards Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Total Content</div>
-                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">{perfData?.total_content || 0}</div>
-                </div>
-                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Published Content</div>
-                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">{perfData?.published_content || 0}</div>
-                </div>
-                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Total Views</div>
-                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">{perfData?.total_views ? formatFollowers(perfData.total_views) : 0}</div>
-                </div>
-                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Total Engagement</div>
-                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">{perfData?.total_engagement ? formatFollowers(perfData.total_engagement) : 0}</div>
-                </div>
-                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Avg ER</div>
-                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">{perfData?.avg_engagement_rate || '0.00'}%</div>
-                </div>
-                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Total Spend</div>
-                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">${perfData?.total_cost || 0}</div>
-                </div>
-                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">Total Revenue</div>
-                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">${perfData?.total_revenue || 0}</div>
-                </div>
-                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-                  <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">ROI</div>
-                  <div className="text-xl font-normal text-gray-900 font-outfit mt-1">
-                    {perfData?.roi !== null && perfData?.roi !== undefined ? `${Number(perfData.roi).toFixed(2)}x` : 'N/A'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Conversion Funnel Section */}
-              <div className="border-t border-gray-100 pt-6">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-900 mb-6">Campaign Conversion Funnel</h3>
-                <div className="space-y-4 max-w-2xl">
-                  {[
-                    { key: 'identified', label: 'Identified Leads' },
-                    { key: 'shortlisted', label: 'Shortlisted' },
-                    { key: 'outreach_sent', label: 'Outreach Sent' },
-                    { key: 'engaged', label: 'Engaged' },
-                    { key: 'meeting_scheduled', label: 'Meetings Scheduled' },
-                    { key: 'qualified', label: 'Qualified' },
-                    { key: 'offer_sent', label: 'Offers Sent' },
-                    { key: 'accepted', label: 'Accepted Offers' },
-                    { key: 'activated', label: 'Activated Partnerships' },
-                    { key: 'product_shipped', label: 'Product Shipped' },
-                    { key: 'product_delivered', label: 'Product Delivered' },
-                    { key: 'content_published', label: 'Content Live' },
-                    { key: 'completed', label: 'Completed' },
-                  ].map((stage) => {
-                    const val = funnelData?.[stage.key] || 0;
-                    const pct = funnelData?.identified > 0 ? Math.round((val / funnelData.identified) * 100) : 0;
-                    return (
-                      <div key={stage.key} className="flex items-center gap-4">
-                        <div className="w-44 text-xs font-normal text-gray-500 uppercase tracking-wider text-right">{stage.label}</div>
-                        <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden relative">
-                          <div
-                            className="bg-primary-600 h-full rounded-full transition-all duration-500"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <div className="w-24 text-xs font-bold text-gray-900 font-mono">
-                          {val} <span className="text-gray-400 font-normal text-[10px]">({pct}%)</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+          {(activeTab === 'analytics' || activeTab === 'activity') && (
+            <CampaignPerformancePanel
+              activeTab={activeTab}
+              perfData={perfData}
+              funnelData={funnelData}
+              activities={activities}
+              recalculating={recalculating}
+              handleRecalculate={handleRecalculate}
+            />
           )}
 
-          {activeTab === 'activity' && (
-            <div className="p-6 space-y-6 bg-white rounded-b-[12px]">
-              <div>
-                <h2 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">Activity Timeline</h2>
-                <p className="text-xs text-gray-500 uppercase tracking-widest mt-1">Real-time log of creator outreach, approvals, shipments, and content updates</p>
-              </div>
 
-              {activities.length === 0 ? (
-                <div className="text-center text-xs text-gray-500 py-12 italic">No activity recorded yet for this campaign.</div>
-              ) : (
-                <div className="relative border-l border-gray-150 ml-4 pl-6 space-y-6 mt-4">
-                  {activities.map((act) => {
-                    const timeStr = act.created_at || act.createdAt ? format(new Date(act.created_at || act.createdAt), 'MMM d, yyyy h:mm a') : 'N/A';
-
-                    const getActivityIcon = (type: string) => {
-                      switch (type) {
-                        case 'outreach_sent':
-                          return <Mail size={12} className="text-indigo-500" />;
-                        case 'content_approved':
-                        case 'offer_accepted':
-                        case 'payment_paid':
-                          return <Check size={12} className="text-emerald-500" />;
-                        case 'creator_shortlisted':
-                          return <Star size={12} className="text-blue-500" fill="currentColor" />;
-                        case 'engaged':
-                        case 'meeting_scheduled':
-                          return <Activity size={12} className="text-amber-500" />;
-                        default:
-                          return <Sparkles size={12} className="text-purple-500" />;
-                      }
-                    };
-
-                    return (
-                      <div key={act.id} className="relative group">
-                        <div className="absolute -left-[31px] top-1.5 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center transition-all group-hover:scale-110">
-                          {getActivityIcon(act.activity_type)}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs font-bold text-gray-900 font-outfit uppercase tracking-wider">{act.title}</span>
-                            <span className="text-[10px] text-gray-400 font-mono">{timeStr}</span>
-                          </div>
-                          {act.Creator && (
-                            <div className="text-[11px] text-gray-500 uppercase tracking-widest mt-0.5">
-                              Creator: <Link to={`/creators/${act.Creator.id}`} className="text-primary-600 hover:text-primary-700 font-medium">@{act.Creator.handle}</Link>
-                            </div>
-                          )}
-                          {act.description && (
-                            <p className="text-xs text-gray-600 mt-1.5 leading-relaxed">{act.description}</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </Card>
 
         <div className="space-y-6">
@@ -1130,63 +701,14 @@ export default function CampaignDetail() {
             </CardContent>
           </Card>
 
-          <Card className="border-primary-100 bg-primary-50/10">
-            <CardHeader className="flex flex-row justify-between items-center pb-2">
-              <h2 className="text-sm font-normal text-primary-700 uppercase tracking-widest flex items-center gap-2 font-outfit">
-                <Mail size={16} /> Outreach Template
-              </h2>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {templateSubject || templateBody ? (
-                <div className="space-y-3">
-                  <div>
-                    <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">Subject</div>
-                    <div className="text-sm text-gray-900 bg-white border border-gray-100 rounded-lg px-3 py-2">
-                      {templateSubject || <span className="text-gray-400 italic">No subject yet</span>}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">Body</div>
-                    <div className="text-sm text-gray-800 bg-white border border-gray-100 rounded-lg px-3 py-3 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
-                      {templateBody || <span className="text-gray-400 italic">No body yet</span>}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-6 px-4 bg-white/60 border border-dashed border-primary-200 rounded-lg">
-                  <Sparkles size={20} className="mx-auto text-primary-400 mb-2" />
-                  <p className="text-sm text-gray-600 mb-1">No outreach template yet</p>
-                  <p className="text-[11px] text-gray-400">Draft one with AI, or click Edit to write from scratch.</p>
-                </div>
-              )}
-
-              {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
-                <div className="space-y-2">
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      onClick={handleGenerateTemplate}
-                      disabled={generatingTemplate}
-                      className="w-full !bg-white hover:!bg-purple-50 !text-purple-700 !border !border-purple-200 shadow-sm"
-                      icon={generatingTemplate ? <LoadingState mini /> : <Sparkles size={16} />}
-                    >
-                      {generatingTemplate ? 'Drafting...' : (templateSubject || templateBody ? 'Regenerate with AI' : 'Draft with AI')}
-                    </Button>
-                    <Button
-                      onClick={handleEditTemplate}
-                      disabled={generatingTemplate}
-                      className="w-full bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-500/20"
-                      icon={<Edit2 size={14} />}
-                    >
-                      Edit Template
-                    </Button>
-                  </div>
-                  <p className="text-[10px] text-gray-400 text-center italic">
-                    AI uses this campaign's brand, offer, and audience to draft the email. Review in the editor and save when you're happy.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <CampaignTemplateEditor
+            templateSubject={templateSubject}
+            templateBody={templateBody}
+            handleEditTemplate={handleEditTemplate}
+            handleGenerateTemplate={handleGenerateTemplate}
+            generatingTemplate={generatingTemplate}
+            currentUserRole={user?.role || ''}
+          />
         </div>
       </div>
 

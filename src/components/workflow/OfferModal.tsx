@@ -375,7 +375,7 @@ export function OfferModal({ isOpen, onClose, partnership, onSuccess }: OfferMod
                             value={d.notes}
                             onChange={e => updateDeliverable(d.id, 'notes', e.target.value)}
                             rows={3}
-                            className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all resize-none"
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all resize-none max-h-32 overflow-y-auto"
                           />
                         </div>
                       </div>

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '../contexts/ToastContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -12,6 +15,8 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function Meetings() {
   const { user } = useAuth();
+  const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const [meetings, setMeetings] = useState<any[]>([]);
   const [creators, setCreators] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,8 +53,6 @@ export default function Meetings() {
             
             return isPositiveStatus || aiDetectedInterest || hasMessage;
           });
-          
-          console.log('DEBUG: Filtered Creators for Meetings:', filtered.length);
           setCreators(filtered);
         }
       })
@@ -61,10 +64,9 @@ export default function Meetings() {
     fetchMeetings();
   }, []);
 
-  // Debug log to track the state of creators
   useEffect(() => {
-    console.log('CURRENT CREATORS STATE:', creators);
-  }, [creators]);
+    fetchMeetings();
+  }, []);
 
   const handleInvite = async () => {
     if (!selectedCreatorId) return;
@@ -82,24 +84,30 @@ export default function Meetings() {
       // We use a placeholder date for now since it's not booked yet
       await bookMeeting(selectedCreatorId, creator?.campaign_id || '', new Date().toISOString(), JSON.stringify(metadata));
       
-      alert('Booking link sent! The creator has been added to the scheduling queue.');
+      showToast('Booking link sent! The creator has been added to the scheduling queue.', 'success');
       setIsInviteModalOpen(false);
       fetchMeetings();
     } catch (err) {
       console.error('Detailed Invite Error:', err);
-      alert('Failed to send invite: ' + (err instanceof Error ? err.message : String(err)));
+      showToast('Failed to send invite: ' + (err instanceof Error ? err.message : String(err)), 'error');
     }
   };
 
   const handleApprove = async (meetingId: string) => {
     try {
-      if (!window.confirm('Do you want to finalize this conversion, approve them as a partner, and generate an affiliate code?')) return;
+      const isConfirmed = await confirm({
+        title: 'Approve Partner',
+        message: 'Do you want to finalize this conversion, approve them as a partner, and generate an affiliate code?',
+        confirmText: 'Approve',
+        isDestructive: false
+      });
+      if (!isConfirmed) return;
       
       await approvePartner(meetingId); 
-      alert('Approved! Partner successfully onboarded and tracking code generated.');
+      showToast('Approved! Partner successfully onboarded and tracking code generated.', 'success');
       fetchMeetings();
     } catch (err) {
-      alert('Failed to finalize partner onboarding.');
+      showToast('Failed to finalize partner onboarding.', 'error');
     }
   };
 
@@ -130,7 +138,7 @@ export default function Meetings() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.2s_ease]">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Meetings & Conversions</h1>
@@ -214,14 +222,12 @@ export default function Meetings() {
             <LoadingState message="Synchronizing Meeting Pipeline..." />
           </div>
         ) : filteredMeetings.length === 0 ? (
-          <div className="p-16 text-center">
-             <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center text-primary-500 mx-auto mb-4">
-                <Calendar size={32} />
-             </div>
-             <h3 className="text-lg font-normal text-gray-900 font-outfit uppercase tracking-tight">No Meetings Found</h3>
-             <p className="text-gray-500 max-w-sm mt-1 mx-auto">
-               {searchQuery ? 'No creators match your search criteria.' : 'Leads that book a call via Calendly or manual links will automatically appear here.'}
-             </p>
+          <div className="py-8">
+            <EmptyState 
+              icon={Calendar} 
+              title="No Meetings Found" 
+              description={searchQuery ? 'No creators match your search criteria.' : 'Leads that book a call via Calendly or manual links will automatically appear here.'} 
+            />
           </div>
         ) : (
           <Table>

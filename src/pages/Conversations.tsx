@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '../contexts/ToastContext';
 import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { RefreshCw, MessageSquare, Mail, Search, ArrowLeft } from 'lucide-react';
@@ -9,6 +11,7 @@ import { format } from 'date-fns';
 import { LoadingState } from '../components/ui/LoadingState';
 
 export default function Conversations() {
+  const { showToast } = useToast();
   const [conversations, setConversations] = useState<Creator[]>([]);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,10 +67,10 @@ export default function Conversations() {
     setSyncing(true);
     try {
       const res = await syncConversations();
-      alert(`Sync complete! Pulled ${res.synced || 0} new messages.`);
+      showToast(`Sync complete! Pulled ${res.synced || 0} new messages.`, 'success');
       fetchConvos();
     } catch (err) {
-      alert('Failed to sync inbox emails.');
+      showToast('Failed to sync inbox emails.', 'error');
     } finally {
       setSyncing(false);
     }
@@ -110,7 +113,7 @@ export default function Conversations() {
   const activeConvo = conversations.find(c => c.id === activeId);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto h-[calc(100vh-100px)] flex flex-col pb-6 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-6 max-w-7xl mx-auto h-[calc(100vh-100px)] flex flex-col pb-6 animate-[fadeIn_0.2s_ease]">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 mb-1 font-outfit uppercase tracking-tight">Inbox & Conversations</h1>
@@ -147,9 +150,12 @@ export default function Conversations() {
                 <LoadingState message="Loading Conversations..." />
               </div>
             ) : conversations.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                <MessageSquare className="mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No inbound replies yet.</p>
+              <div className="p-4">
+                <EmptyState 
+                  icon={MessageSquare} 
+                  title="No Conversations" 
+                  description="No inbound replies yet." 
+                />
               </div>
             ) : (
               <div className="divide-y divide-gray-100">

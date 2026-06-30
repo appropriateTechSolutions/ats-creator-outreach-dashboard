@@ -3,7 +3,9 @@ import { getContents } from '../lib/api';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { LoadingState } from '../components/ui/LoadingState';
+import { EmptyState } from '../components/ui/EmptyState';
 import { format } from 'date-fns';
+import { BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Analytics() {
@@ -71,7 +73,7 @@ export default function Analytics() {
   }
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-16 px-4 sm:px-0 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-16 px-4 sm:px-0 animate-[fadeIn_0.2s_ease]">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-gray-100">
         <div>
@@ -101,8 +103,12 @@ export default function Analytics() {
               <tbody className="divide-y divide-gray-50">
                 {groupedAnalytics.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500 text-xs uppercase tracking-wider">
-                      No content deliverables recorded in the system.
+                    <td colSpan={7} className="p-12">
+                      <EmptyState 
+                        icon={BarChart3} 
+                        title="No Analytics" 
+                        description="No content deliverables recorded in the system." 
+                      />
                     </td>
                   </tr>
                 ) : (

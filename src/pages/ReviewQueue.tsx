@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '../contexts/ToastContext';
 import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { Check, X, FileText, Instagram, Youtube, Activity, Star } from 'lucide-react';
@@ -83,6 +85,7 @@ const getPrimaryProfileStats = (c: Creator) => {
 };
 
 export default function ReviewQueue() {
+  const { showToast } = useToast();
   const [queue, setQueue] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
@@ -123,7 +126,7 @@ export default function ReviewQueue() {
       await reviewLead(id, action);
       fetchQueue();
     } catch (err) {
-      alert('Failed to update creator: ' + err);
+      showToast('Failed to update creator: ' + err, 'error');
     } finally {
       setActionLoading(null);
     }
@@ -136,7 +139,7 @@ export default function ReviewQueue() {
       await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody);
       fetchQueue();
     } catch (err) {
-      alert('Failed to approve lead.');
+      showToast('Failed to approve lead.', 'error');
       throw err;
     } finally {
       setActionLoading(null);
@@ -152,7 +155,7 @@ export default function ReviewQueue() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.2s_ease]">
       <style>{`
         @media print {
           /* Hide non-printable layout items */
@@ -252,13 +255,13 @@ export default function ReviewQueue() {
 
       <Card className="no-print shadow-xl shadow-gray-200/50 border-gray-200 overflow-hidden">
         {queue.length === 0 ? (
-          <div className="p-16 text-center bg-primary-50/10">
-            <div className="w-16 h-16 bg-primary-100 text-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Check size={32} />
-            </div>
-            <h3 className="text-xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Queue Empty!</h3>
-            <p className="text-gray-500 mt-2 max-w-sm mx-auto">There are currently zero pending leads in the review queue. Great job maintaining inbox zero.</p>
-            <Button onClick={fetchQueue} variant="outline" className="mt-6">Refresh Queue</Button>
+          <div className="py-8">
+            <EmptyState 
+              icon={Check} 
+              title="Queue Empty!" 
+              description="There are currently zero pending leads in the review queue. Great job maintaining inbox zero." 
+              action={<Button onClick={fetchQueue} variant="outline">Refresh Queue</Button>} 
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -282,7 +285,16 @@ export default function ReviewQueue() {
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
                             {c.profile_pic ? (
-                              <img src={c.profile_pic} alt="" className="w-full h-full object-cover" />
+                              <img 
+                                src={c.profile_pic} 
+                                alt="" 
+                                className="w-full h-full object-cover" 
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.onerror = null;
+                                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.full_name || c.handle || 'C')}&background=E0E7FF&color=4338CA`;
+                                }}
+                              />
                             ) : (
                               (c.full_name || c.handle)?.charAt(0)
                             )}

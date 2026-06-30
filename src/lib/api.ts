@@ -202,13 +202,35 @@ export const getCampaignLeads = (campaignId: string): Promise<Creator[]> =>
 // caches the fully-assembled list.
 export const getAllCreators = (): Promise<Creator[]> =>
   cachedGet('creators', async () => {
-    const pageSize = 200;
-    const all: Creator[] = [];
-    for (let page = 1; ; page++) {
-      const batch = (await api.get('/creators', { params: { page, pageSize } })) as unknown as Creator[];
-      all.push(...batch);
-      if (!batch || batch.length < pageSize) break;
+    const pageSize = 500;
+    const token = localStorage.getItem('ats_token');
+    
+    // 1. Fetch first page with raw axios to bypass interceptor and read the 'total' count
+    const firstRes = await axios.get(`${api.defaults.baseURL}/creators`, { 
+      params: { page: 1, pageSize },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      withCredentials: true 
+    });
+    
+    if (!firstRes.data || !firstRes.data.success) throw new Error('Failed to load creators');
+    
+    const all: Creator[] = firstRes.data.data || [];
+    const total = firstRes.data.total || 0;
+    
+    // 2. Fetch all remaining pages perfectly in parallel
+    if (total > pageSize) {
+      const promises = [];
+      const totalPages = Math.ceil(total / pageSize);
+      for (let p = 2; p <= totalPages; p++) {
+        // We can safely use the 'api' instance here since the interceptor unwraps to the array
+        promises.push(api.get('/creators', { params: { page: p, pageSize } }) as unknown as Promise<Creator[]>);
+      }
+      const results = await Promise.all(promises);
+      results.forEach(batch => {
+        if (Array.isArray(batch)) all.push(...batch);
+      });
     }
+    
     return all;
   });
 export const getCreatorById = (creatorId: string): Promise<Creator> => api.get(`/creators/${creatorId}`);

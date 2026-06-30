@@ -328,23 +328,16 @@ export default function Partnerships() {
                 </select>
               </div>
 
-              {/* Date Range Selector */}
-              <div className="flex flex-col gap-1.5 lg:col-span-1">
+              {/* Date Selector */}
+              <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Date</label>
-                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg py-1.5 px-3 shadow-sm text-xs font-outfit w-full">
-                  <Calendar size={12} className="text-gray-400 flex-shrink-0" />
+                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg py-2 px-3 shadow-sm text-xs font-outfit w-full">
+                  <Calendar size={14} className="text-gray-400 flex-shrink-0" />
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer w-full text-[11px]"
-                  />
-                  <span className="text-gray-200">|</span>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer w-full text-[11px]"
+                    className="bg-transparent border-none text-gray-700 outline-none focus:ring-0 p-0 cursor-pointer w-full text-xs placeholder-gray-400 font-medium"
                   />
                 </div>
               </div>
@@ -385,7 +378,16 @@ export default function Partnerships() {
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
                           {p.Creator?.profile_pic ? (
-                            <img src={p.Creator.profile_pic} alt="" className="w-full h-full object-cover" />
+                            <img 
+                              src={p.Creator.profile_pic} 
+                              alt="" 
+                              className="w-full h-full object-cover" 
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.onerror = null;
+                                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.Creator.full_name || p.Creator.handle || 'C')}&background=E0E7FF&color=4338CA`;
+                              }}
+                            />
                           ) : (
                             (p.Creator?.full_name || p.Creator?.handle)?.charAt(0) || 'C'
                           )}

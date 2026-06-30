@@ -5,7 +5,9 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { Users, Mail, MessageSquare, Target, CheckCircle, Activity, Clock, Sparkles, Instagram, Youtube, ChevronDown } from 'lucide-react';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Button } from '../components/ui/Button';
+import { Users, Mail, MessageSquare, Target, CheckCircle, Activity, Clock, Sparkles, Instagram, Youtube, ChevronDown, AlertCircle } from 'lucide-react';
 import { LoadingState } from '../components/ui/LoadingState';
 import { getCampaigns, getAllCreators, getDashboardStats } from '../lib/api';
 import type { Campaign, Creator } from '../types';
@@ -145,13 +147,16 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.2s_ease]">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Dashboard</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-1">Overview of your influencer marketing performance.</p>
+        </div>
         <div className="relative w-full sm:w-72 z-20">
           <button
             onClick={toggleDropdown}
-            className="w-full flex items-center justify-between bg-white border border-gray-300 text-gray-900 text-sm rounded-lg px-4 py-2.5 shadow-sm font-normal outline-none text-left"
+            className="w-full flex items-center justify-between bg-gray-50/50 hover:bg-gray-50 border border-gray-200/60 text-gray-900 text-sm rounded-xl px-4 py-2.5 shadow-sm font-medium outline-none text-left transition-all focus:ring-2 focus:ring-primary-500/20"
           >
             <span className="truncate">
               {selectedCampaignId 
@@ -194,9 +199,18 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {loading || !stats ? (
+      {loading ? (
         <div className="py-24">
           <LoadingState message="Syncing CRM Intelligence..." />
+        </div>
+      ) : !stats ? (
+        <div className="py-12">
+          <EmptyState 
+            icon={AlertCircle} 
+            title="Dashboard Unavailable" 
+            description="We couldn't load the dashboard metrics. Please check your connection and try again." 
+            action={<Button onClick={() => fetchStats(selectedCampaignId)}>Retry</Button>} 
+          />
         </div>
       ) : (
         <>
@@ -405,7 +419,7 @@ export default function Dashboard() {
            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
              <Card className="lg:col-span-2">
                <CardHeader>
-                 <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">Top Discovery Leads</h2>
+                  <h2 className="text-base font-semibold text-gray-900 tracking-tight">Top Discovery Leads</h2>
                </CardHeader>
                {topCreators.length === 0 ? (
                  <div className="p-12 text-center text-gray-500">No pending leads. Trigger AI discovery inside a Campaign!</div>
@@ -429,7 +443,7 @@ export default function Dashboard() {
                               {(c.full_name || c.handle)?.charAt(0)}
                             </div>
                             <div className="min-w-0">
-                               <Link to={`/creators/${c.id}`} className="font-normal text-gray-900 font-outfit uppercase tracking-tight hover:text-primary-600 transition-colors text-xs leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
+                               <Link to={`/creators/${c.id}`} className="font-medium text-gray-900 tracking-tight hover:text-primary-600 transition-colors text-sm leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
                                  {c.full_name || `@${c.handle}`}
                                </Link>
                                <div className="flex items-center gap-2 mt-1.5">

@@ -42,9 +42,7 @@ export function StatusBadge({ status }: { status: StatusType }) {
     case 'activated':
       variant = 'primary';
       break;
-    case 'not_respond':
-      variant = 'warning';
-      break;
+
     case 'inactive':
     case 'archived':
     case 'hold':

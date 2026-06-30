@@ -14,6 +14,13 @@ import { InfoTip } from '../components/ui/InfoTip';
 import { useAuth } from '../contexts/AuthContext';
 import { Modal } from '../components/ui/Modal';
 import { DiscussionModal } from '../components/workflow/DiscussionModal';
+import { CreatorShipmentsSection } from '../components/creators/CreatorShipmentsSection';
+import { CreatorContentSection } from '../components/creators/CreatorContentSection';
+import { CreatorPartnershipsSection } from '../components/creators/CreatorPartnershipsSection';
+import { CreatorConversationPanel } from '../components/creators/CreatorConversationPanel';
+import { CreatorProfileHeader } from '../components/creators/CreatorProfileHeader';
+import { useToast } from '../contexts/ToastContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { format } from 'date-fns';
 
 export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
@@ -53,6 +60,8 @@ export default function CreatorDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [creator, setCreator] = useState<Creator | null>(null);
   const [, setCampaign] = useState<Campaign | null>(null);
@@ -281,10 +290,10 @@ export default function CreatorDetail() {
       setSyncingProfile(true);
       await syncCreator(creatorId, creator?.campaign_id || undefined);
       await loadData(true);
-      alert('Successfully synced Instagram profile!');
+      showToast('Successfully synced Instagram profile!', 'success');
     } catch (err: any) {
       const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || String(err);
-      alert('Sync failed: ' + errMsg);
+      showToast('Sync failed: ' + errMsg, 'error');
     } finally {
       setSyncingProfile(false);
     }
@@ -302,7 +311,13 @@ export default function CreatorDetail() {
       } else if (action === 'complete') {
         await completePartnership(partnershipId);
       } else if (action === 'reject') {
-        if (window.confirm('Are you sure you want to reject this partnership?')) {
+        const isConfirmed = await confirm({
+          title: 'Reject Partnership',
+          message: 'Are you sure you want to reject this partnership?',
+          confirmText: 'Reject',
+          isDestructive: true
+        });
+        if (isConfirmed) {
           await rejectPartnership(partnershipId);
         } else {
           setPartnershipsLoading(false);
@@ -311,7 +326,7 @@ export default function CreatorDetail() {
       }
       await loadData(true);
     } catch (err) {
-      alert('Action failed: ' + err);
+      showToast('Action failed: ' + err, 'error');
     } finally {
       setPartnershipsLoading(false);
     }
@@ -335,9 +350,10 @@ export default function CreatorDetail() {
       
       setShowRevisionModal(false);
       await loadData(true);
-      alert('Revision request logged and email sent to creator!');
+      setShowRevisionModal(false);
+      showToast('Revision request logged and email sent to creator!', 'success');
     } catch (err: any) {
-      alert('Failed to request revision: ' + (err.message || err));
+      showToast('Failed to request revision: ' + (err.message || err), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -385,7 +401,7 @@ export default function CreatorDetail() {
       }
       await loadData(true);
     } catch (err: any) {
-      alert('Content action failed: ' + (err.message || err));
+      showToast('Content action failed: ' + (err.message || err), 'error');
     } finally {
       setContentActionLoading(false);
     }
@@ -404,7 +420,7 @@ export default function CreatorDetail() {
       }
       await loadData(true);
     } catch (err: any) {
-      alert('Action failed: ' + (err.message || err));
+      showToast('Action failed: ' + (err.message || err), 'error');
     } finally {
       setContentActionLoading(false);
     }
@@ -447,10 +463,10 @@ export default function CreatorDetail() {
         contentEmailBody,
         'initial'
       );
-      alert('Deliverable requirements email sent to creator successfully!');
       setShowContentEmailModal(false);
+      showToast('Deliverable requirements email sent to creator successfully!', 'success');
     } catch (err: any) {
-      alert('Failed to send email: ' + (err.message || err));
+      showToast('Failed to send email: ' + (err.message || err), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -485,7 +501,7 @@ export default function CreatorDetail() {
       setShowEditContentModal(false);
       await loadData(true);
     } catch (err: any) {
-      alert('Failed to update deliverable: ' + (err.message || err));
+      showToast('Failed to update deliverable: ' + (err.message || err), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -494,7 +510,7 @@ export default function CreatorDetail() {
   const handleAddContentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contentForm.campaign_id) {
-      alert("Please select a Campaign");
+      showToast("Please select a Campaign", 'error');
       return;
     }
     try {
@@ -516,7 +532,7 @@ export default function CreatorDetail() {
       }));
       await loadData(true);
     } catch (err: any) {
-      alert('Failed to add content requirement: ' + (err.message || err));
+      showToast('Failed to add content requirement: ' + (err.message || err), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -543,8 +559,7 @@ export default function CreatorDetail() {
       setShowDiscussionModal(false);
       await loadData(true);
     } catch (err: any) {
-      alert(`Failed to send discussion email: ${err.response?.data?.message || err.message || err}`);
-      console.error(err);
+      showToast(`Failed to send discussion email: ${err.response?.data?.message || err.message || err}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -566,7 +581,7 @@ export default function CreatorDetail() {
       setShowOfferModal(false);
       await loadData(true);
     } catch (err) {
-      alert('Failed to send offer: ' + err);
+      showToast('Failed to send offer: ' + err, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -605,7 +620,7 @@ export default function CreatorDetail() {
       setShowEditModal(false);
       await loadData(true);
     } catch (err) {
-      alert('Failed to update details: ' + err);
+      showToast('Failed to update details: ' + err, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -672,19 +687,19 @@ export default function CreatorDetail() {
     const file = event.target.files?.[0];
     if (!file || !creator) return;
 
-    if (file.type !== 'application/pdf') {
-      alert('Only PDF reports or media kits are supported.');
+    if (!['application/pdf'].includes(file.type)) {
+      showToast('Only PDF reports or media kits are supported.', 'error');
       return;
     }
 
     setUploadingMediaKit(true);
     try {
       await uploadMediaKit(creator.id, file);
-      alert('Media kit PDF uploaded and parsed successfully!');
-      loadData(true);
+      await loadData(true);
+      showToast('Media kit PDF uploaded and parsed successfully!', 'success');
     } catch (err: any) {
       console.error(err);
-      alert(err?.error || err?.message || 'Failed to parse media kit PDF.');
+      showToast(err?.error || err?.message || 'Failed to parse media kit PDF.', 'error');
     } finally {
       setUploadingMediaKit(false);
     }
@@ -914,7 +929,7 @@ export default function CreatorDetail() {
   const fromLabel = (location.state as any)?.fromLabel;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.3s_ease] px-4 sm:px-0">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.2s_ease] px-4 sm:px-0">
       <style>{`
         @media print {
           /* Hide non-printable layout items */
@@ -976,205 +991,26 @@ export default function CreatorDetail() {
         }
       `}</style>
 
-      {/* Print-only Branded Header */}
-      <div className="hidden print:flex items-center justify-between border-b-2 border-gray-900 pb-4 mb-6">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl font-extrabold tracking-widest text-primary-600 font-outfit">ATS</span>
-          <span className="text-xs text-gray-400 uppercase tracking-widest border-l pl-3 border-gray-300 font-medium">Outreach Platform</span>
-        </div>
-        <div className="text-right">
-          <p className="text-sm font-bold text-gray-800 uppercase tracking-wider">Influencer Demographics Report</p>
-          <p className="text-xs text-gray-400">{new Date().toLocaleDateString()}</p>
-        </div>
-      </div>
-
-      {fromPath ? (
-        <Link to={fromPath} className="no-print inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
-          <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO {fromLabel || 'CONTENT'}
-        </Link>
-      ) : fromCampaignId ? (
-        <Link to={`/campaigns/${fromCampaignId}`} className="no-print inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
-          <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO CAMPAIGN
-        </Link>
-      ) : (fromMyCreators || creator?.lifecycle_status === 'engaged') ? (
-        <Link to="/my-creators" className="no-print inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
-          <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO MY CREATORS
-        </Link>
-      ) : (
-        <Link to="/creators" className="no-print inline-flex items-center text-[10px] font-normal text-gray-400 hover:text-primary-600 transition-colors group tracking-widest uppercase mb-1">
-          <ArrowLeft size={14} className="mr-1 group-hover:-translate-x-1 transition-transform" /> BACK TO DIRECTORY
-        </Link>
-      )}
-
       <Card>
-        <div className="bg-gradient-to-r from-gray-50 to-white px-6 sm:px-8 py-8 border-b border-gray-100 flex flex-col lg:flex-row items-start gap-6 rounded-t-[12px]">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 min-w-0 flex-1">
-             <div
-               onClick={() => creator.profile_pic && setLightboxOpen(true)}
-               className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-primary-600 text-white flex items-center justify-center font-normal text-5xl sm:text-6xl uppercase shadow-xl shadow-primary-500/30 ring-4 ring-white font-outfit shrink-0 overflow-hidden ${creator.profile_pic ? 'cursor-zoom-in' : ''}`}
-             >
-               {creator.profile_pic ? (
-                 <img src={creator.profile_pic} alt={creator.full_name || creator.handle || ''} loading="lazy" className="w-full h-full object-cover" />
-               ) : (
-                 creator.handle?.charAt(0)
-               )}
-             </div>
-            <div className="min-w-0">
-               <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight truncate leading-tight">
-                 {creator.full_name || 'No full name provided'}
-               </h1>
-               <div className="mt-1">
-                 <a 
-                  href={
-                    (() => {
-                      const igProfile = creator.profiles?.find(p => p.platform.toLowerCase() === 'instagram');
-                      if (igProfile?.profile_url) return igProfile.profile_url;
-                      if (creator.profile_url && !creator.profile_url.includes('scontent')) return creator.profile_url;
-                      return `https://instagram.com/${creator.handle?.replace(/^@/, '')}`;
-                    })()
-                  } 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="hover:text-primary-600 transition-colors flex items-center gap-2 group"
-                >
-                  <span className="text-gray-500 font-medium text-lg truncate">@{creator.handle?.replace(/^@/, '')}</span>
-                  <ExternalLink size={18} className="text-gray-300 group-hover:text-primary-400 transition-colors shrink-0" />
-                </a>
-               </div>
-              <div className="flex flex-wrap gap-4 mt-3">
-                {creator.has_instagram && (
-                  <a 
-                    href={creator.profiles?.find(p => p.platform.toLowerCase() === 'instagram')?.profile_url || `https://instagram.com/${creator.handle?.replace(/^@/, '')}`} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="text-[#E1306C] hover:scale-105 transition-transform flex items-center gap-1"
-                  >
-                    <Instagram size={16} />
-                     <span className="text-xs font-normal">Instagram</span>
-                  </a>
-                )}
-                {creator.has_youtube && (
-                  <a 
-                    href={creator.profiles?.find(p => p.platform.toLowerCase() === 'youtube')?.profile_url || `https://youtube.com/@${creator.handle?.replace(/^@/, '')}`} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="text-[#FF0000] hover:scale-105 transition-transform flex items-center gap-1"
-                  >
-                    <Youtube size={16} />
-                     <span className="text-xs font-normal">YouTube</span>
-                  </a>
-                )}
-                {creator.has_tiktok && (
-                  <a 
-                    href={creator.profiles?.find(p => p.platform.toLowerCase() === 'tiktok')?.profile_url || `https://tiktok.com/@${creator.handle?.replace(/^@/, '')}`} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="text-gray-900 hover:scale-105 transition-transform flex items-center gap-1"
-                  >
-                    <Activity size={16} />
-                     <span className="text-xs font-normal">TikTok</span>
-                  </a>
-                )}
-              </div>
-              
-              {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
-                <div className="no-print flex items-center gap-2.5 mt-4">
-                  {creator.review_status === 'rejected' && (
-                    <button
-                      onClick={() => handleReview('revoke')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
-                      title="Revoke Rejection"
-                    >
-                      Revoke Rejection
-                    </button>
-                  )}
-                  {creator.review_status !== 'approved' && creator.review_status !== 'rejected' && creator.lifecycle_status !== 'not_respond' && (
-                    <>
-                      <button 
-                        onClick={() => handleReview('approve')}
-                        className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors flex items-center justify-center shadow-sm"
-                        title="Approve & Send Outreach"
-                      >
-                        <Check size={18} />
-                      </button>
-                      <button 
-                        onClick={() => handleReview('reject')}
-                        className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center justify-center shadow-sm"
-                        title="Reject"
-                      >
-                        <X size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleReview((creator.review_status === 'shortlisted' || creator.review_status === 'pending_review') ? 'revoke' : 'shortlist')}
-                        className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center justify-center shadow-sm"
-                        title={(creator.review_status === 'shortlisted' || creator.review_status === 'pending_review') ? "Remove from Shortlist" : "Shortlist → Move to Review Queue"}
-                      >
-                        <Star size={18} fill={(creator.review_status === 'shortlisted' || creator.review_status === 'pending_review') ? "currentColor" : "none"} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col items-start lg:items-end gap-3 w-full lg:w-auto">
-            <StatusBadge status={['contacted', 'replied', 'engaged', 'qualified', 'converted', 'not_respond'].includes(creator.lifecycle_status || '') ? creator.lifecycle_status : (creator.review_status as any || 'pending')} />
-            <div className="flex items-center gap-2 mt-2">
-               <span className="text-xs font-normal text-gray-400 uppercase">Readiness:</span>
-               <InfoTip text="Readiness score (0–100) estimates how well this creator fits the campaign and how likely they are to convert — based on audience size, engagement, niche/category match, and profile completeness. Higher is better." />
-               <ScoreBadge score={creator.outreach_readiness_score || 0} />
-            </div>
-            {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
-              <div className="no-print flex flex-col gap-2 w-full mt-1">
-                <Button
-                  variant="outline"
-                  className="w-full border-primary-100 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal"
-                  onClick={handleFindSimilar}
-                  disabled={findingSimilar}
-                >
-                  {findingSimilar ? <RefreshCw size={13} className="animate-spin text-primary-600" /> : <Users size={13} className="text-primary-600" />}
-                  {findingSimilar ? 'Searching...' : 'Find Similar'}
-                </Button>
-                <Button
-                  className="w-full bg-pink-600 hover:bg-pink-700 shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all shadow-sm"
-                  onClick={handleSendDM}
-                >
-                  <Instagram size={13} />
-                  Send DM
-                </Button>
-                {creator.email && (
-                  <Button
-                    className={`w-full ${
-                      isFollowUpDue()
-                        ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/40 animate-pulse text-white'
-                        : isWaitingForFollowUp()
-                          ? 'bg-emerald-50 text-emerald-700 cursor-not-allowed border border-emerald-200'
-                          : 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/20 text-white'
-                    } flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all shadow-sm`}
-                    onClick={handleSendOutreach}
-                    disabled={sendingEmail || creator.review_status === 'rejected' || isWaitingForFollowUp()}
-                  >
-                    {sendingEmail ? <LoadingState mini /> : (isFollowUpDue() ? <Clock size={13} /> : isWaitingForFollowUp() ? <Check size={13} className="text-emerald-600" /> : <Send size={13} />)}
-                    {isFollowUpDue()
-                      ? `Follow-up #${(creator.latest_outreach?.follow_up_count || 0) + 1}`
-                      : isWaitingForFollowUp()
-                        ? 'Sent · Awaiting Reply'
-                        : (creator.latest_outreach ? 'Resend' : 'Send Outreach')}
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  className="w-full border-gray-200 text-gray-750 hover:bg-gray-50 flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all"
-                  onClick={handleSyncCreator}
-                  disabled={syncingProfile}
-                >
-                  {syncingProfile ? <RefreshCw size={13} className="animate-spin text-primary-600" /> : <RefreshCw size={13} className="text-gray-550" />}
-                  {syncingProfile ? 'Syncing...' : 'Sync Profile'}
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
+        <CreatorProfileHeader
+          creator={creator}
+          currentUser={currentUser}
+          fromPath={fromPath}
+          fromLabel={fromLabel}
+          fromCampaignId={fromCampaignId}
+          fromMyCreators={fromMyCreators}
+          setLightboxOpen={setLightboxOpen}
+          handleReview={handleReview}
+          handleFindSimilar={handleFindSimilar}
+          findingSimilar={findingSimilar}
+          handleSendDM={handleSendDM}
+          handleSendOutreach={handleSendOutreach}
+          sendingEmail={sendingEmail}
+          isFollowUpDue={isFollowUpDue}
+          isWaitingForFollowUp={isWaitingForFollowUp}
+          handleSyncCreator={handleSyncCreator}
+          syncingProfile={syncingProfile}
+        />
 
         {/* Creator Insights Section (Summary, Bio, Email, Location) */}
         <div className="px-8 py-6 bg-primary-50/30 border-b border-gray-100">
@@ -1794,121 +1630,15 @@ export default function CreatorDetail() {
       </Card>
 
       {/* Conversation History Section */}
-      <Card className="no-print" id="conversation-section">
-        <CardHeader className="border-b border-gray-100 flex flex-row items-center justify-between py-4">
-          <div className="flex items-center gap-2 font-normal text-gray-900 uppercase tracking-widest text-sm font-outfit">
-            <MessageCircle size={18} className="text-primary-600" />
-            Conversation History
-          </div>
-          {creator.conversation?.detected_intent && (
-            <div className={`px-3 py-1 rounded-full text-[10px] font-normal uppercase tracking-wider ${
-              creator.conversation.detected_intent === 'interested' ? 'bg-green-100 text-green-700' :
-              creator.conversation.detected_intent === 'not_interested' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-            }`}>
-              Intent: {creator.conversation.detected_intent.replace('_', ' ')}
-            </div>
-          )}
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="max-h-[400px] overflow-y-auto p-6 space-y-6 bg-gray-50/50">
-            {messages.length === 0 && ((creator as any).OutreachLogs?.length === 0 || !(creator as any).OutreachLogs) ? (
-              <div className="text-center py-12 text-gray-400 italic text-sm">
-                No outreach messages or replies found for this creator yet.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {(() => {
-                  const combined = [
-                    ...((creator as any).OutreachLogs || []).map((log: any) => {
-                      const logTime = log.sent_at || log.sentAt || log.created_at || log.createdAt || Date.now();
-                      return {
-                        id: log.id,
-                        type: 'outreach',
-                        direction: 'outbound',
-                        channel: log.channel,
-                        subject: log.subject_line,
-                        text: log.message_content,
-                        time: new Date(logTime).getTime(),
-                        message_type: log.message_type
-                      };
-                    }),
-                    ...messages.map((msg: any) => ({
-                      id: msg.id,
-                      type: 'message',
-                      direction: msg.direction,
-                      channel: msg.channel,
-                      text: msg.message_text,
-                      time: new Date(msg.message_time || msg.messageTime || Date.now()).getTime()
-                    }))
-                  ].sort((a, b) => a.time - b.time);
-
-                  return combined.map((item, idx) => (
-                    <div key={idx} className={`flex flex-col ${item.direction === 'inbound' ? 'items-start mr-auto' : 'items-end ml-auto'} max-w-[85%]`}>
-                      <div className={`p-4 rounded-2xl shadow-md text-sm ${
-                        item.direction === 'inbound' 
-                          ? 'bg-gray-100 text-gray-900 rounded-tl-none border border-gray-200' 
-                          : 'bg-indigo-600 text-white rounded-tr-none'
-                      }`}>
-                        <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 flex items-center gap-1 ${
-                          item.direction === 'inbound' ? 'text-gray-500' : 'text-indigo-100'
-                        }`}>
-                          {item.direction === 'inbound' ? (
-                            <>
-                              {creator.full_name || creator.handle} ({item.channel})
-                            </>
-                          ) : (
-                            <>
-                              <Mail size={10} /> {item.type === 'outreach' ? (item.message_type === 'discovery' ? `Discussion Sent (${item.channel})` : `Outreach Sent (${item.channel})`) : 'You (ATS Agent)'}
-                            </>
-                          )}
-                        </p>
-                        {item.subject && <p className={`font-bold border-b pb-2 mb-2 ${
-                          item.direction === 'inbound' ? 'border-gray-200' : 'border-white/20'
-                        }`}>Sub: {item.subject}</p>}
-                        <p className="whitespace-pre-wrap leading-relaxed font-medium">
-                          {item.type === 'message' ? cleanMessageText(item.text) : (item.text || 'Initial outreach triggered by system.')}
-                        </p>
-                      </div>
-                      <span className="text-[10px] text-gray-500 mt-1.5 font-semibold">
-                        {new Date(item.time).toLocaleString()}
-                      </span>
-                    </div>
-                  ));
-                })()}
-              </div>
-            )}
-          </div>
-          
-          {/* Action Buttons for Conversation */}
-          {partnerships.length > 0 && (
-            <div className="p-4 border-t border-gray-100 bg-white flex justify-end gap-3">
-              {(partnerships[0].status === 'replied' || partnerships[0].status === 'in_discussion' || creator.lifecycle_status === 'replied') && (
-                <>
-                  <Button 
-                    onClick={() => {
-                      setActivePartnership(partnerships[0]);
-                      setShowDiscussionModal(true);
-                    }}
-                    variant="outline"
-                    className="text-gray-700 text-xs uppercase tracking-widest font-normal border-gray-200"
-                  >
-                    Start / Continue Discussion
-                  </Button>
-                  <Button 
-                    onClick={() => {
-                      setActivePartnership(partnerships[0]);
-                      setShowOfferModal(true);
-                    }}
-                    className="bg-primary-600 hover:bg-primary-700 text-white text-xs uppercase tracking-widest font-normal"
-                  >
-                    Draft Offer
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <CreatorConversationPanel
+        creator={creator}
+        messages={messages}
+        cleanMessageText={cleanMessageText}
+        partnerships={partnerships}
+        setActivePartnership={setActivePartnership}
+        setShowDiscussionModal={setShowDiscussionModal}
+        setShowOfferModal={setShowOfferModal}
+      />
 
       {creator.lifecycle_status && ['engaged', 'qualified', 'offered', 'accepted', 'activated', 'converted', 'completed'].includes(creator.lifecycle_status) && (
         <>
@@ -2078,345 +1808,37 @@ export default function CreatorDetail() {
         </div>
 
         {activeTab === 'partnerships' && (
-          <div className="p-6">
-            {partnershipsLoading ? (
-              <LoadingState message="Syncing partnerships..." />
-            ) : partnerships.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
-                No campaign partnerships found for this creator yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[700px]">
-                  <thead>
-                    <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-                      <th className="px-4 py-3">Campaign</th>
-                      <th className="px-4 py-3 text-center">Status</th>
-                      <th className="px-4 py-3 text-center">Tier</th>
-                      <th className="px-4 py-3">Offer parameters</th>
-                      <th className="px-4 py-3 text-center">Start Date</th>
-                      <th className="px-4 py-3 text-center">End Date</th>
-                      <th className="px-4 py-3 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {partnerships.map((p) => (
-                      <tr key={p.id} onClick={() => navigate(`/partnerships/${p.id}`, { state: { fromCreatorId: id } })} className="hover:bg-primary-50/10 transition-colors cursor-pointer">
-                        <td className="px-4 py-4 align-middle">
-                          <div className="text-xs font-normal text-gray-900 font-outfit uppercase tracking-tight">
-                            {p.Campaign?.name}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-center align-middle">
-                          <StatusBadge status={p.status} />
-                        </td>
-                        <td className="px-4 py-4 text-center align-middle">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-gray-100 text-gray-600 uppercase tracking-wider">
-                            {p.creator_tier?.replace('_', ' ') || 'unknown'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 align-middle text-xs">
-                          {p.offer_type ? (
-                            <div className="space-y-1">
-                              <div className="font-medium text-gray-800 uppercase flex items-center gap-1">
-                                <Coins size={10} className="text-amber-500" /> {p.offer_type.replace('_', ' ')}
-                              </div>
-                              {p.flat_fee > 0 && <div className="text-gray-500">${p.flat_fee} {p.currency}</div>}
-                              {p.affiliate_enabled && (
-                                <div className="text-primary-600 bg-primary-50/50 border border-primary-100/50 rounded px-1.5 py-0.5 inline-block text-[9px] uppercase font-mono mt-0.5">
-                                  Code: {p.affiliate_code || '---'} ({p.affiliate_percentage || 0}%)
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400 italic">No offer drafted</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-4 text-center align-middle text-[11px] text-gray-500 font-mono">
-                          {p.start_date ? format(new Date(p.start_date), 'MMM d, yyyy') : '---'}
-                        </td>
-                        <td className="px-4 py-4 text-center align-middle text-[11px] text-gray-500 font-mono">
-                          {p.end_date ? format(new Date(p.end_date), 'MMM d, yyyy') : '---'}
-                        </td>
-                        <td className="px-4 py-4 align-middle relative z-10" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-2">
-                            {p.status === 'engaged' && (
-                              <Button size="sm" className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'qualify')}>
-                                Qualify
-                              </Button>
-                            )}
-                            {p.status === 'qualified' && (
-                              <Button size="sm" className="bg-primary-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => openOfferModal(p)}>
-                                Send Offer
-                              </Button>
-                            )}
-                            {p.status === 'offer_sent' && (
-                              <Button size="sm" className="bg-green-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'accept')}>
-                                Accept Offer
-                              </Button>
-                            )}
-                            {['accepted', 'product_shipped', 'product_delivered'].includes(p.status) && (
-                              <Button size="sm" className="bg-amber-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'activate')}>
-                                Activate
-                              </Button>
-                            )}
-                            {p.status === 'activated' && (
-                              <Button size="sm" className="bg-gray-800 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handlePartnershipAction(p.id, 'complete')}>
-                                Complete
-                              </Button>
-                            )}
-                            <button 
-                              onClick={() => openEditModal(p)}
-                              className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                              title="Edit parameters"
-                            >
-                              <Edit3 size={14} />
-                            </button>
-                            {p.status !== 'rejected' && p.status !== 'completed' && (
-                              <button 
-                                onClick={() => handlePartnershipAction(p.id, 'reject')}
-                                className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors font-bold text-sm leading-none"
-                                title="Reject partnership"
-                              >
-                                &times;
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <CreatorPartnershipsSection
+            partnerships={partnerships}
+            partnershipsLoading={partnershipsLoading}
+            creatorId={id || ''}
+            handlePartnershipAction={handlePartnershipAction}
+            openOfferModal={openOfferModal}
+            openEditModal={openEditModal}
+          />
         )}
 
         {activeTab === 'shipments' && (
           <div className="p-6 space-y-4">
-            {creatorShipments.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 italic text-sm font-outfit">
-                No shipments dispatched to this creator yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[800px]">
-                  <thead>
-                    <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-                      <th className="px-4 py-3">Campaign</th>
-                      <th className="px-4 py-3">Product Name</th>
-                      <th className="px-4 py-3">Recipient</th>
-                      <th className="px-4 py-3 text-center">Status</th>
-                      <th className="px-4 py-3">Tracking</th>
-                      <th className="px-4 py-3 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 bg-white">
-                    {creatorShipments.map((s) => (
-                      <tr key={s.id} onClick={() => navigate(`/shipments/${s.id}`, { state: { fromCreatorId: id } })} className="hover:bg-primary-50/10 transition-colors cursor-pointer">
-                        <td className="px-4 py-4 align-middle">
-                          <div className="text-xs font-normal text-gray-900 font-outfit uppercase tracking-tight whitespace-nowrap">
-                            {s.Campaign?.name}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <div className="text-xs font-medium text-gray-800">{s.product_name}</div>
-                          <div className="text-[10px] text-gray-400">Qty: {s.quantity} {s.product_sku ? `(SKU: ${s.product_sku})` : ''}</div>
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <div className="text-xs text-gray-800">{s.recipient_name}</div>
-                          <div className="text-[10px] text-gray-500 truncate max-w-[180px]" title={s.shipping_address_line1}>{s.shipping_address_line1}</div>
-                        </td>
-                        <td className="px-4 py-4 text-center align-middle">
-                          <StatusBadge status={s.status} />
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          {s.tracking_number ? (
-                            <div>
-                              <div className="text-xs font-mono font-medium text-gray-800 flex items-center gap-1">
-                                <Truck size={10} className="text-gray-400" /> {s.carrier}: {s.tracking_number}
-                              </div>
-                              {s.tracking_url && (
-                                <a href={s.tracking_url} target="_blank" rel="noreferrer" className="text-[10px] text-primary-600 hover:underline inline-flex items-center gap-0.5 mt-0.5">
-                                  Track <ExternalLink size={8} />
-                                </a>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-gray-400 italic">No tracking info</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-4 align-middle text-center relative z-10" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-2">
-                            {s.status === 'pending' && (
-                              <Button size="sm" className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => {
-                                updateShipment(s.id, { status: 'shipped' }).then(() => loadData(true));
-                              }}>
-                                Ship
-                              </Button>
-                            )}
-                            {s.status === 'shipped' && (
-                              <Button size="sm" className="bg-green-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => {
-                                updateShipment(s.id, { status: 'delivered' }).then(() => loadData(true));
-                              }}>
-                                Deliver
-                              </Button>
-                            )}
-                            <button 
-                              onClick={() => {
-                                const carrier = prompt("Enter Carrier (e.g. USPS, UPS):", s.carrier || "");
-                                const tracking = prompt("Enter Tracking Number:", s.tracking_number || "");
-                                const tracking_url = prompt("Enter Tracking URL:", s.tracking_url || "");
-                                if (carrier !== null && tracking !== null) {
-                                  updateShipment(s.id, { carrier, tracking_number: tracking, tracking_url: tracking_url || undefined }).then(() => loadData(true));
-                                }
-                              }}
-                              className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                              title="Quick Edit Tracking"
-                            >
-                              <Edit3 size={12} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <CreatorShipmentsSection 
+              creatorShipments={creatorShipments} 
+              creatorId={id || ''} 
+              loadData={loadData} 
+            />
           </div>
         )}
 
-        {/* Content Tab */}
         {activeTab === 'content' && (
-          <div className="p-6 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-700">Content Deliverables</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Track deliverables, reviews, and published metrics.</p>
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                {creatorContent.length > 0 && (
-                  <Button size="sm" onClick={handleOpenEmailRequirements} className="bg-amber-600 hover:bg-amber-700 text-white font-normal uppercase tracking-widest text-[9px] h-9 px-3">
-                    Send Email of Requirements
-                  </Button>
-                )}
-                {partnerships.length > 0 ? (
-                  <Button size="sm" onClick={() => setShowAddContentModal(true)} className="bg-primary-600 hover:bg-primary-700 text-white font-normal uppercase tracking-widest text-[9px] h-9 px-3">
-                    + Add Deliverable
-                  </Button>
-                ) : (
-                  <span className="text-[10px] text-gray-400 uppercase italic">Add to a campaign first</span>
-                )}
-              </div>
-            </div>
-
-            {creatorContent.length === 0 ? (
-              <div className="p-8 text-center bg-gray-50/50 rounded-xl border border-gray-100">
-                <p className="text-sm text-gray-500 font-medium">No content deliverables found.</p>
-                <p className="text-xs text-gray-400 mt-1">Content requirements will appear here once created.</p>
-              </div>
-            ) : (
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left min-w-[700px]">
-                    <thead>
-                      <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-                        <th className="px-4 py-3">Campaign</th>
-                        <th className="px-4 py-3">Platform & Type</th>
-                        <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3 text-right">Metrics</th>
-                        <th className="px-4 py-3 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {creatorContent.map((c) => (
-                        <tr 
-                          key={c.id} 
-                          onClick={() => navigate(`/content/${c.id}`, { state: { fromCreatorId: id } })}
-                          className="hover:bg-primary-50/10 transition-colors cursor-pointer"
-                        >
-                          <td className="px-4 py-4 align-middle">
-                            <div className="text-xs font-normal text-gray-900 font-outfit uppercase tracking-tight whitespace-nowrap">
-                              {c.Campaign?.name}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 align-middle">
-                            <div className="text-xs font-semibold text-gray-900 uppercase">{c.platform}</div>
-                            <div className="text-[10px] text-gray-500 uppercase">{c.content_type?.replace('_', ' ')}</div>
-                            {c.draft_url && (
-                              <div className="text-[10px] mt-1 text-gray-500" onClick={e => e.stopPropagation()}>
-                                <strong>Draft URL:</strong>{' '}
-                                <a href={c.draft_url} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">
-                                  Link <ExternalLink size={8} className="inline ml-0.5" />
-                                </a>
-                              </div>
-                            )}
-                            {c.published_url && (
-                              <div className="text-[10px] mt-0.5 text-gray-500" onClick={e => e.stopPropagation()}>
-                                <strong>Published URL:</strong>{' '}
-                                <a href={c.published_url} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline">
-                                  Link <ExternalLink size={8} className="inline ml-0.5" />
-                                </a>
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 align-middle">
-                            <StatusBadge status={c.status} />
-                            {c.due_date && <div className="text-[10px] text-gray-500 mt-1 uppercase">Due: {format(new Date(c.due_date), 'MMM d, yyyy')}</div>}
-                          </td>
-                          <td className="px-4 py-4 text-right align-middle">
-                            {c.status === 'published' ? (
-                              <div className="flex flex-col items-end gap-1 text-[11px] font-mono text-gray-600">
-                                <span className="flex items-center gap-1" title="Views">{c.views || 0} <Eye size={12}/></span>
-                                <span className="flex items-center gap-1" title="Likes">{c.likes || 0} <Heart size={12}/></span>
-                                <span className="flex items-center gap-1" title="Comments">{c.comments || 0} <MessageCircle size={12}/></span>
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-gray-400 uppercase italic">Not published</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 align-middle text-center relative z-10" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-center gap-2">
-                              {c.status === 'submitted' && (
-                                <>
-                                  <Button size="sm" disabled={contentActionLoading} className="bg-green-600 hover:bg-green-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleContentAction(c.id, 'approve')}>
-                                    Approve
-                                  </Button>
-                                  <Button size="sm" disabled={contentActionLoading} className="bg-amber-600 hover:bg-amber-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleContentAction(c.id, 'revise')}>
-                                    Revise
-                                  </Button>
-                                </>
-                              )}
-                              {c.status === 'approved' && (
-                                <Button size="sm" disabled={contentActionLoading} className="bg-primary-600 hover:bg-primary-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleContentAction(c.id, 'publish')}>
-                                  Publish
-                                </Button>
-                              )}
-                              {c.status === 'published' && (
-                                <Button size="sm" disabled={contentActionLoading} className="bg-gray-800 hover:bg-gray-900 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleContentAction(c.id, 'sync')}>
-                                  Sync
-                                </Button>
-                              )}
-                              {['pending', 'revision_requested', 'rejected'].includes(c.status) && (
-                                <button 
-                                  onClick={() => handleOpenEditContent(c)}
-                                  className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                                  title="Edit requirement details"
-                                >
-                                  <Edit3 size={12} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
+          <CreatorContentSection
+            creatorContent={creatorContent}
+            creatorId={id || ''}
+            contentActionLoading={contentActionLoading}
+            partnerships={partnerships}
+            handleContentAction={handleContentAction}
+            handleOpenEditContent={handleOpenEditContent}
+            setShowAddContentModal={setShowAddContentModal}
+            handleOpenEmailRequirements={handleOpenEmailRequirements}
+          />
         )}
 
         {activeTab === 'activities' && (

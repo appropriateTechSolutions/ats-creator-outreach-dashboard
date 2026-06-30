@@ -13,6 +13,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
 import { LoadingState } from '../components/ui/LoadingState';
 import { getAffiliatePerformance, getCampaigns, updateAffiliateStatus } from '../lib/api';
@@ -83,7 +84,7 @@ export default function AffiliatePerformance() {
   ];
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.2s_ease]">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Affiliate Performance</h1>
@@ -264,7 +265,13 @@ export default function AffiliatePerformance() {
                 ))}
                 {filteredData.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center py-20 text-gray-400 italic">No affiliate performance data captured yet.</td>
+                    <td colSpan={7} className="p-12">
+                      <EmptyState 
+                        icon={TrendingUp} 
+                        title="No Performance Data" 
+                        description="No affiliate performance data captured yet." 
+                      />
+                    </td>
                   </tr>
                 )}
               </tbody>

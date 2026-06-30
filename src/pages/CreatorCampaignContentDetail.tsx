@@ -231,7 +231,7 @@ export default function CreatorCampaignContentDetail() {
   const campaign = first?.Campaign;
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.2s_ease]">
       {/* Back button */}
       <Link 
         to="/content" 
@@ -246,7 +246,16 @@ export default function CreatorCampaignContentDetail() {
           <div className="flex items-center gap-4 text-center sm:text-left flex-col sm:flex-row">
             <div className="w-16 h-16 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-2xl overflow-hidden shadow-inner">
               {creator.profile_pic ? (
-                <img src={creator.profile_pic} alt="" className="w-full h-full object-cover" />
+                <img 
+                  src={creator.profile_pic} 
+                  alt="" 
+                  className="w-full h-full object-cover" 
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null;
+                    target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.full_name || creator.handle || 'C')}&background=E0E7FF&color=4338CA`;
+                  }}
+                />
               ) : (
                 (creator.full_name || creator.handle)?.charAt(0).toUpperCase()
               )}

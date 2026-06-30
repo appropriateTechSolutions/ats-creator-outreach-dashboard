@@ -16,7 +16,7 @@ export function Table({ children, className = '' }: TableProps) {
 }
 
 export function Thead({ children }: { children: React.ReactNode }) {
-  return <thead className="bg-gray-50 border-b border-gray-200">{children}</thead>;
+  return <thead className="bg-gray-50/50 border-b border-gray-200/60">{children}</thead>;
 }
 
 export function Tbody({ children }: { children: React.ReactNode }) {
@@ -36,7 +36,7 @@ export function Tr({ children, onClick, className = '' }: { children: React.Reac
 
 export function Th({ children, className = '' }: { children: React.ReactNode, className?: string }) {
   return (
-    <th className={`px-6 py-3 text-[10px] font-normal font-outfit text-gray-500 uppercase tracking-[0.2em] ${className}`}>
+    <th className={`px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider ${className}`}>
       {children}
     </th>
   );
@@ -44,7 +44,7 @@ export function Th({ children, className = '' }: { children: React.ReactNode, cl
 
 export function Td({ children, className = '', colSpan }: { children: React.ReactNode, className?: string, colSpan?: number }) {
   return (
-    <td colSpan={colSpan} className={`px-6 py-4 whitespace-nowrap text-sm ${className}`}>
+    <td colSpan={colSpan} className={`px-6 py-3.5 text-sm ${className}`}>
       {children}
     </td>
   );

@@ -5,7 +5,7 @@ interface LoadingStateProps {
   mini?: boolean;
 }
 
-export const LoadingState: React.FC<LoadingStateProps> = ({ mini }) => {
+export const LoadingState: React.FC<LoadingStateProps> = ({ message, mini }) => {
   const size = mini ? 'w-5 h-5' : 'w-16 h-16';
   const dotSize = mini ? 'w-1 h-1' : 'w-3 h-3';
   const radius = mini ? 10 : 40;
@@ -28,13 +28,6 @@ export const LoadingState: React.FC<LoadingStateProps> = ({ mini }) => {
             />
           ))}
       </div>
-      
-      <style>{`
-        @keyframes loaderDots {
-          0% { opacity: 1; scale: 1; }
-          100% { opacity: 0; scale: 0.5; }
-        }
-      `}</style>
     </div>
   );
 };

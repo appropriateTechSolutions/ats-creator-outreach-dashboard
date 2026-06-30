@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -40,6 +41,7 @@ export default function ContentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { confirm } = useConfirm();
   const fromCreatorId = location.state?.fromCreatorId;
 
   const [content, setContent] = useState<any | null>(null);
@@ -95,7 +97,13 @@ export default function ContentDetail() {
         }
         await markContentSubmitted(id, { draft_url: draftUrl });
       } else if (action === 'approve') {
-        if (window.confirm('Are you sure you want to approve this deliverable?')) {
+        const isConfirmed = await confirm({
+          title: 'Approve Deliverable',
+          message: 'Are you sure you want to approve this deliverable?',
+          confirmText: 'Approve',
+          isDestructive: false
+        });
+        if (isConfirmed) {
           await approveContent(id);
         } else {
           setLoading(false);
@@ -224,7 +232,7 @@ export default function ContentDetail() {
   }
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.2s_ease]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -398,7 +406,7 @@ export default function ContentDetail() {
 
           {/* Performance metrics dashboard (Only if published) */}
           {content.status === 'published' && (
-            <Card className="border-none shadow-xl bg-white p-6 sm:p-8 space-y-6 animate-[fadeIn_0.3s_ease]">
+            <Card className="border-none shadow-xl bg-white p-6 sm:p-8 space-y-6 animate-[fadeIn_0.2s_ease]">
               <div className="border-b border-gray-100 pb-4 flex justify-between items-center">
                 <h2 className="text-sm font-normal text-gray-950 uppercase tracking-widest flex items-center gap-2 font-outfit">
                   <Activity size={16} /> Performance Metrics

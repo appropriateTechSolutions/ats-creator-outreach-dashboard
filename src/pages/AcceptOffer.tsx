@@ -206,7 +206,16 @@ export default function AcceptOffer() {
 
           <div className="p-8">
             <div className="mb-8 p-5 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-4">
-              <img src={partnership?.Creator?.profile_pic || 'https://via.placeholder.com/60'} alt="Profile" className="w-16 h-16 rounded-full object-cover shadow-sm" />
+              <img 
+                src={partnership?.Creator?.profile_pic || 'https://via.placeholder.com/60'} 
+                alt="Profile" 
+                className="w-16 h-16 rounded-full object-cover shadow-sm" 
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(partnership?.Creator?.full_name || partnership?.Creator?.handle || 'C')}&background=E0E7FF&color=4338CA`;
+                }}
+              />
               <div>
                 <h3 className="font-semibold text-lg text-gray-900">{partnership?.Creator?.full_name}</h3>
                 <p className="text-gray-500 text-sm">@{partnership?.Creator?.handle}</p>

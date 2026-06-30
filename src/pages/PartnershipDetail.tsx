@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { useToast } from '../contexts/ToastContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -31,6 +33,8 @@ export default function PartnershipDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const fromCreatorId = location.state?.fromCreatorId;
   const fromPath = location.state?.fromPath;
   const fromLabel = location.state?.fromLabel;
@@ -84,7 +88,13 @@ export default function PartnershipDetail() {
       } else if (action === 'complete') {
         await completePartnership(id);
       } else if (action === 'reject') {
-        if (window.confirm('Are you sure you want to reject this partnership?')) {
+        const isConfirmed = await confirm({
+          title: 'Reject Partnership',
+          message: 'Are you sure you want to reject this partnership?',
+          confirmText: 'Reject',
+          isDestructive: true
+        });
+        if (isConfirmed) {
           await rejectPartnership(id);
         } else {
           setLoading(false);
@@ -94,7 +104,7 @@ export default function PartnershipDetail() {
       const updated = await getPartnershipById(id);
       setPartnership(updated);
     } catch (err) {
-      alert('Action failed: ' + err);
+      showToast('Action failed: ' + err, 'error');
     } finally {
       setLoading(false);
     }
@@ -144,7 +154,7 @@ export default function PartnershipDetail() {
       const updated = await getPartnershipById(partnership.id);
       setPartnership(updated);
     } catch (err) {
-      alert('Failed to update details: ' + err);
+      showToast('Failed to update details: ' + err, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -169,7 +179,7 @@ export default function PartnershipDetail() {
     );
   }
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.2s_ease]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -251,7 +261,16 @@ export default function PartnershipDetail() {
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-2xl uppercase ring-4 ring-white shadow-md overflow-hidden">
                   {partnership.Creator?.profile_pic ? (
-                    <img src={partnership.Creator.profile_pic} alt="" className="w-full h-full object-cover" />
+                    <img 
+                      src={partnership.Creator.profile_pic} 
+                      alt="" 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(partnership.Creator.full_name || partnership.Creator.handle || 'C')}&background=E0E7FF&color=4338CA`;
+                      }}
+                    />
                   ) : (
                     (partnership.Creator?.full_name || partnership.Creator?.handle)?.charAt(0) || 'C'
                   )}

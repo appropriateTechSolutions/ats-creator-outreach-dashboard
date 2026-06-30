@@ -3,6 +3,17 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Core Z-Index Tokens */
+    --z-topbar: 10;
+    --z-fab: 20;
+    --z-dropdown: 30;
+    --z-sidebar: 40;
+    --z-modal: 50;
+    --z-lightbox: 100;
+    --z-discovery: 120;
+  }
+
   body {
     font-family: 'Inter', sans-serif;
     @apply bg-gray-50 text-gray-900 antialiased;
@@ -11,5 +22,53 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Outfit', sans-serif;
     @apply tracking-tight;
+  }
+}
+
+@layer utilities {
+  @keyframes loaderDots {
+    0% { opacity: 1; scale: 1; }
+    100% { opacity: 0; scale: 0.5; }
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  /* Premium UI Effects */
+  .shadow-soft {
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  }
+  
+  .shadow-hover {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  }
+
+  .glass {
+    @apply bg-white/80 backdrop-blur-md border-b border-white/20 transition-all duration-200;
+  }
+  
+  .glass-panel {
+    @apply bg-white/70 backdrop-blur-xl border border-white/50 shadow-soft transition-all duration-200;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-indigo-500;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
