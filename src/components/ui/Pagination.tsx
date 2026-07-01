@@ -11,7 +11,13 @@ interface PaginationProps {
 // Shared pagination footer for every creators table. Renders a "Showing X–Y of
 // Z" summary plus prev/next + a compact numbered window with ellipses. Hides
 // itself when everything fits on a single page.
-export function Pagination({ currentPage, totalItems, pageSize, onPageChange, className = '' }: PaginationProps) {
+export function Pagination({
+  currentPage,
+  totalItems,
+  pageSize,
+  onPageChange,
+  className = '',
+}: PaginationProps) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   if (totalItems <= pageSize) return null;
 
@@ -32,7 +38,9 @@ export function Pagination({ currentPage, totalItems, pageSize, onPageChange, cl
   const go = (p: number) => onPageChange(Math.min(totalPages, Math.max(1, p)));
 
   return (
-    <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 bg-white ${className}`}>
+    <div
+      className={`flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 bg-white ${className}`}
+    >
       <p className="text-xs text-gray-500 font-normal">
         Showing <span className="font-medium text-gray-700">{start}</span>–
         <span className="font-medium text-gray-700">{end}</span> of{' '}
@@ -49,7 +57,9 @@ export function Pagination({ currentPage, totalItems, pageSize, onPageChange, cl
         </button>
         {pages.map((p, i) =>
           p === 'gap' ? (
-            <span key={`gap-${i}`} className="px-2 text-gray-400 text-sm select-none">…</span>
+            <span key={`gap-${i}`} className="px-2 text-gray-400 text-sm select-none">
+              …
+            </span>
           ) : (
             <button
               key={p}
@@ -61,7 +71,7 @@ export function Pagination({ currentPage, totalItems, pageSize, onPageChange, cl
             >
               {p}
             </button>
-          )
+          ),
         )}
         <button
           onClick={() => go(currentPage + 1)}

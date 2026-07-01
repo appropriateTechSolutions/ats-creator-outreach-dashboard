@@ -30,11 +30,7 @@ export default function Login() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center mb-6">
-          <img
-            src="/qui-logo.png"
-            alt="Qui Tequila"
-            className="h-28 w-auto object-contain"
-          />
+          <img src="/qui-logo.png" alt="Qui Tequila" className="h-28 w-auto object-contain" />
         </div>
         <h2 className="text-center text-3xl font-normal text-gray-900 tracking-tight font-outfit uppercase">
           Welcome to Qui Tequila Creator Outreach
@@ -54,40 +50,52 @@ export default function Login() {
             )}
 
             <div>
-              <label className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest">
+              <label
+                htmlFor="login-1"
+                className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest"
+              >
                 Email address
               </label>
               <input
+                id="login-1"
                 type="email"
                 required
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-all"
                 placeholder="you@example.com"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest">
+              <label
+                htmlFor="login-2"
+                className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest"
+              >
                 Password
               </label>
               <input
+                id="login-2"
                 type="password"
                 required
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-all"
                 placeholder="••••••••"
               />
               <div className="mt-2 text-right">
-                <Link to="/forgot-password" title="Reset your password" className="text-sm font-normal text-primary-600 hover:text-primary-500 transition-colors">
+                <Link
+                  to="/forgot-password"
+                  title="Reset your password"
+                  className="text-sm font-normal text-primary-600 hover:text-primary-500 transition-colors"
+                >
                   Forgot password?
                 </Link>
               </div>
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full py-3 rounded-xl disabled:opacity-70"
               disabled={isSubmitting}
             >

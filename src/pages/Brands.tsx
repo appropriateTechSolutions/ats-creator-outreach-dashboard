@@ -1,5 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { 
+import { clickable, clickableStop } from '../lib/a11y';
+import { toast } from '../lib/toast';
+import { hasRole, ROLE_GROUPS } from '../lib/constants';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import {
   ShoppingBag,
   Plus,
   Search,
@@ -9,9 +13,12 @@ import {
   Globe,
   Target,
   Megaphone,
-  Percent
+  Percent,
 } from 'lucide-react';
 import * as api from '../lib/api';
+import { useBrands } from '../hooks/queries';
+import { useInvalidate } from '../hooks/useInvalidate';
+import { queryKeys } from '../lib/queryKeys';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -21,36 +28,40 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 
-interface Brand {
-  id: string;
-  name: string;
-  website: string;
-  industry: string;
-  product_category: string;
-  status: string;
-  created_at: string;
-  Client?: {
-    name: string;
-  };
-  campaigns?: any[];
-}
-
-interface Client {
-  id: string;
-  name: string;
-}
+import type { Brand, Client } from '../types';
 
 export default function Brands() {
   const { user } = useAuth();
   const location = useLocation();
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const isInternal = user?.user_type === 'internal';
   const [selectedClientId, setSelectedClientId] = useState<string>('all');
+  const { data: brands = [], isLoading: loading } = useBrands(
+    selectedClientId === 'all' ? undefined : selectedClientId,
+  );
+  const { data: allClients = [] } = useQuery({
+    queryKey: queryKeys.clients.all,
+    queryFn: api.getClients,
+    enabled: isInternal,
+  });
+  const invalidate = useInvalidate();
+
+  // Internal staff see every client; a client user only sees their own tenant,
+  // derived from the brands payload.
+  const clients = useMemo<Client[]>(() => {
+    if (isInternal) return allClients;
+    if (user?.user_type === 'client' && user.client_id) {
+      const clientName =
+        brands.find((b) => b.Client?.id === user.client_id)?.Client?.name ||
+        brands[0]?.Client?.name ||
+        'Quantum Peak Agencyy';
+      return [{ id: user.client_id, name: clientName }];
+    }
+    return [];
+  }, [isInternal, allClients, brands, user]);
+  const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
-  
+
   // New Brand Form
   const [formData, setFormData] = useState({
     name: '',
@@ -66,52 +77,24 @@ export default function Brands() {
     product_offer_notes: '',
     default_commission_percent: 10,
     status: 'active',
-    notes: ''
+    notes: '',
   });
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const brandsPromise = api.getBrands(selectedClientId === 'all' ? undefined : selectedClientId);
-      
-      // Only fetch all clients for internal staff
-      let clientsPromise: Promise<any[]> = Promise.resolve([]);
-      if (user?.user_type === 'internal') {
-        clientsPromise = api.getClients();
-      }
-
-      const [brandsData, clientsData] = await Promise.all([
-        brandsPromise,
-        clientsPromise
-      ]);
-      
-      setBrands(brandsData);
-      
-      if (user?.user_type === 'internal') {
-        setClients(clientsData);
-      } else if (user?.user_type === 'client' && user.client_id) {
-        const clientName = brandsData.find(b => b.Client?.id === user.client_id)?.Client?.name 
-          || brandsData[0]?.Client?.name 
-          || 'Quantum Peak Agencyy';
-        setClients([{ id: user.client_id, name: clientName }]);
-        // Pre-select the client_id for the form
-        setFormData(prev => ({ ...prev, client_id: user.client_id || '' }));
-      }
-    } catch (err) {
-      console.error('Failed to fetch brands/clients', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Pre-select the tenant for a client user's new-brand form.
   useEffect(() => {
-    fetchData();
+    if (user?.user_type === 'client' && user.client_id) {
+      setFormData((prev) => ({ ...prev, client_id: user.client_id || '' }));
+    }
+  }, [user]);
+
+  // Open the create modal when navigated here with that intent.
+  useEffect(() => {
     if (location.state?.openCreateModal) {
       setIsModalOpen(true);
       // Clear location state to prevent modal reopening on refresh
       window.history.replaceState({}, document.title);
     }
-  }, [selectedClientId, user, location.state]);
+  }, [location.state]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,27 +121,27 @@ export default function Brands() {
         product_offer_notes: '',
         default_commission_percent: 10,
         status: 'active',
-        notes: ''
+        notes: '',
       });
-      fetchData();
+      invalidate(['brands']);
     } catch (err: any) {
-      alert(err?.message || err || 'Failed to create brand');
+      toast.error(err?.message || err || 'Failed to create brand');
     }
   };
 
-  const filteredBrands = brands.filter(b => 
-    b.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredBrands = brands.filter((b) => b.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.2s_ease]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Brands</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
+            Brands
+          </h1>
         </div>
-        {['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
-          <Button 
+        {hasRole(user?.role, ROLE_GROUPS.MARKETING_AND_ADMINS) && (
+          <Button
             onClick={() => setIsModalOpen(true)}
             className="hidden sm:inline-flex bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
             icon={<Plus size={20} />}
@@ -173,9 +156,9 @@ export default function Brands() {
         <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gray-50/30">
           <div className="relative w-full sm:max-w-md">
             <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Filter by brand name..." 
+            <input
+              type="text"
+              placeholder="Filter by brand name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
@@ -185,19 +168,23 @@ export default function Brands() {
             {filteredBrands.length} Active Portfolios
           </div>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 px-6 py-4 bg-white border-b border-gray-50">
           {/* Client Selection (Internal Only) */}
           {user?.user_type === 'internal' && (
             <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 w-full sm:w-auto">
               <Filter size={16} className="text-gray-400" />
-              <select 
+              <select
                 value={selectedClientId}
                 onChange={(e) => setSelectedClientId(e.target.value)}
                 className="bg-transparent text-sm font-normal text-gray-600 focus:outline-none cursor-pointer w-full sm:w-auto"
               >
                 <option value="all">All Clients</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -228,48 +215,56 @@ export default function Brands() {
                 </tr>
               ) : filteredBrands.length === 0 ? (
                 <tr>
-                  <td colSpan={user?.user_type === 'internal' ? 5 : 4} className="px-8 py-20 text-center text-gray-400 italic">
+                  <td
+                    colSpan={user?.user_type === 'internal' ? 5 : 4}
+                    className="px-8 py-20 text-center text-gray-400 italic"
+                  >
                     No brands found matching your criteria.
                   </td>
                 </tr>
               ) : (
                 filteredBrands.map((brand) => (
-                  <tr 
-                    key={brand.id} 
+                  <tr
+                    key={brand.id}
                     onClick={() => navigate(`/brands/${brand.id}`)}
                     className="hover:bg-primary-50/30 transition-colors group cursor-pointer"
                   >
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-4">
                         <div>
-                          <div className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit group-hover:text-primary-600 transition-colors">{brand.name}</div>
-                          <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1">{brand.product_category || 'General Category'}</div>
+                          <div className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit group-hover:text-primary-600 transition-colors">
+                            {brand.name}
+                          </div>
+                          <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1">
+                            {brand.product_category || 'General Category'}
+                          </div>
                         </div>
                       </div>
                     </td>
                     {user?.user_type === 'internal' && (
                       <td className="px-8 py-6">
-                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">{brand.Client?.name || 'Internal'}</div>
+                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                          {brand.Client?.name || 'Internal'}
+                        </div>
                       </td>
                     )}
                     <td className="px-8 py-6 text-center">
-                      <span 
-                        onClick={(e) => {
-                          e.stopPropagation();
+                      <span
+                        {...clickableStop(() => {
                           const campaignList = brand.campaigns || [];
                           if (campaignList.length === 0) return;
-                          
-                          navigate('/campaigns', { 
-                            state: { 
-                              selectedBrandId: brand.id, 
-                              selectedBrandName: brand.name, 
-                              fromBrandsList: true 
-                            } 
+
+                          navigate('/campaigns', {
+                            state: {
+                              selectedBrandId: brand.id,
+                              selectedBrandName: brand.name,
+                              fromBrandsList: true,
+                            },
                           });
-                        }}
+                        })}
                         className={`text-xs font-normal px-2.5 py-1 rounded transition-all select-none border ${
-                          brand.campaigns?.length 
-                            ? 'bg-primary-50 text-primary-700 hover:bg-primary-100/80 border-primary-200/50 cursor-pointer hover:scale-105 active:scale-95' 
+                          brand.campaigns?.length
+                            ? 'bg-primary-50 text-primary-700 hover:bg-primary-100/80 border-primary-200/50 cursor-pointer hover:scale-105 active:scale-95'
                             : 'bg-gray-100 text-gray-400 border-gray-200/50 cursor-not-allowed'
                         }`}
                       >
@@ -283,7 +278,12 @@ export default function Brands() {
                     </td>
                     <td className="px-8 py-6 text-right">
                       <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
-                        {(brand.created_at || (brand as any).createdAt) ? format(new Date(brand.created_at || (brand as any).createdAt), 'MMM d, yyyy') : '---'}
+                        {brand.created_at || (brand as any).createdAt
+                          ? format(
+                              new Date(brand.created_at || (brand as any).createdAt),
+                              'MMM d, yyyy',
+                            )
+                          : '---'}
                       </div>
                     </td>
                   </tr>
@@ -305,15 +305,19 @@ export default function Brands() {
             </div>
           ) : (
             filteredBrands.map((brand) => (
-              <div 
-                key={brand.id} 
-                onClick={() => navigate(`/brands/${brand.id}`)}
+              <div
+                key={brand.id}
+                {...clickable(() => navigate(`/brands/${brand.id}`))}
                 className="p-5 active:bg-gray-50 transition-all cursor-pointer space-y-4"
               >
                 <div className="flex justify-between items-start gap-4">
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit truncate">{brand.name}</h4>
-                    <p className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1 truncate">{brand.product_category || 'General Category'}</p>
+                    <h4 className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit truncate">
+                      {brand.name}
+                    </h4>
+                    <p className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1 truncate">
+                      {brand.product_category || 'General Category'}
+                    </p>
                   </div>
                   <div className="flex-shrink-0">
                     <StatusBadge status={brand.status as any} />
@@ -323,38 +327,48 @@ export default function Brands() {
                 <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 pt-1 text-xs">
                   {user?.user_type === 'internal' && (
                     <div>
-                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Client</span>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
+                        Client
+                      </span>
                       <span className="font-normal text-gray-900 uppercase tracking-tight font-outfit truncate block">
                         {brand.Client?.name || 'Internal'}
                       </span>
                     </div>
                   )}
                   <div>
-                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Registration</span>
+                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
+                      Registration
+                    </span>
                     <span className="font-normal text-gray-900 uppercase tracking-tight font-outfit">
-                      {(brand.created_at || (brand as any).createdAt) ? format(new Date(brand.created_at || (brand as any).createdAt), 'MMM d, yyyy') : '---'}
+                      {brand.created_at || (brand as any).createdAt
+                        ? format(
+                            new Date(brand.created_at || (brand as any).createdAt),
+                            'MMM d, yyyy',
+                          )
+                        : '---'}
                     </span>
                   </div>
-                  
+
                   <div className="col-span-2 pt-2 border-t border-slate-50">
-                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-1">Campaigns</span>
-                    <span 
-                      onClick={(e) => {
-                        e.stopPropagation();
+                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-1">
+                      Campaigns
+                    </span>
+                    <span
+                      {...clickableStop(() => {
                         const campaignList = brand.campaigns || [];
                         if (campaignList.length === 0) return;
-                        
-                        navigate('/campaigns', { 
-                          state: { 
-                            selectedBrandId: brand.id, 
-                            selectedBrandName: brand.name, 
-                            fromBrandsList: true 
-                          } 
+
+                        navigate('/campaigns', {
+                          state: {
+                            selectedBrandId: brand.id,
+                            selectedBrandName: brand.name,
+                            fromBrandsList: true,
+                          },
                         });
-                      }}
+                      })}
                       className={`inline-flex text-xs font-normal px-2.5 py-1 rounded transition-all select-none border ${
-                        brand.campaigns?.length 
-                          ? 'bg-primary-50 text-primary-700 hover:bg-primary-100/80 border-primary-200/50 cursor-pointer hover:scale-105 active:scale-95' 
+                        brand.campaigns?.length
+                          ? 'bg-primary-50 text-primary-700 hover:bg-primary-100/80 border-primary-200/50 cursor-pointer hover:scale-105 active:scale-95'
                           : 'bg-gray-100 text-gray-400 border-gray-200/50 cursor-not-allowed'
                       }`}
                     >
@@ -378,13 +392,18 @@ export default function Brands() {
                 <h2 className="text-2xl font-light text-gray-900 uppercase tracking-tight flex items-center gap-2 font-outfit">
                   <ShoppingBag className="text-primary-600" size={28} /> Register New Brand
                 </h2>
-                 <p className="text-slate-400 text-[10px] font-light mt-1 uppercase tracking-widest font-outfit leading-relaxed">Configure brand identity and operational parameters.</p>
+                <p className="text-slate-400 text-[10px] font-light mt-1 uppercase tracking-widest font-outfit leading-relaxed">
+                  Configure brand identity and operational parameters.
+                </p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors"
+              >
                 <X size={24} />
               </button>
             </div>
-            
+
             {/* Scrollable Body */}
             <div className="flex-1 overflow-y-auto p-8 space-y-8">
               <form id="brand-form" onSubmit={handleCreate} className="space-y-8">
@@ -393,25 +412,35 @@ export default function Brands() {
                   <h3 className="text-xs font-light text-slate-400 font-outfit uppercase tracking-widest flex items-center gap-2 mb-4">
                     <Building2 size={14} className="text-primary-600" /> Core Identity & Market
                   </h3>
-                  
+
                   {/* Row 1: Agency & Industry */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-light text-slate-500 block font-outfit uppercase tracking-widest">Client</label>
+                      <label
+                        htmlFor="brands-1"
+                        className="text-xs font-light text-slate-500 block font-outfit uppercase tracking-widest"
+                      >
+                        Client
+                      </label>
                       <select
+                        id="brands-1"
                         required
                         value={formData.client_id}
-                        onChange={e => setFormData({ ...formData, client_id: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
                         className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl py-2.5 px-4 text-slate-900 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit"
                       >
                         <option value="">Select a client...</option>
-                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        {clients.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <Input
                       label="Industry Sector"
                       value={formData.industry}
-                      onChange={e => setFormData({ ...formData, industry: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
                       placeholder="e.g. Beauty & Fashion"
                     />
                   </div>
@@ -422,13 +451,15 @@ export default function Brands() {
                       label="Brand Name"
                       required
                       value={formData.name}
-                      onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="e.g. Luxury Cosmetics"
                     />
                     <Input
                       label="Product Category"
                       value={formData.product_category}
-                      onChange={e => setFormData({ ...formData, product_category: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, product_category: e.target.value })
+                      }
                       placeholder="e.g. Skincare / Organic"
                     />
                   </div>
@@ -438,28 +469,45 @@ export default function Brands() {
                     <Input
                       label="Primary Website"
                       value={formData.website}
-                      onChange={e => setFormData({ ...formData, website: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                       placeholder="https://example.com"
                       icon={<Globe size={16} />}
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-light text-slate-500 block font-outfit uppercase tracking-widest">Commission (%)</label>
+                        <label
+                          htmlFor="brands-2001"
+                          className="text-xs font-light text-slate-500 block font-outfit uppercase tracking-widest"
+                        >
+                          Commission (%)
+                        </label>
                         <div className="relative">
                           <Input
+                            id="brands-2001"
                             type="number"
                             value={formData.default_commission_percent}
-                            onChange={e => setFormData({ ...formData, default_commission_percent: parseFloat(e.target.value) })}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                default_commission_percent: parseFloat(e.target.value),
+                              })
+                            }
                             placeholder="10"
                           />
                           <Percent className="absolute right-3 top-3 text-slate-300" size={16} />
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-light text-slate-500 block font-outfit uppercase tracking-widest">Brand Status</label>
+                        <label
+                          htmlFor="brands-2"
+                          className="text-xs font-light text-slate-500 block font-outfit uppercase tracking-widest"
+                        >
+                          Brand Status
+                        </label>
                         <select
+                          id="brands-2"
                           value={formData.status}
-                          onChange={e => setFormData({ ...formData, status: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                           className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl py-2.5 px-4 text-slate-900 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit"
                         >
                           <option value="active">Active</option>
@@ -471,104 +519,148 @@ export default function Brands() {
                   </div>
                 </div>
 
-                    {/* Brand Intelligence Section */}
-                    <div className="space-y-6">
-                      <h3 className="text-xs font-light text-slate-400 font-outfit uppercase tracking-widest flex items-center gap-2 mb-4">
-                        <Target size={14} className="text-primary-600" /> Brand Intelligence
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Brand Description</label>
-                          <textarea
-                            value={formData.brand_description}
-                            onChange={e => setFormData({ ...formData, brand_description: e.target.value })}
-                            className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl p-4 text-sm font-normal text-slate-900 h-24 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
-                            placeholder="What makes this brand unique?"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Target Audience</label>
-                          <textarea
-                            value={formData.target_audience}
-                            onChange={e => setFormData({ ...formData, target_audience: e.target.value })}
-                            className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl p-4 text-sm font-normal text-slate-900 h-24 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
-                            placeholder="Who is the ideal customer?"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Operational Parameters Section */}
-                    <div className="space-y-6">
-                      <h3 className="text-xs font-normal text-slate-400 font-outfit uppercase tracking-widest flex items-center gap-2 mb-4">
-                        <Megaphone size={14} className="text-primary-600" /> Operational Parameters
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
-                        <Input
-                          label="Brand Voice"
-                          value={formData.brand_voice}
-                          onChange={e => setFormData({ ...formData, brand_voice: e.target.value })}
-                          placeholder="e.g. Professional, Bold, Minimalist"
-                        />
-                        <Input
-                          label="Content Restrictions"
-                          value={formData.restrictions}
-                          onChange={e => setFormData({ ...formData, restrictions: e.target.value })}
-                          placeholder="e.g. No profanity, specific mentions"
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Affiliate & Commission Terms</label>
-                          <textarea
-                            value={formData.affiliate_terms}
-                            onChange={e => setFormData({ ...formData, affiliate_terms: e.target.value })}
-                            className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl p-4 text-sm font-normal text-slate-900 h-24 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
-                            placeholder="Standard commission structure and payment terms..."
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Product Offer Notes</label>
-                          <textarea
-                            value={formData.product_offer_notes}
-                            onChange={e => setFormData({ ...formData, product_offer_notes: e.target.value })}
-                            className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl p-4 text-sm font-normal text-slate-900 h-24 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
-                            placeholder="Details about product samples or creator offers..."
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Notes Section */}
-                    <div className="space-y-1.5 pb-4">
-                      <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Notes</label>
+                {/* Brand Intelligence Section */}
+                <div className="space-y-6">
+                  <h3 className="text-xs font-light text-slate-400 font-outfit uppercase tracking-widest flex items-center gap-2 mb-4">
+                    <Target size={14} className="text-primary-600" /> Brand Intelligence
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="brands-3"
+                        className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest"
+                      >
+                        Brand Description
+                      </label>
                       <textarea
-                        value={formData.notes}
-                        onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                        className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl p-4 text-sm font-normal text-slate-900 h-20 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
-                        placeholder="Private operational notes..."
+                        id="brands-3"
+                        value={formData.brand_description}
+                        onChange={(e) =>
+                          setFormData({ ...formData, brand_description: e.target.value })
+                        }
+                        className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl p-4 text-sm font-normal text-slate-900 h-24 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
+                        placeholder="What makes this brand unique?"
                       />
                     </div>
-                  </form>
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="brands-4"
+                        className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest"
+                      >
+                        Target Audience
+                      </label>
+                      <textarea
+                        id="brands-4"
+                        value={formData.target_audience}
+                        onChange={(e) =>
+                          setFormData({ ...formData, target_audience: e.target.value })
+                        }
+                        className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl p-4 text-sm font-normal text-slate-900 h-24 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
+                        placeholder="Who is the ideal customer?"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Sticky Footer */}
-                <div className="p-8 border-t border-gray-100 bg-white rounded-b-2xl shrink-0 flex gap-4">
-                  <Button variant="ghost" className="flex-1 font-normal uppercase tracking-widest text-[10px] font-outfit" onClick={() => setIsModalOpen(false)}>Cancel Registration</Button>
-                  <Button 
-                    type="submit" 
-                    form="brand-form"
-                    className="flex-[2] bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 font-normal uppercase tracking-widest text-[10px] font-outfit"
-                  >
-                    Finalize Brand Identity
-                  </Button>
+                {/* Operational Parameters Section */}
+                <div className="space-y-6">
+                  <h3 className="text-xs font-normal text-slate-400 font-outfit uppercase tracking-widest flex items-center gap-2 mb-4">
+                    <Megaphone size={14} className="text-primary-600" /> Operational Parameters
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
+                    <Input
+                      label="Brand Voice"
+                      value={formData.brand_voice}
+                      onChange={(e) => setFormData({ ...formData, brand_voice: e.target.value })}
+                      placeholder="e.g. Professional, Bold, Minimalist"
+                    />
+                    <Input
+                      label="Content Restrictions"
+                      value={formData.restrictions}
+                      onChange={(e) => setFormData({ ...formData, restrictions: e.target.value })}
+                      placeholder="e.g. No profanity, specific mentions"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="brands-5"
+                        className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest"
+                      >
+                        Affiliate & Commission Terms
+                      </label>
+                      <textarea
+                        id="brands-5"
+                        value={formData.affiliate_terms}
+                        onChange={(e) =>
+                          setFormData({ ...formData, affiliate_terms: e.target.value })
+                        }
+                        className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl p-4 text-sm font-normal text-slate-900 h-24 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
+                        placeholder="Standard commission structure and payment terms..."
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="brands-6"
+                        className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest"
+                      >
+                        Product Offer Notes
+                      </label>
+                      <textarea
+                        id="brands-6"
+                        value={formData.product_offer_notes}
+                        onChange={(e) =>
+                          setFormData({ ...formData, product_offer_notes: e.target.value })
+                        }
+                        className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl p-4 text-sm font-normal text-slate-900 h-24 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
+                        placeholder="Details about product samples or creator offers..."
+                      />
+                    </div>
+                  </div>
                 </div>
+
+                {/* Notes Section */}
+                <div className="space-y-1.5 pb-4">
+                  <label
+                    htmlFor="brands-7"
+                    className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest"
+                  >
+                    Notes
+                  </label>
+                  <textarea
+                    id="brands-7"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl p-4 text-sm font-normal text-slate-900 h-20 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
+                    placeholder="Private operational notes..."
+                  />
+                </div>
+              </form>
+            </div>
+
+            {/* Sticky Footer */}
+            <div className="p-8 border-t border-gray-100 bg-white rounded-b-2xl shrink-0 flex gap-4">
+              <Button
+                variant="ghost"
+                className="flex-1 font-normal uppercase tracking-widest text-[10px] font-outfit"
+                onClick={() => setIsModalOpen(false)}
+              >
+                Cancel Registration
+              </Button>
+              <Button
+                type="submit"
+                form="brand-form"
+                className="flex-[2] bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 font-normal uppercase tracking-widest text-[10px] font-outfit"
+              >
+                Finalize Brand Identity
+              </Button>
+            </div>
           </Card>
         </div>
       )}
 
       {/* Floating Action Button for Mobile */}
-      {!isModalOpen && ['super_admin', 'admin', 'client_admin', 'client_marketing'].includes(user?.role || '') && (
+      {!isModalOpen && hasRole(user?.role, ROLE_GROUPS.MARKETING_AND_ADMINS) && (
         <button
           onClick={() => setIsModalOpen(true)}
           className="sm:hidden fixed bottom-6 right-6 z-50 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-4 shadow-2xl shadow-primary-500/40 flex items-center justify-center transition-transform active:scale-95 border border-primary-500/20"

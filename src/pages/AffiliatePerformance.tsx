@@ -1,3 +1,5 @@
+import { toast } from '../lib/toast';
+import { hasRole, ROLE_GROUPS } from '../lib/constants';
 import { useState, useEffect } from 'react';
 import {
   TrendingUp,
@@ -10,22 +12,32 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  ChevronDown
+  ChevronDown,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
 import { LoadingState } from '../components/ui/LoadingState';
-import { getAffiliatePerformance, getCampaigns, updateAffiliateStatus } from '../lib/api';
+import { updateAffiliateStatus } from '../lib/api';
+import { useAffiliatePerformance, useCampaigns } from '../hooks/queries';
+import { useInvalidate } from '../hooks/useInvalidate';
+import { queryKeys } from '../lib/queryKeys';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function AffiliatePerformance() {
   const { user: currentUser } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<any[]>([]);
-  const [campaigns, setCampaigns] = useState<any[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [search, setSearch] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  // Keyed on selectedCampaign → switching campaign refetches automatically.
+  const {
+    data = [],
+    isLoading: loading,
+    refetch,
+  } = useAffiliatePerformance(selectedCampaign || undefined);
+  const { data: campaigns = [] } = useCampaigns();
+  const invalidate = useInvalidate();
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -34,75 +46,79 @@ export default function AffiliatePerformance() {
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const fetchPerformance = async () => {
-    setLoading(true);
-    try {
-      const [perfData, campaignsData] = await Promise.all([
-        getAffiliatePerformance(selectedCampaign || undefined),
-        getCampaigns()
-      ]);
-      setData(perfData);
-      setCampaigns(campaignsData);
-    } catch (err) {
-      console.error('Failed to fetch affiliate data', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPerformance();
-  }, [selectedCampaign]);
-
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
       await updateAffiliateStatus(id, newStatus);
-      fetchPerformance();
+      invalidate(queryKeys.affiliates.performance(selectedCampaign || undefined));
     } catch (err) {
-      alert('Failed to update status');
+      toast.error('Failed to update status');
     }
   };
 
-  const filteredData = data.filter(item => 
-    item.Creator?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-    item.affiliate_code?.toLowerCase().includes(search.toLowerCase())
+  const filteredData = data.filter(
+    (item) =>
+      item.Creator?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+      item.affiliate_code?.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const totals = filteredData.reduce((acc, curr) => ({
-    clicks: acc.clicks + (curr.clicks || 0),
-    conversions: acc.conversions + (curr.conversions || 0),
-    revenue: acc.revenue + Number(curr.revenue_generated || 0),
-    commission: acc.commission + Number(curr.commission_owed || 0)
-  }), { clicks: 0, conversions: 0, revenue: 0, commission: 0 });
+  const totals = filteredData.reduce(
+    (acc, curr) => ({
+      clicks: acc.clicks + (curr.clicks || 0),
+      conversions: acc.conversions + (curr.conversions || 0),
+      revenue: acc.revenue + Number(curr.revenue_generated || 0),
+      commission: acc.commission + Number(curr.commission_owed || 0),
+    }),
+    { clicks: 0, conversions: 0, revenue: 0, commission: 0 },
+  );
 
   const stats = [
-    { label: 'Total Clicks', value: totals.clicks.toLocaleString(), icon: <MousePointer2 className="text-blue-600" /> },
-    { label: 'Conversions', value: totals.conversions.toLocaleString(), icon: <ShoppingCart className="text-emerald-600" /> },
-    { label: 'Revenue Generated', value: `$${totals.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: <TrendingUp className="text-primary-600" /> },
-    { label: 'Commission Owed', value: `$${totals.commission.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: <DollarSign className="text-amber-600" /> },
+    {
+      label: 'Total Clicks',
+      value: totals.clicks.toLocaleString(),
+      icon: <MousePointer2 className="text-blue-600" />,
+    },
+    {
+      label: 'Conversions',
+      value: totals.conversions.toLocaleString(),
+      icon: <ShoppingCart className="text-emerald-600" />,
+    },
+    {
+      label: 'Revenue Generated',
+      value: `$${totals.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      icon: <TrendingUp className="text-primary-600" />,
+    },
+    {
+      label: 'Commission Owed',
+      value: `$${totals.commission.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      icon: <DollarSign className="text-amber-600" />,
+    },
   ];
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 animate-[fadeIn_0.2s_ease]">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Affiliate Performance</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
+            Affiliate Performance
+          </h1>
         </div>
         <div className="flex gap-3">
-          <select 
+          <select
             value={selectedCampaign}
             onChange={(e) => setSelectedCampaign(e.target.value)}
             className="h-11 px-4 bg-white border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm font-outfit uppercase tracking-tight"
           >
             <option value="">Global Campaigns</option>
-            {campaigns.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
             ))}
           </select>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             icon={<RefreshCw size={18} className={loading ? 'animate-spin' : ''} />}
-            onClick={fetchPerformance}
+            onClick={() => refetch()}
           >
             Sync Data
           </Button>
@@ -112,9 +128,14 @@ export default function AffiliatePerformance() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, idx) => (
-          <Card key={idx} className="p-6 border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:shadow-2xl transition-all duration-300">
+          <Card
+            key={idx}
+            className="p-6 border-none shadow-xl bg-white/80 backdrop-blur-sm group hover:shadow-2xl transition-all duration-300"
+          >
             <div className="space-y-1">
-              <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">{stat.label}</p>
+              <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">
+                {stat.label}
+              </p>
               <h3 className="text-2xl font-normal text-gray-900 font-outfit">{stat.value}</h3>
             </div>
           </Card>
@@ -126,9 +147,9 @@ export default function AffiliatePerformance() {
         <div className="p-5 flex items-center justify-between gap-4 border-b border-gray-100">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Filter by creator or code..." 
+            <input
+              type="text"
+              placeholder="Filter by creator or code..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-gray-50 border border-gray-100 rounded-xl py-2.5 pl-10 pr-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
@@ -174,7 +195,12 @@ export default function AffiliatePerformance() {
                               {item.affiliate_code || 'NO_CODE'}
                             </span>
                             {item.affiliate_link && (
-                              <a href={item.affiliate_link} target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:text-primary-600">
+                              <a
+                                href={item.affiliate_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary-500 hover:text-primary-600"
+                              >
                                 <ExternalLink size={12} />
                               </a>
                             )}
@@ -183,33 +209,56 @@ export default function AffiliatePerformance() {
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <div className="text-sm font-normal text-gray-900 font-outfit">{item.clicks || 0}</div>
-                      <div className="text-[9px] text-gray-400 uppercase tracking-widest">Clicks</div>
+                      <div className="text-sm font-normal text-gray-900 font-outfit">
+                        {item.clicks || 0}
+                      </div>
+                      <div className="text-[9px] text-gray-400 uppercase tracking-widest">
+                        Clicks
+                      </div>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <div className="text-sm font-normal text-gray-900 font-outfit">{item.conversions || 0}</div>
-                      <div className="text-[9px] text-gray-400 uppercase tracking-widest">Sales</div>
+                      <div className="text-sm font-normal text-gray-900 font-outfit">
+                        {item.conversions || 0}
+                      </div>
+                      <div className="text-[9px] text-gray-400 uppercase tracking-widest">
+                        Sales
+                      </div>
                     </td>
                     <td className="px-8 py-6 text-right">
                       <div className="text-sm font-normal text-emerald-600 font-outfit">
-                        ${Number(item.revenue_generated || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        $
+                        {Number(item.revenue_generated || 0).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })}
                       </div>
-                      <div className="text-[9px] text-gray-400 uppercase tracking-widest">Gross Sales</div>
+                      <div className="text-[9px] text-gray-400 uppercase tracking-widest">
+                        Gross Sales
+                      </div>
                     </td>
                     <td className="px-8 py-6 text-right">
                       <div className="text-sm font-normal text-primary-600 font-outfit">
-                        ${Number(item.commission_owed || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        $
+                        {Number(item.commission_owed || 0).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })}
                       </div>
-                      <div className="text-[9px] text-gray-400 uppercase tracking-widest">Net Payable</div>
+                      <div className="text-[9px] text-gray-400 uppercase tracking-widest">
+                        Net Payable
+                      </div>
                     </td>
                     <td className="px-8 py-6 text-center">
                       <div className="flex justify-center">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-normal uppercase tracking-widest border ${
-                          item.status === 'paid' ? 'bg-green-50 text-green-600 border-green-100' :
-                          item.status === 'approved' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                          item.status === 'hold' ? 'bg-red-50 text-red-600 border-red-100' :
-                          'bg-amber-50 text-amber-600 border-amber-100'
-                        }`}>
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-normal uppercase tracking-widest border ${
+                            item.status === 'paid'
+                              ? 'bg-green-50 text-green-600 border-green-100'
+                              : item.status === 'approved'
+                                ? 'bg-blue-50 text-blue-600 border-blue-100'
+                                : item.status === 'hold'
+                                  ? 'bg-red-50 text-red-600 border-red-100'
+                                  : 'bg-amber-50 text-amber-600 border-amber-100'
+                          }`}
+                        >
                           {item.status === 'paid' && <CheckCircle2 size={10} />}
                           {item.status === 'approved' && <Clock size={10} />}
                           {item.status === 'hold' && <AlertCircle size={10} />}
@@ -218,18 +267,31 @@ export default function AffiliatePerformance() {
                       </div>
                     </td>
                     <td className="px-8 py-6 text-right">
-                      {['super_admin', 'admin', 'client_admin'].includes(currentUser?.role || '') ? (
-                        <div className="relative inline-block text-right" onClick={(e) => e.stopPropagation()}>
-                          <button 
-                            onClick={() => setOpenDropdownId(openDropdownId === item.id ? null : item.id)}
+                      {hasRole(currentUser?.role, ROLE_GROUPS.MANAGE_USERS) ? (
+                        // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- stops row navigation while using the dropdown; not a control
+                        <div
+                          className="relative inline-block text-right"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() =>
+                              setOpenDropdownId(openDropdownId === item.id ? null : item.id)
+                            }
                             className="flex items-center gap-1.5 ml-auto text-[10px] font-normal uppercase tracking-widest text-gray-400 hover:text-primary-600 transition-colors group"
                           >
                             <span className={openDropdownId === item.id ? 'text-primary-600' : ''}>
-                              {item.status === 'paid' ? 'Confirmed Paid' : 
-                               item.status === 'approved' ? 'Payout Approved' : 
-                               item.status === 'hold' ? 'On Hold' : 'Pending'}
+                              {item.status === 'paid'
+                                ? 'Confirmed Paid'
+                                : item.status === 'approved'
+                                  ? 'Payout Approved'
+                                  : item.status === 'hold'
+                                    ? 'On Hold'
+                                    : 'Pending'}
                             </span>
-                            <ChevronDown size={12} className={`transition-transform duration-200 ${openDropdownId === item.id ? 'rotate-180 text-primary-600' : ''}`} />
+                            <ChevronDown
+                              size={12}
+                              className={`transition-transform duration-200 ${openDropdownId === item.id ? 'rotate-180 text-primary-600' : ''}`}
+                            />
                           </button>
 
                           {openDropdownId === item.id && (
@@ -238,7 +300,7 @@ export default function AffiliatePerformance() {
                                 { val: 'pending', label: 'Mark Pending' },
                                 { val: 'approved', label: 'Approve Payout' },
                                 { val: 'paid', label: 'Confirm Paid' },
-                                { val: 'hold', label: 'Place Hold' }
+                                { val: 'hold', label: 'Place Hold' },
                               ].map((opt) => (
                                 <button
                                   key={opt.val}
@@ -247,7 +309,9 @@ export default function AffiliatePerformance() {
                                     setOpenDropdownId(null);
                                   }}
                                   className={`w-full px-4 py-2 text-[10px] uppercase tracking-widest hover:bg-primary-50 hover:text-primary-600 transition-colors ${
-                                    item.status === opt.val ? 'text-primary-600 bg-primary-50/50 font-bold' : 'text-gray-500'
+                                    item.status === opt.val
+                                      ? 'text-primary-600 bg-primary-50/50 font-bold'
+                                      : 'text-gray-500'
                                   }`}
                                 >
                                   {opt.label}
@@ -257,14 +321,22 @@ export default function AffiliatePerformance() {
                           )}
                         </div>
                       ) : (
-                        <div className="text-[10px] font-normal text-gray-300 uppercase tracking-widest">Read Only</div>
+                        <div className="text-[10px] font-normal text-gray-300 uppercase tracking-widest">
+                          Read Only
+                        </div>
                       )}
                     </td>
                   </tr>
                 ))}
                 {filteredData.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center py-20 text-gray-400 italic">No affiliate performance data captured yet.</td>
+                    <td colSpan={7} className="p-12">
+                      <EmptyState
+                        icon={TrendingUp}
+                        title="No Performance Data"
+                        description="No affiliate performance data captured yet."
+                      />
+                    </td>
                   </tr>
                 )}
               </tbody>

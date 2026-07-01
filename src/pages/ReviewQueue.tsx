@@ -1,12 +1,21 @@
-import { useState, useEffect } from 'react';
+import { getErRating, formatFollowers } from '../lib/formatters';
+import { useState, useMemo } from 'react';
+import { useToast } from '../contexts/ToastContext';
 import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
-import { Check, X, FileText } from 'lucide-react';
+import { Check, X, FileText, Star } from 'lucide-react';
 import { Link as RouterLink } from 'react-router-dom';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
-import { getAllCreators, reviewLead } from '../lib/api';
+import { StatusBadge } from '../components/ui/StatusBadge';
+import { getFollowers, getEngagement } from '../lib/creatorFilters';
+import { CreatorAvatar, CreatorSocialLinks } from '../components/creators/CreatorIdentity';
+import { reviewLead } from '../lib/api';
+import { useAllCreators } from '../hooks/queries';
+import { useInvalidate } from '../hooks/useInvalidate';
+import { queryKeys } from '../lib/queryKeys';
 import { Pagination } from '../components/ui/Pagination';
 import type { Creator } from '../types';
 
@@ -20,65 +29,61 @@ const getPrimaryProfileStats = (c: Creator) => {
       avgLikes: c.avg_likes || 0,
       avgComments: c.avg_comments || 0,
       mediaCount: 0,
-      platform: c.platform || 'instagram'
+      platform: c.platform || 'instagram',
     };
   }
-  
+
   const primaryPlatformName = c.primary_platform?.toLowerCase();
-  const profile = c.profiles.find(p => p.platform.toLowerCase() === primaryPlatformName) || c.profiles[0];
-  
+  const profile =
+    c.profiles.find((p) => p.platform.toLowerCase() === primaryPlatformName) || c.profiles[0];
+
   return {
     followers: profile.followers || 0,
     engagementRate: profile.engagement_rate ? Number(profile.engagement_rate) : 0,
     avgLikes: profile.avg_likes || 0,
     avgComments: profile.avg_comments || 0,
     mediaCount: profile.media_count || 0,
-    platform: profile.platform
+    platform: profile.platform,
   };
 };
 
 export default function ReviewQueue() {
-  const [queue, setQueue] = useState<Creator[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
+  const { data: allCreators = [], isLoading: loading } = useAllCreators();
+  const invalidate = useInvalidate();
+
+  // Pending review: shortlisted / in-review, not yet contacted or unresponsive,
+  // ranked by relevance.
+  const queue = useMemo(() => {
+    const pending = allCreators.filter(
+      (c) =>
+        (c.review_status === 'shortlisted' || c.review_status === 'pending_review') &&
+        c.lifecycle_status !== 'not_respond' &&
+        c.lifecycle_status !== 'contacted',
+    );
+    pending.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0));
+    return pending;
+  }, [allCreators]);
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Clamp the page if the queue shrank below the current offset, then slice the
   // on-screen table. The print export below intentionally renders the full queue.
-  const queuePageStart = (Math.min(currentPage, Math.max(1, Math.ceil(queue.length / PAGE_SIZE))) - 1) * PAGE_SIZE;
+  const queuePageStart =
+    (Math.min(currentPage, Math.max(1, Math.ceil(queue.length / PAGE_SIZE))) - 1) * PAGE_SIZE;
   const pagedQueue = queue.slice(queuePageStart, queuePageStart + PAGE_SIZE);
 
-  const fetchQueue = async () => {
-    try {
-      const data = await getAllCreators();
-      // Filter for pending/shortlisted items
-      const pending = data.filter(c => 
-        (c.review_status === 'shortlisted' || c.review_status === 'pending_review') && 
-        c.lifecycle_status !== 'not_respond' && 
-        c.lifecycle_status !== 'contacted'
-      );
-      // Sort by relevance score descending
-      pending.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0));
-      setQueue(pending);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchQueue();
-  }, []);
-
-  const handleReject = async (id: string) => {
+  const handleReview = async (
+    id: string,
+    action: 'approve' | 'reject' | 'shortlist' | 'revoke',
+  ) => {
     setActionLoading(id);
     try {
-      await reviewLead(id, 'reject');
-      fetchQueue();
+      await reviewLead(id, action);
+      invalidate(queryKeys.creators.all);
     } catch (err) {
-      alert('Failed to reject lead.');
+      showToast('Failed to update creator: ' + err, 'error');
     } finally {
       setActionLoading(null);
     }
@@ -89,9 +94,9 @@ export default function ReviewQueue() {
     setActionLoading(outreachModalCreatorId);
     try {
       await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody);
-      fetchQueue();
+      invalidate(queryKeys.creators.all);
     } catch (err) {
-      alert('Failed to approve lead.');
+      showToast('Failed to approve lead.', 'error');
       throw err;
     } finally {
       setActionLoading(null);
@@ -107,7 +112,7 @@ export default function ReviewQueue() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-[fadeIn_0.2s_ease]">
       <style>{`
         @media print {
           /* Hide non-printable layout items */
@@ -188,7 +193,9 @@ export default function ReviewQueue() {
       `}</style>
 
       <div className="no-print flex justify-between items-center mb-2">
-        <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Review Queue</h1>
+        <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
+          Review Queue
+        </h1>
         <div className="flex items-center gap-3">
           <div className="text-sm font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-full uppercase tracking-widest">
             {queue.length} Pending
@@ -207,13 +214,17 @@ export default function ReviewQueue() {
 
       <Card className="no-print shadow-xl shadow-gray-200/50 border-gray-200 overflow-hidden">
         {queue.length === 0 ? (
-          <div className="p-16 text-center bg-primary-50/10">
-            <div className="w-16 h-16 bg-primary-100 text-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Check size={32} />
-            </div>
-            <h3 className="text-xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Queue Empty!</h3>
-            <p className="text-gray-500 mt-2 max-w-sm mx-auto">There are currently zero pending leads in the review queue. Great job maintaining inbox zero.</p>
-            <Button onClick={fetchQueue} variant="outline" className="mt-6">Refresh Queue</Button>
+          <div className="py-8">
+            <EmptyState
+              icon={Check}
+              title="Queue Empty!"
+              description="There are currently zero pending leads in the review queue. Great job maintaining inbox zero."
+              action={
+                <Button onClick={() => invalidate(queryKeys.creators.all)} variant="outline">
+                  Refresh Queue
+                </Button>
+              }
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -221,53 +232,133 @@ export default function ReviewQueue() {
               <Thead>
                 <Tr>
                   <Th>Creator Details</Th>
+                  <Th className="text-center">Followers</Th>
+                  <Th className="text-center">Engagement</Th>
+                  <Th>Status</Th>
                   <Th className="text-right">Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {pagedQueue.map(c => (
-                  <Tr key={c.id}>
-                    <Td>
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden">
-                          {c.profile_pic ? (
-                            <img src={c.profile_pic} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            (c.full_name || c.handle)?.charAt(0)
-                          )}
-                        </div>
-                        <div>
-                          <RouterLink to={`/creators/${c.id}`} className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit">
-                            {c.full_name || `@${c.handle}`}
-                          </RouterLink>
-                          <div className="text-xs text-gray-500 font-normal mt-0.5">
-                            @{c.handle}
+                {pagedQueue.map((c) => {
+                  const followers = getFollowers(c);
+                  const engagement = getEngagement(c);
+                  return (
+                    <Tr key={c.id}>
+                      <Td>
+                        <div className="flex items-center gap-3">
+                          <CreatorAvatar creator={c} />
+                          <div className="min-w-0">
+                            <RouterLink
+                              to={`/creators/${c.id}`}
+                              className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]"
+                            >
+                              {c.full_name || `@${c.handle}`}
+                            </RouterLink>
+                            <CreatorSocialLinks creator={c} showHandles />
                           </div>
                         </div>
-                      </div>
-                    </Td>
-                    <Td className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => setOutreachModalCreatorId(c.id)}
-                          disabled={!!actionLoading}
-                          className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                          title="Approve & Send Outreach"
-                        >
-                          <Check size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleReject(c.id)}
-                          disabled={!!actionLoading}
-                          className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                          title="Reject"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    </Td>
-                  </Tr>
-                ))}
+                      </Td>
+                      <Td className="text-center">
+                        <span className="text-sm text-gray-700 font-normal">
+                          {followers > 0 ? formatFollowers(followers) : '—'}
+                        </span>
+                      </Td>
+                      <Td className="text-center">
+                        {(() => {
+                          const rating = getErRating(followers, engagement);
+                          return (
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="text-sm text-gray-700 font-normal">
+                                {engagement > 0 ? `${engagement.toFixed(1)}%` : '—'}
+                              </span>
+                              {rating && (
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${rating.colorClass}`}
+                                >
+                                  {rating.label}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </Td>
+                      <Td>
+                        <StatusBadge
+                          status={
+                            ['not_respond'].includes(c.lifecycle_status || '')
+                              ? c.lifecycle_status
+                              : (c.review_status as any) || 'pending'
+                          }
+                        />
+                      </Td>
+                      <Td className="text-right">
+                        <div className="flex justify-end gap-2">
+                          {c.review_status === 'rejected' && (
+                            <button
+                              onClick={() => handleReview(c.id, 'revoke')}
+                              disabled={!!actionLoading}
+                              className="px-2.5 py-1 rounded text-[11px] font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
+                              title="Revoke Rejection"
+                            >
+                              Revoke
+                            </button>
+                          )}
+                          {c.review_status !== 'approved' &&
+                            c.review_status !== 'rejected' &&
+                            c.lifecycle_status !== 'not_respond' && (
+                              <>
+                                <button
+                                  onClick={() => setOutreachModalCreatorId(c.id)}
+                                  disabled={!!actionLoading}
+                                  className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                  title="Approve & Send Outreach"
+                                >
+                                  <Check size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleReview(c.id, 'reject')}
+                                  disabled={!!actionLoading}
+                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                  title="Reject"
+                                >
+                                  <X size={16} />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleReview(
+                                      c.id,
+                                      c.review_status === 'shortlisted' ||
+                                        c.review_status === 'pending_review'
+                                        ? 'revoke'
+                                        : 'shortlist',
+                                    )
+                                  }
+                                  disabled={!!actionLoading}
+                                  className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                  title={
+                                    c.review_status === 'shortlisted' ||
+                                    c.review_status === 'pending_review'
+                                      ? 'Remove from Shortlist'
+                                      : 'Shortlist → Move to Review Queue'
+                                  }
+                                >
+                                  <Star
+                                    size={16}
+                                    fill={
+                                      c.review_status === 'shortlisted' ||
+                                      c.review_status === 'pending_review'
+                                        ? 'currentColor'
+                                        : 'none'
+                                    }
+                                  />
+                                </button>
+                              </>
+                            )}
+                        </div>
+                      </Td>
+                    </Tr>
+                  );
+                })}
               </Tbody>
             </Table>
             <Pagination
@@ -286,11 +377,17 @@ export default function ReviewQueue() {
           {/* Print-only Branded Header */}
           <div className="flex items-center justify-between border-b-2 border-gray-900 pb-4 mb-8">
             <div className="flex items-center gap-3">
-              <span className="text-3xl font-extrabold tracking-widest text-primary-600 font-outfit">ATS</span>
-              <span className="text-xs text-gray-400 uppercase tracking-widest border-l pl-3 border-gray-300 font-medium">Outreach Platform</span>
+              <span className="text-3xl font-extrabold tracking-widest text-primary-600 font-outfit">
+                ATS
+              </span>
+              <span className="text-xs text-gray-400 uppercase tracking-widest border-l pl-3 border-gray-300 font-medium">
+                Outreach Platform
+              </span>
             </div>
             <div className="text-right">
-              <p className="text-sm font-bold text-gray-800 uppercase tracking-wider font-outfit">Review Queue Export</p>
+              <p className="text-sm font-bold text-gray-800 uppercase tracking-wider font-outfit">
+                Review Queue Export
+              </p>
               <p className="text-xs text-gray-400">{new Date().toLocaleDateString()}</p>
             </div>
           </div>
@@ -299,42 +396,72 @@ export default function ReviewQueue() {
             {queue.map((c) => {
               const stats = getPrimaryProfileStats(c);
               return (
-                <div key={c.id} className="page-break-inside-avoid border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
+                <div
+                  key={c.id}
+                  className="page-break-inside-avoid border border-gray-200 rounded-xl p-5 bg-white shadow-sm"
+                >
                   {/* Header Info */}
                   <div className="flex justify-between items-start border-b border-gray-100 pb-3 mb-4">
                     <div>
-                      <h3 className="text-sm font-bold text-gray-900 font-outfit">{c.full_name || 'N/A'}</h3>
+                      <h3 className="text-sm font-bold text-gray-900 font-outfit">
+                        {c.full_name || 'N/A'}
+                      </h3>
                       <p className="text-xs text-primary-600 font-semibold mt-0.5">@{c.handle}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[11px] text-gray-500 capitalize font-medium">
-                        {stats.platform} &bull; {c.city ? `${c.city}${c.country ? `, ${c.country}` : ''}` : 'Location Unknown'}
+                        {stats.platform} &bull;{' '}
+                        {c.city
+                          ? `${c.city}${c.country ? `, ${c.country}` : ''}`
+                          : 'Location Unknown'}
                       </p>
-                      <p className="text-[11px] text-gray-600 font-medium mt-0.5">{c.email || 'No email available'}</p>
+                      <p className="text-[11px] text-gray-600 font-medium mt-0.5">
+                        {c.email || 'No email available'}
+                      </p>
                     </div>
                   </div>
 
                   {/* Metrics Grid */}
                   <div className="grid grid-cols-5 gap-3">
                     <div className="bg-gray-50 p-2.5 rounded-lg text-center border border-gray-100">
-                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">Followers</p>
-                      <p className="text-sm font-bold text-gray-800 mt-0.5">{stats.followers ? stats.followers.toLocaleString() : '0'}</p>
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">
+                        Followers
+                      </p>
+                      <p className="text-sm font-bold text-gray-800 mt-0.5">
+                        {stats.followers ? stats.followers.toLocaleString() : '0'}
+                      </p>
                     </div>
                     <div className="bg-gray-50 p-2.5 rounded-lg text-center border border-gray-100">
-                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">Avg Likes</p>
-                      <p className="text-sm font-bold text-gray-800 mt-0.5">{stats.avgLikes ? stats.avgLikes.toLocaleString() : '0'}</p>
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">
+                        Avg Likes
+                      </p>
+                      <p className="text-sm font-bold text-gray-800 mt-0.5">
+                        {stats.avgLikes ? stats.avgLikes.toLocaleString() : '0'}
+                      </p>
                     </div>
                     <div className="bg-gray-50 p-2.5 rounded-lg text-center border border-gray-100">
-                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">Avg Comments</p>
-                      <p className="text-sm font-bold text-gray-800 mt-0.5">{stats.avgComments ? stats.avgComments.toLocaleString() : '0'}</p>
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">
+                        Avg Comments
+                      </p>
+                      <p className="text-sm font-bold text-gray-800 mt-0.5">
+                        {stats.avgComments ? stats.avgComments.toLocaleString() : '0'}
+                      </p>
                     </div>
                     <div className="bg-gray-50 p-2.5 rounded-lg text-center border border-gray-100">
-                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">Posts / Media</p>
-                      <p className="text-sm font-bold text-gray-800 mt-0.5">{stats.mediaCount ? stats.mediaCount.toLocaleString() : '0'}</p>
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">
+                        Posts / Media
+                      </p>
+                      <p className="text-sm font-bold text-gray-800 mt-0.5">
+                        {stats.mediaCount ? stats.mediaCount.toLocaleString() : '0'}
+                      </p>
                     </div>
                     <div className="bg-gray-50 p-2.5 rounded-lg text-center border border-gray-100">
-                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">Engagement</p>
-                      <p className="text-sm font-bold text-primary-600 mt-0.5">{stats.engagementRate ? `${stats.engagementRate.toFixed(2)}%` : '0.00%'}</p>
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold font-outfit">
+                        Engagement
+                      </p>
+                      <p className="text-sm font-bold text-primary-600 mt-0.5">
+                        {stats.engagementRate ? `${stats.engagementRate.toFixed(2)}%` : '0.00%'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -346,7 +473,7 @@ export default function ReviewQueue() {
 
       <OutreachPreviewModal
         creatorId={outreachModalCreatorId || ''}
-        campaignId={queue.find(c => c.id === outreachModalCreatorId)?.campaign_id || undefined}
+        campaignId={queue.find((c) => c.id === outreachModalCreatorId)?.campaign_id || undefined}
         isOpen={!!outreachModalCreatorId}
         onClose={() => setOutreachModalCreatorId(null)}
         onSend={handleConfirmApprove}
