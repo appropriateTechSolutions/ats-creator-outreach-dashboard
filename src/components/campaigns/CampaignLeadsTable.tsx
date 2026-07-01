@@ -16,6 +16,7 @@ import { Table, Thead, Tbody, Tr, Th, Td } from '../ui/Table';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Pagination } from '../ui/Pagination';
 import { Creator } from '../../types';
+import { CreatorAvatar } from '../creators/CreatorIdentity';
 import { matchesStatusFilter } from '../../lib/creatorFilters';
 import { hasPublicProfileSignal, getFollowers, getEngagement } from '../../lib/creatorFilters';
 import { getPlatformHandle, getErRating, formatFollowers } from '../../lib/formatters';
@@ -252,13 +253,10 @@ export function CampaignLeadsTable({
               <Tr key={lead.id}>
                 <Td>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-xs overflow-hidden">
-                      {lead.profile_pic ? (
-                        <img src={lead.profile_pic} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        (lead.full_name || lead.handle)?.charAt(0).toUpperCase()
-                      )}
-                    </div>
+                    <CreatorAvatar
+                      creator={lead}
+                      className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 text-xs"
+                    />
                     <div className="min-w-0">
                       <button
                         onClick={() => {

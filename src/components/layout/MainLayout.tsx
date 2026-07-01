@@ -16,14 +16,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden font-sans text-gray-900">
       {/* Sidebar — fixed, slides over content on mobile, pushes on desktop */}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onToggle={() => setSidebarOpen((prev) => !prev)}
+      />
 
-      {/* Main area — pushes on desktop, overlays on mobile */}
+      {/* Main area — pushes on desktop (full or icon rail), overlays on mobile */}
       <div
         className={`
           flex flex-col flex-1 overflow-hidden min-w-0
           transition-all duration-300 ease-in-out
-          ${sidebarOpen ? 'lg:pl-64' : 'pl-0'}
+          ${sidebarOpen ? 'lg:pl-64' : 'lg:pl-20 pl-0'}
         `}
       >
         <Topbar onMenuToggle={() => setSidebarOpen((prev) => !prev)} sidebarOpen={sidebarOpen} />

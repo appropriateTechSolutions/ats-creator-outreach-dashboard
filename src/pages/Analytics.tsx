@@ -7,6 +7,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { format } from 'date-fns';
 import { BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { CreatorAvatar } from '../components/creators/CreatorIdentity';
 
 export default function Analytics() {
   const navigate = useNavigate();
@@ -61,11 +62,14 @@ export default function Analytics() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-16 px-4 sm:px-0 animate-[fadeIn_0.2s_ease]">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-gray-100">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
             Analytics Performance
           </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Track content deliverables and publishing status across creators.
+          </p>
         </div>
       </div>
 
@@ -116,13 +120,9 @@ export default function Analytics() {
                       >
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={
-                                group.Creator?.profile_pic ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(group.Creator?.full_name || 'C')}&background=random`
-                              }
-                              alt=""
-                              className="w-8 h-8 rounded-full border border-gray-200 object-cover"
+                            <CreatorAvatar
+                              creator={group.Creator}
+                              className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 text-xs border border-gray-200"
                             />
                             <div>
                               <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight">
