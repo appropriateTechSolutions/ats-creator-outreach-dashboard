@@ -8,9 +8,7 @@ interface TableProps {
 export function Table({ children, className = '' }: TableProps) {
   return (
     <div className={`w-full overflow-x-auto ${className}`}>
-      <table className="w-full text-left border-collapse">
-        {children}
-      </table>
+      <table className="w-full text-left border-collapse">{children}</table>
     </div>
   );
 }
@@ -23,9 +21,17 @@ export function Tbody({ children }: { children: React.ReactNode }) {
   return <tbody className="divide-y divide-gray-100">{children}</tbody>;
 }
 
-export function Tr({ children, onClick, className = '' }: { children: React.ReactNode, onClick?: () => void, className?: string }) {
+export function Tr({
+  children,
+  onClick,
+  className = '',
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+}) {
   return (
-    <tr 
+    <tr
       onClick={onClick}
       className={`transition-colors ${onClick ? 'cursor-pointer hover:bg-gray-50' : ''} ${className}`}
     >
@@ -34,15 +40,31 @@ export function Tr({ children, onClick, className = '' }: { children: React.Reac
   );
 }
 
-export function Th({ children, className = '' }: { children: React.ReactNode, className?: string }) {
+export function Th({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <th className={`px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider ${className}`}>
+    <th
+      className={`px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider ${className}`}
+    >
       {children}
     </th>
   );
 }
 
-export function Td({ children, className = '', colSpan }: { children: React.ReactNode, className?: string, colSpan?: number }) {
+export function Td({
+  children,
+  className = '',
+  colSpan,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  colSpan?: number;
+}) {
   return (
     <td colSpan={colSpan} className={`px-6 py-3.5 text-sm ${className}`}>
       {children}

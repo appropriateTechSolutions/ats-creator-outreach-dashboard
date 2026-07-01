@@ -1,4 +1,14 @@
-import { createContext, useContext, useRef, useState, useCallback, useEffect } from 'react';
+import { logger } from '../lib/logger';
+import { toast } from '../lib/toast';
+import {
+  createContext,
+  useContext,
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+} from 'react';
 import type { Campaign, Creator } from '../types';
 import { Sparkles, X, CheckCircle2 } from 'lucide-react';
 
@@ -57,72 +67,95 @@ export function DiscoveryProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const startDiscovery = useCallback((campaign: Campaign) => {
-    if (esRef.current) return; // a discovery run is already in progress
+  const startDiscovery = useCallback(
+    (campaign: Campaign) => {
+      if (esRef.current) return; // a discovery run is already in progress
 
-    const token = localStorage.getItem('ats_token') || '';
-    const categoriesStr = campaign.category || '';
-    const cityStr = campaign.city || 'global';
-    const keywordsStr = Array.isArray(campaign.keywords) ? campaign.keywords.join(',') : '';
+      const token = localStorage.getItem('ats_token') || '';
+      const categoriesStr = campaign.category || '';
+      const cityStr = campaign.city || 'global';
+      const keywordsStr = Array.isArray(campaign.keywords) ? campaign.keywords.join(',') : '';
 
-    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
-    const streamUrl = `${apiBaseUrl}/creators/ai-discovery-stream?campaign_id=${campaign.id}&categories=${encodeURIComponent(categoriesStr)}&city=${encodeURIComponent(cityStr)}&keywords=${encodeURIComponent(keywordsStr)}&token=${encodeURIComponent(token)}`;
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
+      const streamUrl = `${apiBaseUrl}/creators/ai-discovery-stream?campaign_id=${campaign.id}&categories=${encodeURIComponent(categoriesStr)}&city=${encodeURIComponent(cityStr)}&keywords=${encodeURIComponent(keywordsStr)}&token=${encodeURIComponent(token)}`;
 
-    const eventSource = new EventSource(streamUrl);
-    esRef.current = eventSource;
-    setActiveCampaignId(campaign.id);
-    setActiveCampaignName(campaign.name || 'this campaign');
-    setShowStartModal(true);
+      const eventSource = new EventSource(streamUrl);
+      esRef.current = eventSource;
+      setActiveCampaignId(campaign.id);
+      setActiveCampaignName(campaign.name || 'this campaign');
+      setShowStartModal(true);
 
-    eventSource.addEventListener('status', (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        emit(campaign.id, h => h.onStatus?.(data.message));
-      } catch (err) { console.error(err); }
-    });
-
-    eventSource.addEventListener('saved', (e: MessageEvent) => {
-      try {
-        const newLead = JSON.parse(e.data);
-        emit(campaign.id, h => h.onSaved?.(newLead));
-      } catch (err) { console.error(err); }
-    });
-
-    eventSource.addEventListener('enriched', (e: MessageEvent) => {
-      try {
-        const enrichedLead = JSON.parse(e.data);
-        emit(campaign.id, h => h.onEnriched?.(enrichedLead));
-      } catch (err) { console.error(err); }
-    });
-
-    eventSource.addEventListener('completed', (e: MessageEvent) => {
-      let count = 0;
-      try {
-        const data = JSON.parse(e.data);
-        count = data.success_count || 0;
-      } catch (err) { console.error(err); }
-      emit(campaign.id, h => h.onCompleted?.(count));
-      setCompletion({ name: campaign.name || 'your campaign', count });
-      cleanup();
-    });
-
-    eventSource.addEventListener('error', (e: MessageEvent) => {
-      let message = 'An error occurred during AI Discovery.';
-      try {
-        if (e.data) {
+      eventSource.addEventListener('status', (e: MessageEvent) => {
+        try {
           const data = JSON.parse(e.data);
-          message = data.error || data.message || message;
+          emit(campaign.id, (h) => h.onStatus?.(data.message));
+        } catch (err) {
+          logger.error(err);
         }
-      } catch (err) { console.error(err); }
-      console.error('❌ SSE Stream Error:', e);
-      alert(message);
-      cleanup();
-    });
-  }, [emit, cleanup]);
+      });
+
+      eventSource.addEventListener('saved', (e: MessageEvent) => {
+        try {
+          const newLead = JSON.parse(e.data);
+          emit(campaign.id, (h) => h.onSaved?.(newLead));
+        } catch (err) {
+          logger.error(err);
+        }
+      });
+
+      eventSource.addEventListener('enriched', (e: MessageEvent) => {
+        try {
+          const enrichedLead = JSON.parse(e.data);
+          emit(campaign.id, (h) => h.onEnriched?.(enrichedLead));
+        } catch (err) {
+          logger.error(err);
+        }
+      });
+
+      eventSource.addEventListener('completed', (e: MessageEvent) => {
+        let count = 0;
+        try {
+          const data = JSON.parse(e.data);
+          count = data.success_count || 0;
+        } catch (err) {
+          logger.error(err);
+        }
+        emit(campaign.id, (h) => h.onCompleted?.(count));
+        setCompletion({ name: campaign.name || 'your campaign', count });
+        cleanup();
+      });
+
+      eventSource.addEventListener('error', (e: MessageEvent) => {
+        // The server sends *terminal* errors as an `error` event carrying a JSON
+        // payload. A payload-less error is a transport drop (network blip, proxy
+        // idle-timeout) where the browser would otherwise silently auto-reconnect.
+        let message = 'An error occurred during AI Discovery.';
+        try {
+          if (e.data) {
+            const data = JSON.parse(e.data);
+            message = data.error || data.message || message;
+          } else {
+            message =
+              'Connection to the discovery stream was lost. Discovery may still be running in the background — refresh to see new leads.';
+          }
+        } catch (err) {
+          logger.error(err);
+        }
+        logger.error('❌ SSE Stream Error:', e);
+        toast.error(message);
+        // Always close. This endpoint is NOT resumable — every connection starts a
+        // fresh discovery job — so allowing EventSource's native auto-reconnect
+        // would launch a DUPLICATE run. Safe reconnect/backoff needs the backend to
+        // emit event ids and honour Last-Event-ID; until then we fail closed.
+        cleanup();
+      });
+    },
+    [emit, cleanup],
+  );
 
   const isDiscovering = useCallback(
     (campaignId?: string | null) => !!campaignId && activeCampaignId === campaignId,
-    [activeCampaignId]
+    [activeCampaignId],
   );
 
   // Auto-dismiss the completion toast after a short while
@@ -145,8 +178,15 @@ export function DiscoveryProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [activeCampaignId]);
 
+  // Stable context value so consumers only re-render when these actually change
+  // (not on every provider render, e.g. the internal modal/toast state updates).
+  const value = useMemo(
+    () => ({ activeCampaignId, activeCampaignName, isDiscovering, startDiscovery, subscribe }),
+    [activeCampaignId, activeCampaignName, isDiscovering, startDiscovery, subscribe],
+  );
+
   return (
-    <DiscoveryContext.Provider value={{ activeCampaignId, activeCampaignName, isDiscovering, startDiscovery, subscribe }}>
+    <DiscoveryContext.Provider value={value}>
       {children}
 
       {/* "Sit back and relax" start popup */}
@@ -169,10 +209,16 @@ export function DiscoveryProvider({ children }: { children: React.ReactNode }) {
               </h2>
               <p className="text-sm text-gray-600 leading-relaxed mb-1">
                 We're scouring the internet for the best creators for
-                {activeCampaignName ? <span className="font-medium text-gray-800"> {activeCampaignName}</span> : ' your campaign'}.
+                {activeCampaignName ? (
+                  <span className="font-medium text-gray-800"> {activeCampaignName}</span>
+                ) : (
+                  ' your campaign'
+                )}
+                .
               </p>
               <p className="text-sm text-gray-500 leading-relaxed mb-6">
-                Sit back, grab a coffee ☕ and relax — feel free to keep working. We'll ping you the moment it's done.
+                Sit back, grab a coffee ☕ and relax — feel free to keep working. We'll ping you the
+                moment it's done.
               </p>
               <button
                 onClick={() => setShowStartModal(false)}
@@ -193,9 +239,13 @@ export function DiscoveryProvider({ children }: { children: React.ReactNode }) {
               <CheckCircle2 size={22} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-normal text-gray-900 font-outfit uppercase tracking-tight">Discovery complete! 🎉</p>
+              <p className="text-sm font-normal text-gray-900 font-outfit uppercase tracking-tight">
+                Discovery complete! 🎉
+              </p>
               <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                Found and processed <span className="font-medium text-gray-800">{completion.count}</span> creator{completion.count === 1 ? '' : 's'} for {completion.name}.
+                Found and processed{' '}
+                <span className="font-medium text-gray-800">{completion.count}</span> creator
+                {completion.count === 1 ? '' : 's'} for {completion.name}.
               </p>
             </div>
             <button

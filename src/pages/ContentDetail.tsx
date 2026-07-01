@@ -1,3 +1,4 @@
+import { toast } from '../lib/toast';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useConfirm } from '../contexts/ConfirmContext';
@@ -6,8 +7,7 @@ import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Modal } from '../components/ui/Modal';
-import { 
-  getContentById,
+import {
   updateContent,
   markContentSubmitted,
   approveContent,
@@ -15,25 +15,26 @@ import {
   markContentPublished,
   rejectContent,
   syncContentPerformance,
-  sendSingleOutreach
+  sendSingleOutreach,
 } from '../lib/api';
-import { 
-  ArrowLeft, 
-  ExternalLink, 
-  Edit3, 
-  RefreshCw, 
-  Calendar, 
-  FileText, 
-  Eye, 
-  Heart, 
-  MessageSquare, 
-  Share2, 
-  Bookmark, 
-  MousePointerClick, 
+import { useContent } from '../hooks/queries';
+import {
+  ArrowLeft,
+  ExternalLink,
+  Edit3,
+  RefreshCw,
+  Calendar,
+  FileText,
+  Eye,
+  Heart,
+  MessageSquare,
+  Share2,
+  Bookmark,
+  MousePointerClick,
   Activity,
   Video,
   User,
-  Mail
+  Mail,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -44,8 +45,7 @@ export default function ContentDetail() {
   const { confirm } = useConfirm();
   const fromCreatorId = location.state?.fromCreatorId;
 
-  const [content, setContent] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: content, isLoading: loading, refetch: fetchContentDetail } = useContent(id);
   const [submitting, setSubmitting] = useState(false);
 
   // Modals
@@ -60,39 +60,25 @@ export default function ContentDetail() {
     notes: '',
     draft_url: '',
     published_url: '',
-    internal_notes: ''
+    internal_notes: '',
   });
 
   const [revisionForm, setRevisionForm] = useState({
     subject: '',
-    body: ''
+    body: '',
   });
-
-  const fetchContentDetail = async () => {
-    if (!id) return;
-    try {
-      setLoading(true);
-      const data = await getContentById(id);
-      setContent(data);
-    } catch (err) {
-      console.error('Failed to load content deliverable:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchContentDetail();
-  }, [id]);
 
   const handleAction = async (action: string) => {
     if (!id || !content) return;
     try {
-      setLoading(true);
+      setSubmitting(true);
       if (action === 'submit') {
-        const draftUrl = prompt("Enter Draft URL:", content.draft_url || "https://instagram.com/p/mock_draft_url");
+        const draftUrl = prompt(
+          'Enter Draft URL:',
+          content.draft_url || 'https://instagram.com/p/mock_draft_url',
+        );
         if (draftUrl === null) {
-          setLoading(false);
+          setSubmitting(false);
           return;
         }
         await markContentSubmitted(id, { draft_url: draftUrl });
@@ -101,38 +87,43 @@ export default function ContentDetail() {
           title: 'Approve Deliverable',
           message: 'Are you sure you want to approve this deliverable?',
           confirmText: 'Approve',
-          isDestructive: false
+          isDestructive: false,
         });
         if (isConfirmed) {
           await approveContent(id);
         } else {
-          setLoading(false);
+          setSubmitting(false);
           return;
         }
       } else if (action === 'publish') {
-        const publishedUrl = prompt("Enter Live Published URL:", content.published_url || "https://instagram.com/p/mock_published_url");
+        const publishedUrl = prompt(
+          'Enter Live Published URL:',
+          content.published_url || 'https://instagram.com/p/mock_published_url',
+        );
         if (publishedUrl === null) {
-          setLoading(false);
+          setSubmitting(false);
           return;
         }
         await markContentPublished(id, { published_url: publishedUrl });
       } else if (action === 'sync') {
         await syncContentPerformance(id);
       } else if (action === 'reject') {
-        const notes = prompt("Enter rejection notes:", content.notes || "Not matching campaign requirements.");
+        const notes = prompt(
+          'Enter rejection notes:',
+          content.notes || 'Not matching campaign requirements.',
+        );
         if (notes === null) {
-          setLoading(false);
+          setSubmitting(false);
           return;
         }
         await rejectContent(id, { notes });
       }
-      
-      const updated = await getContentById(id);
-      setContent(updated);
+
+      await fetchContentDetail();
     } catch (err: any) {
-      alert('Action failed: ' + (err.message || err));
+      toast.error('Action failed: ' + (err.message || err));
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -145,7 +136,7 @@ export default function ContentDetail() {
       notes: content.notes || '',
       draft_url: content.draft_url || '',
       published_url: content.published_url || '',
-      internal_notes: content.internal_notes || ''
+      internal_notes: content.internal_notes || '',
     });
     setShowEditModal(true);
   };
@@ -162,13 +153,12 @@ export default function ContentDetail() {
         notes: editForm.notes,
         draft_url: editForm.draft_url || null,
         published_url: editForm.published_url || null,
-        internal_notes: editForm.internal_notes || null
+        internal_notes: editForm.internal_notes || null,
       });
       setShowEditModal(false);
-      const updated = await getContentById(id);
-      setContent(updated);
+      await fetchContentDetail();
     } catch (err: any) {
-      alert('Failed to update deliverable: ' + (err.message || err));
+      toast.error('Failed to update deliverable: ' + (err.message || err));
     } finally {
       setSubmitting(false);
     }
@@ -177,13 +167,13 @@ export default function ContentDetail() {
   const openRevisionModal = () => {
     if (!content) return;
     const creatorName = content.Creator?.full_name || `@${content.Creator?.handle}` || 'Creator';
-    const defaultNotes = "Please revise the lighting/audio.";
+    const defaultNotes = 'Please revise the lighting/audio.';
     const subject = `Revision Requested: ${content.Campaign?.name || 'Campaign'} Content Deliverable`;
     const body = `Hi ${creatorName},\n\nWe have reviewed your content draft and would like to request some revisions.\n\nRevision Notes:\n${defaultNotes}\n\nPlease update the draft and share the new link with us.\n\nBest regards,\nCampaign Management Team`;
 
     setRevisionForm({
       subject,
-      body
+      body,
     });
     setShowRevisionModal(true);
   };
@@ -199,14 +189,13 @@ export default function ContentDetail() {
         content.campaign_id || undefined,
         revisionForm.subject,
         revisionForm.body,
-        'initial'
+        'initial',
       );
       setShowRevisionModal(false);
-      const updated = await getContentById(id);
-      setContent(updated);
-      alert('Revision request logged and email sent to creator!');
+      await fetchContentDetail();
+      toast.success('Revision request logged and email sent to creator!');
     } catch (err: any) {
-      alert('Failed to submit revision: ' + (err.message || err));
+      toast.error('Failed to submit revision: ' + (err.message || err));
     } finally {
       setSubmitting(false);
     }
@@ -224,7 +213,10 @@ export default function ContentDetail() {
     return (
       <div className="py-20 max-w-7xl mx-auto px-4 sm:px-0 text-center">
         <h2 className="text-xl font-semibold text-gray-700">Content Deliverable not found</h2>
-        <Link to={fromCreatorId ? `/creators/${fromCreatorId}` : "/content"} className="text-primary-600 hover:underline mt-4 inline-block font-outfit uppercase text-xs tracking-widest">
+        <Link
+          to={fromCreatorId ? `/creators/${fromCreatorId}` : '/content'}
+          className="text-primary-600 hover:underline mt-4 inline-block font-outfit uppercase text-xs tracking-widest"
+        >
           Back to {fromCreatorId ? 'Creator Detail' : 'Content Tracking'}
         </Link>
       </div>
@@ -237,14 +229,14 @@ export default function ContentDetail() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           {fromCreatorId ? (
-            <button 
+            <button
               onClick={() => navigate(`/creators/${fromCreatorId}`)}
               className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors mb-3"
             >
               <ArrowLeft size={14} /> Back to Creator Detail
             </button>
           ) : (
-            <button 
+            <button
               onClick={() => navigate('/content')}
               className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors mb-3"
             >
@@ -259,34 +251,52 @@ export default function ContentDetail() {
         {/* Actions panel */}
         <div className="flex items-center gap-2">
           {['pending', 'revision_requested', 'rejected'].includes(content.status) && (
-            <Button className="bg-primary-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={() => handleAction('submit')}>
+            <Button
+              className="bg-primary-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4"
+              onClick={() => handleAction('submit')}
+            >
               Submit Draft
             </Button>
           )}
           {content.status === 'submitted' && (
             <>
-              <Button className="bg-green-650 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={() => handleAction('approve')}>
+              <Button
+                className="bg-green-650 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4"
+                onClick={() => handleAction('approve')}
+              >
                 Approve
               </Button>
-              <Button className="bg-amber-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={openRevisionModal}>
+              <Button
+                className="bg-amber-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4"
+                onClick={openRevisionModal}
+              >
                 Request Revision
               </Button>
-              <Button className="bg-red-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={() => handleAction('reject')}>
+              <Button
+                className="bg-red-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4"
+                onClick={() => handleAction('reject')}
+              >
                 Reject
               </Button>
             </>
           )}
           {content.status === 'approved' && (
-            <Button className="bg-indigo-650 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4" onClick={() => handleAction('publish')}>
+            <Button
+              className="bg-indigo-650 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4"
+              onClick={() => handleAction('publish')}
+            >
               Publish Post
             </Button>
           )}
           {content.status === 'published' && (
-            <Button className="bg-gray-800 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4 flex items-center gap-1.5" onClick={() => handleAction('sync')}>
+            <Button
+              className="bg-gray-800 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4 flex items-center gap-1.5"
+              onClick={() => handleAction('sync')}
+            >
               <RefreshCw size={12} className="animate-spin-hover" /> Sync Performance
             </Button>
           )}
-          <button 
+          <button
             onClick={openEditModal}
             className="p-2.5 text-gray-500 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors flex items-center justify-center shadow-sm"
             title="Edit Parameters"
@@ -315,7 +325,9 @@ export default function ContentDetail() {
                 </div>
               </div>
               <div className="flex flex-col sm:items-end gap-1.5">
-                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Deliverable Status</span>
+                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                  Deliverable Status
+                </span>
                 <StatusBadge status={content.status} />
               </div>
             </div>
@@ -324,24 +336,32 @@ export default function ContentDetail() {
               {/* Due dates & lifecycle logs */}
               <div className="space-y-4 font-outfit">
                 <div>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Due Date</span>
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">
+                    Due Date
+                  </span>
                   <span className="text-sm font-normal text-gray-800 font-mono">
-                    {content.due_date ? format(new Date(content.due_date), 'MMMM d, yyyy') : 'No date set'}
+                    {content.due_date
+                      ? format(new Date(content.due_date), 'MMMM d, yyyy')
+                      : 'No date set'}
                   </span>
                 </div>
-                
+
                 {content.submitted_at && (
                   <div>
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Submitted At</span>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">
+                      Submitted At
+                    </span>
                     <span className="text-xs font-normal text-gray-850 font-mono">
                       {format(new Date(content.submitted_at), 'MMM d, yyyy h:mm a')}
                     </span>
                   </div>
                 )}
-                
+
                 {content.approved_at && (
                   <div>
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Approved At</span>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">
+                      Approved At
+                    </span>
                     <span className="text-xs font-normal text-gray-855 font-mono">
                       {format(new Date(content.approved_at), 'MMM d, yyyy h:mm a')}
                     </span>
@@ -352,30 +372,50 @@ export default function ContentDetail() {
               {/* URLs Section */}
               <div className="space-y-4 font-outfit">
                 <div>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Draft Link</span>
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">
+                    Draft Link
+                  </span>
                   {content.draft_url ? (
-                    <a href={content.draft_url} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline flex items-center gap-1 mt-1 text-sm font-semibold truncate max-w-full font-mono">
+                    <a
+                      href={content.draft_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary-600 hover:underline flex items-center gap-1 mt-1 text-sm font-semibold truncate max-w-full font-mono"
+                    >
                       View Submitted Draft <ExternalLink size={12} />
                     </a>
                   ) : (
-                    <span className="text-sm font-normal text-gray-400 block mt-1 italic">No draft URL registered</span>
+                    <span className="text-sm font-normal text-gray-400 block mt-1 italic">
+                      No draft URL registered
+                    </span>
                   )}
                 </div>
 
                 <div>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Live Published Link</span>
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">
+                    Live Published Link
+                  </span>
                   {content.published_url ? (
-                    <a href={content.published_url} target="_blank" rel="noreferrer" className="text-primary-650 hover:underline flex items-center gap-1 mt-1 text-sm font-semibold truncate max-w-full font-mono">
+                    <a
+                      href={content.published_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary-650 hover:underline flex items-center gap-1 mt-1 text-sm font-semibold truncate max-w-full font-mono"
+                    >
                       View Live Post <ExternalLink size={12} />
                     </a>
                   ) : (
-                    <span className="text-sm font-normal text-gray-400 block mt-1 italic">No published URL registered</span>
+                    <span className="text-sm font-normal text-gray-400 block mt-1 italic">
+                      No published URL registered
+                    </span>
                   )}
                 </div>
 
                 {content.published_at && (
                   <div>
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Published At</span>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">
+                      Published At
+                    </span>
                     <span className="text-xs font-normal text-gray-850 font-mono">
                       {format(new Date(content.published_at), 'MMM d, yyyy h:mm a')}
                     </span>
@@ -389,15 +429,23 @@ export default function ContentDetail() {
               <div className="border-t border-gray-100 mt-6 pt-6 space-y-4 font-outfit">
                 {content.notes && (
                   <div>
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Campaign Guidelines & Notes</span>
-                    <p className="text-sm text-gray-650 mt-1.5 whitespace-pre-wrap leading-relaxed">{content.notes}</p>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">
+                      Campaign Guidelines & Notes
+                    </span>
+                    <p className="text-sm text-gray-650 mt-1.5 whitespace-pre-wrap leading-relaxed">
+                      {content.notes}
+                    </p>
                   </div>
                 )}
 
                 {content.internal_notes && (
                   <div className="bg-yellow-50/45 border border-yellow-100/50 p-4 rounded-xl">
-                    <span className="text-[9px] font-bold text-amber-800 uppercase tracking-wider block">Internal Team Notes</span>
-                    <p className="text-sm text-gray-650 mt-1.5 whitespace-pre-wrap leading-relaxed">{content.internal_notes}</p>
+                    <span className="text-[9px] font-bold text-amber-800 uppercase tracking-wider block">
+                      Internal Team Notes
+                    </span>
+                    <p className="text-sm text-gray-650 mt-1.5 whitespace-pre-wrap leading-relaxed">
+                      {content.internal_notes}
+                    </p>
                   </div>
                 )}
               </div>
@@ -420,7 +468,9 @@ export default function ContentDetail() {
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-outfit">
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">Views</span>
+                  <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">
+                    Views
+                  </span>
                   <div className="flex items-center gap-1.5">
                     <Eye size={14} className="text-gray-400" />
                     <span className="text-lg font-normal text-gray-900 font-mono">
@@ -430,7 +480,9 @@ export default function ContentDetail() {
                 </div>
 
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">Likes</span>
+                  <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">
+                    Likes
+                  </span>
                   <div className="flex items-center gap-1.5">
                     <Heart size={14} className="text-gray-400" />
                     <span className="text-lg font-normal text-gray-900 font-mono">
@@ -440,7 +492,9 @@ export default function ContentDetail() {
                 </div>
 
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">Comments</span>
+                  <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">
+                    Comments
+                  </span>
                   <div className="flex items-center gap-1.5">
                     <MessageSquare size={14} className="text-gray-400" />
                     <span className="text-lg font-normal text-gray-900 font-mono">
@@ -450,11 +504,15 @@ export default function ContentDetail() {
                 </div>
 
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">Engagement Rate</span>
+                  <span className="text-[9px] text-gray-400 block uppercase font-bold tracking-wider mb-1">
+                    Engagement Rate
+                  </span>
                   <div className="flex items-center gap-1.5">
                     <Activity size={14} className="text-gray-400" />
                     <span className="text-lg font-semibold text-primary-700 font-mono">
-                      {content.engagement_rate ? `${Number(content.engagement_rate).toFixed(2)}%` : '0.00%'}
+                      {content.engagement_rate
+                        ? `${Number(content.engagement_rate).toFixed(2)}%`
+                        : '0.00%'}
                     </span>
                   </div>
                 </div>
@@ -462,7 +520,9 @@ export default function ContentDetail() {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 font-outfit pt-2">
                 <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/50">
-                  <span className="text-[9px] text-gray-450 block uppercase tracking-wider mb-1">Shares</span>
+                  <span className="text-[9px] text-gray-450 block uppercase tracking-wider mb-1">
+                    Shares
+                  </span>
                   <div className="flex items-center gap-1.5">
                     <Share2 size={13} className="text-gray-400" />
                     <span className="text-sm font-normal text-gray-800 font-mono">
@@ -472,7 +532,9 @@ export default function ContentDetail() {
                 </div>
 
                 <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/50">
-                  <span className="text-[9px] text-gray-450 block uppercase tracking-wider mb-1">Saves</span>
+                  <span className="text-[9px] text-gray-450 block uppercase tracking-wider mb-1">
+                    Saves
+                  </span>
                   <div className="flex items-center gap-1.5">
                     <Bookmark size={13} className="text-gray-400" />
                     <span className="text-sm font-normal text-gray-800 font-mono">
@@ -482,7 +544,9 @@ export default function ContentDetail() {
                 </div>
 
                 <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/50">
-                  <span className="text-[9px] text-gray-450 block uppercase tracking-wider mb-1">Clicks</span>
+                  <span className="text-[9px] text-gray-450 block uppercase tracking-wider mb-1">
+                    Clicks
+                  </span>
                   <div className="flex items-center gap-1.5">
                     <MousePointerClick size={13} className="text-gray-400" />
                     <span className="text-sm font-normal text-gray-800 font-mono">
@@ -502,23 +566,30 @@ export default function ContentDetail() {
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-1.5 font-outfit">
               <User size={14} /> Assigned Creator
             </h3>
-            
+
             <div className="flex flex-col items-center text-center space-y-4 pt-2 font-outfit">
-              <img 
-                src={content.Creator?.profile_pic || `https://ui-avatars.com/api/?name=${encodeURIComponent(content.Creator?.full_name || 'C')}&background=random`} 
-                alt="" 
+              <img
+                src={
+                  content.Creator?.profile_pic ||
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(content.Creator?.full_name || 'C')}&background=random`
+                }
+                alt=""
                 className="w-20 h-20 rounded-full border border-gray-100 object-cover shadow-md"
               />
               <div>
                 <h4 className="font-normal text-gray-900 text-lg uppercase tracking-tight">
                   {content.Creator?.full_name}
                 </h4>
-                <div className="text-xs text-gray-550 mt-1 font-mono">@{content.Creator?.handle}</div>
-                <div className="text-[11px] text-gray-400 mt-1 font-mono">{content.Creator?.email || 'No email registered'}</div>
+                <div className="text-xs text-gray-550 mt-1 font-mono">
+                  @{content.Creator?.handle}
+                </div>
+                <div className="text-[11px] text-gray-400 mt-1 font-mono">
+                  {content.Creator?.email || 'No email registered'}
+                </div>
               </div>
 
               <div className="w-full pt-4 border-t border-gray-100">
-                <Link 
+                <Link
                   to={`/creators/${content.creator_id}`}
                   state={{ fromPath: location.pathname, fromLabel: 'CONTENT' }}
                   className="w-full text-center py-2 border border-gray-200 hover:border-gray-900 text-gray-750 hover:text-gray-950 rounded-lg text-xs tracking-wider uppercase font-normal block transition-colors bg-white font-outfit"
@@ -528,25 +599,35 @@ export default function ContentDetail() {
               </div>
             </div>
           </Card>
-      </div>
+        </div>
       </div>
 
       {/* ─── Edit Content Deliverable Modal ─── */}
-      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Content Deliverable">
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        title="Edit Content Deliverable"
+      >
         <form onSubmit={submitEdit} className="space-y-4 font-outfit">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Platform</label>
+              <label
+                htmlFor="contentdetail-1"
+                className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+              >
+                Platform
+              </label>
               <select
+                id="contentdetail-1"
                 value={editForm.platform}
-                onChange={e => {
+                onChange={(e) => {
                   const plat = e.target.value;
                   let defType = 'other';
                   if (plat === 'instagram') defType = 'instagram_reel';
                   if (plat === 'youtube') defType = 'youtube_video';
                   if (plat === 'tiktok') defType = 'tiktok_video';
                   if (plat === 'blog') defType = 'blog_post';
-                  setEditForm(prev => ({ ...prev, platform: plat, content_type: defType }));
+                  setEditForm((prev) => ({ ...prev, platform: plat, content_type: defType }));
                 }}
                 className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
               >
@@ -560,10 +641,16 @@ export default function ContentDetail() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Content Type</label>
+              <label
+                htmlFor="contentdetail-2"
+                className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+              >
+                Content Type
+              </label>
               <select
+                id="contentdetail-2"
                 value={editForm.content_type}
-                onChange={e => setEditForm(prev => ({ ...prev, content_type: e.target.value }))}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, content_type: e.target.value }))}
                 className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
               >
                 {editForm.platform === 'instagram' && (
@@ -582,9 +669,7 @@ export default function ContentDetail() {
                 {editForm.platform === 'tiktok' && (
                   <option value="tiktok_video">TikTok Video</option>
                 )}
-                {editForm.platform === 'blog' && (
-                  <option value="blog_post">Blog Post</option>
-                )}
+                {editForm.platform === 'blog' && <option value="blog_post">Blog Post</option>}
                 {!['instagram', 'youtube', 'tiktok', 'blog'].includes(editForm.platform) && (
                   <option value="other">Other</option>
                 )}
@@ -593,62 +678,101 @@ export default function ContentDetail() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Due Date</label>
+            <label
+              htmlFor="contentdetail-3"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Due Date
+            </label>
             <input
+              id="contentdetail-3"
               type="date"
               value={editForm.due_date}
-              onChange={e => setEditForm(prev => ({ ...prev, due_date: e.target.value }))}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, due_date: e.target.value }))}
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Draft URL</label>
+            <label
+              htmlFor="contentdetail-4"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Draft URL
+            </label>
             <input
+              id="contentdetail-4"
               type="text"
               value={editForm.draft_url}
-              onChange={e => setEditForm(prev => ({ ...prev, draft_url: e.target.value }))}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, draft_url: e.target.value }))}
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
               placeholder="https://drive.google.com/..."
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Published URL</label>
+            <label
+              htmlFor="contentdetail-5"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Published URL
+            </label>
             <input
+              id="contentdetail-5"
               type="text"
               value={editForm.published_url}
-              onChange={e => setEditForm(prev => ({ ...prev, published_url: e.target.value }))}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, published_url: e.target.value }))}
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
               placeholder="https://instagram.com/p/..."
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Notes & Requirements</label>
+            <label
+              htmlFor="contentdetail-6"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Notes & Requirements
+            </label>
             <textarea
+              id="contentdetail-6"
               value={editForm.notes}
-              onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, notes: e.target.value }))}
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[80px]"
               placeholder="e.g. guidelines..."
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-amber-800 uppercase tracking-widest block">Internal Notes</label>
+            <label
+              htmlFor="contentdetail-7"
+              className="text-[10px] font-bold text-amber-800 uppercase tracking-widest block"
+            >
+              Internal Notes
+            </label>
             <textarea
+              id="contentdetail-7"
               value={editForm.internal_notes}
-              onChange={e => setEditForm(prev => ({ ...prev, internal_notes: e.target.value }))}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, internal_notes: e.target.value }))}
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[80px]"
               placeholder="e.g. tracking notes..."
             />
           </div>
 
           <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowEditModal(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 font-normal text-xs uppercase tracking-widest"
+              onClick={() => setShowEditModal(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest"
+            >
               {submitting ? 'Saving...' : 'Save Deliverable'}
             </Button>
           </div>
@@ -656,34 +780,59 @@ export default function ContentDetail() {
       </Modal>
 
       {/* ─── Request Revision Modal ─── */}
-      <Modal isOpen={showRevisionModal} onClose={() => setShowRevisionModal(false)} title="Request Content Revision">
+      <Modal
+        isOpen={showRevisionModal}
+        onClose={() => setShowRevisionModal(false)}
+        title="Request Content Revision"
+      >
         <form onSubmit={submitRevision} className="space-y-4 font-outfit">
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Subject</label>
+            <label
+              htmlFor="contentdetail-8"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Email Subject
+            </label>
             <input
+              id="contentdetail-8"
               type="text"
               value={revisionForm.subject}
-              onChange={e => setRevisionForm(prev => ({ ...prev, subject: e.target.value }))}
+              onChange={(e) => setRevisionForm((prev) => ({ ...prev, subject: e.target.value }))}
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
               required
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Message Body (Sent to Creator & Logged to CRM)</label>
+            <label
+              htmlFor="contentdetail-9"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Email Message Body (Sent to Creator & Logged to CRM)
+            </label>
             <textarea
+              id="contentdetail-9"
               value={revisionForm.body}
-              onChange={e => setRevisionForm(prev => ({ ...prev, body: e.target.value }))}
+              onChange={(e) => setRevisionForm((prev) => ({ ...prev, body: e.target.value }))}
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[200px]"
               required
             />
           </div>
 
           <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowRevisionModal(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 font-normal text-xs uppercase tracking-widest"
+              onClick={() => setShowRevisionModal(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-normal text-xs uppercase tracking-widest">
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-normal text-xs uppercase tracking-widest"
+            >
               {submitting ? 'Sending Request...' : 'Send Revision Request'}
             </Button>
           </div>

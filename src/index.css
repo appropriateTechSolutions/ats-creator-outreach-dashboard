@@ -18,17 +18,43 @@
     font-family: 'Inter', sans-serif;
     @apply bg-gray-50 text-gray-900 antialiased;
   }
-  
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: 'Outfit', sans-serif;
     @apply tracking-tight;
+  }
+
+  /* Keyboard-only focus ring. Mouse/pointer focus (no :focus-visible) stays
+     ring-free; keyboard navigation always paints a visible ring on elements
+     that don't already provide their own focus styling. */
+  :focus-visible {
+    outline: 2px solid theme('colors.primary.500');
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* The route-change focus target is programmatic — it must not paint a ring. */
+  #main-content:focus,
+  #main-content:focus-visible {
+    outline: none;
   }
 }
 
 @layer utilities {
   @keyframes loaderDots {
-    0% { opacity: 1; scale: 1; }
-    100% { opacity: 0; scale: 0.5; }
+    0% {
+      opacity: 1;
+      scale: 1;
+    }
+    100% {
+      opacity: 0;
+      scale: 0.5;
+    }
   }
 
   @keyframes slideInRight {
@@ -46,15 +72,17 @@
   .shadow-soft {
     box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
   }
-  
+
   .shadow-hover {
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    box-shadow:
+      0 10px 25px -5px rgba(0, 0, 0, 0.08),
+      0 8px 10px -6px rgba(0, 0, 0, 0.04);
   }
 
   .glass {
     @apply bg-white/80 backdrop-blur-md border-b border-white/20 transition-all duration-200;
   }
-  
+
   .glass-panel {
     @apply bg-white/70 backdrop-blur-xl border border-white/50 shadow-soft transition-all duration-200;
   }
@@ -64,7 +92,9 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    *, ::before, ::after {
+    *,
+    ::before,
+    ::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;

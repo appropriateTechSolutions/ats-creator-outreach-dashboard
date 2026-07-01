@@ -1,11 +1,14 @@
+import { logger } from '../../lib/logger';
+import { dismissOverlay } from '../../lib/a11y';
+import { hasRole, ROLE_GROUPS, APP_NAME } from '../../lib/constants';
 import { useState, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { 
-  BarChart3, 
-  Target, 
-  Users, 
-  CheckSquare, 
-  MessageSquare, 
+import {
+  BarChart3,
+  Target,
+  Users,
+  CheckSquare,
+  MessageSquare,
   Calendar,
   Activity,
   Menu,
@@ -17,10 +20,11 @@ import {
   Handshake,
   Package,
   Image as ImageIcon,
-  TrendingUp
+  TrendingUp,
 } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
+import { useIsDesktop } from '../../hooks/useMediaQuery';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -29,7 +33,8 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user, logout } = useAuth();
-  const [clientName, setClientName] = useState<string>('ATS Outreach');
+  const isDesktop = useIsDesktop();
+  const [clientName, setClientName] = useState<string>(APP_NAME);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -39,9 +44,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         setMenuOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
@@ -51,17 +56,20 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       if (cachedName) setClientName(cachedName);
 
       import('../../lib/api').then((api) => {
-        api.getBrands().then((brandsData) => {
-          if (brandsData && brandsData.length > 0) {
-            const name = brandsData[0]?.Client?.name || 'ATS Outreach';
-            setClientName(name);
-            localStorage.setItem('client_name', name);
-          }
-        }).catch((err) => console.error('Failed to load client name in sidebar', err));
+        api
+          .getBrands()
+          .then((brandsData) => {
+            if (brandsData && brandsData.length > 0) {
+              const name = brandsData[0]?.Client?.name || APP_NAME;
+              setClientName(name);
+              localStorage.setItem('client_name', name);
+            }
+          })
+          .catch((err) => logger.error('Failed to load client name in sidebar', err));
       });
     }
   }, [user]);
-  
+
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: <BarChart3 size={20} /> },
     { name: 'Clients', path: '/clients', icon: <Building2 size={20} />, internalOnly: true },
@@ -80,11 +88,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { name: 'Users', path: '/users', icon: <Users size={20} />, adminOnly: true },
   ];
 
-  const filteredNavItems = navItems.filter(item => {
-    const isInternal = ['super_admin', 'admin', 'operator', 'analyst'].includes(user?.role || '');
-    
+  const filteredNavItems = navItems.filter((item) => {
+    const isInternal = hasRole(user?.role, ROLE_GROUPS.INTERNAL);
+
     // Admin only pages (Manage Users)
-    if (item.adminOnly && !['super_admin', 'admin', 'client_admin'].includes(user?.role || '')) {
+    if (item.adminOnly && !hasRole(user?.role, ROLE_GROUPS.MANAGE_USERS)) {
       return false;
     }
 
@@ -104,10 +112,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     <>
       {/* Overlay — mobile only when open */}
       {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-30 lg:hidden"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 bg-black/40 z-30 lg:hidden" {...dismissOverlay(onClose)} />
       )}
 
       {/* Sidebar panel */}
@@ -145,12 +150,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 key={item.name}
                 to={item.path}
                 onClick={() => {
-                  if (window.innerWidth < 1024) onClose();
+                  if (!isDesktop) onClose();
                 }}
-                className={({ isActive }) => 
+                className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
-                    isActive 
-                      ? 'bg-white shadow-soft text-primary-700 border border-gray-200/50 translate-x-1' 
+                    isActive
+                      ? 'bg-white shadow-soft text-primary-700 border border-gray-200/50 translate-x-1'
                       : 'text-gray-500 hover:bg-gray-100/50 hover:text-gray-900 border border-transparent'
                   }`
                 }
@@ -173,15 +178,19 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {menuOpen && (
             <div className="absolute bottom-full left-2 right-2 mb-2 bg-white border border-gray-200 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] py-1 z-50 animate-[fadeIn_0.1s_ease]">
               <button
-                onClick={() => { setMenuOpen(false); logout(); }}
+                onClick={() => {
+                  setMenuOpen(false);
+                  logout();
+                }}
                 className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors"
               >
-                <LogOut size={16} /> <span className="font-normal uppercase tracking-widest text-[10px]">Logout</span>
+                <LogOut size={16} />{' '}
+                <span className="font-normal uppercase tracking-widest text-[10px]">Logout</span>
               </button>
             </div>
           )}
-          
-          <button 
+
+          <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="w-full p-4 flex items-center justify-between hover:bg-gray-100 transition-colors cursor-pointer group"
           >
@@ -190,11 +199,18 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 {user?.full_name?.substring(0, 2) || 'US'}
               </div>
               <div className="text-left overflow-hidden">
-                <div className="text-sm font-normal text-gray-700 leading-tight font-outfit uppercase tracking-tight truncate max-w-[110px]">{user?.full_name || 'Admin User'}</div>
-                <div className="text-[10px] uppercase tracking-wider text-gray-500 mt-0.5 truncate max-w-[110px]">{user?.role?.replace('client_', '').replace('_', ' ') || 'Role'}</div>
+                <div className="text-sm font-normal text-gray-700 leading-tight font-outfit uppercase tracking-tight truncate max-w-[110px]">
+                  {user?.full_name || 'Admin User'}
+                </div>
+                <div className="text-[10px] uppercase tracking-wider text-gray-500 mt-0.5 truncate max-w-[110px]">
+                  {user?.role?.replace('client_', '').replace('_', ' ') || 'Role'}
+                </div>
               </div>
             </div>
-            <ChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown
+              size={16}
+              className={`text-gray-400 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`}
+            />
           </button>
         </div>
       </aside>

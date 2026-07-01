@@ -55,7 +55,9 @@ export default function ResetPassword() {
               <AlertCircle size={48} className="text-red-500" />
             </div>
             <h2 className="text-xl font-semibold">Invalid Reset Link</h2>
-            <p className="text-gray-600">The reset token is missing or invalid. Please request a new link.</p>
+            <p className="text-gray-600">
+              The reset token is missing or invalid. Please request a new link.
+            </p>
             <Link to="/forgot-password">
               <Button className="w-full mt-4">Request New Link</Button>
             </Link>
@@ -76,9 +78,7 @@ export default function ResetPassword() {
         <h2 className="text-center text-3xl font-normal text-gray-900 tracking-tight font-outfit uppercase">
           Set New Password
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Enter your new password below
-        </p>
+        <p className="mt-2 text-center text-sm text-gray-600">Enter your new password below</p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -101,35 +101,43 @@ export default function ResetPassword() {
               )}
 
               <div>
-                <label className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest">
+                <label
+                  htmlFor="resetpassword-1"
+                  className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest"
+                >
                   New Password
                 </label>
                 <input
+                  id="resetpassword-1"
                   type="password"
                   required
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-all"
                   placeholder="••••••••"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest">
+                <label
+                  htmlFor="resetpassword-2"
+                  className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest"
+                >
                   Confirm Password
                 </label>
                 <input
+                  id="resetpassword-2"
                   type="password"
                   required
                   value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-all"
                   placeholder="••••••••"
                 />
               </div>
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full py-3 rounded-xl disabled:opacity-70"
                 disabled={isSubmitting}
               >

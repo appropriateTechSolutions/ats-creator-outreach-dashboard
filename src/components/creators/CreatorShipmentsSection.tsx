@@ -11,7 +11,11 @@ interface CreatorShipmentsSectionProps {
   loadData: (silent?: boolean) => void;
 }
 
-export function CreatorShipmentsSection({ creatorShipments, creatorId, loadData }: CreatorShipmentsSectionProps) {
+export function CreatorShipmentsSection({
+  creatorShipments,
+  creatorId,
+  loadData,
+}: CreatorShipmentsSectionProps) {
   const navigate = useNavigate();
 
   if (creatorShipments.length === 0) {
@@ -37,7 +41,13 @@ export function CreatorShipmentsSection({ creatorShipments, creatorId, loadData 
         </thead>
         <tbody className="divide-y divide-gray-50 bg-white">
           {creatorShipments.map((s) => (
-            <tr key={s.id} onClick={() => navigate(`/shipments/${s.id}`, { state: { fromCreatorId: creatorId } })} className="hover:bg-primary-50/10 transition-colors cursor-pointer">
+            <tr
+              key={s.id}
+              onClick={() =>
+                navigate(`/shipments/${s.id}`, { state: { fromCreatorId: creatorId } })
+              }
+              className="hover:bg-primary-50/10 transition-colors cursor-pointer"
+            >
               <td className="px-4 py-4 align-middle">
                 <div className="text-xs font-normal text-gray-900 font-outfit uppercase tracking-tight whitespace-nowrap">
                   {s.Campaign?.name}
@@ -45,11 +55,18 @@ export function CreatorShipmentsSection({ creatorShipments, creatorId, loadData 
               </td>
               <td className="px-4 py-4 align-middle">
                 <div className="text-xs font-medium text-gray-800">{s.product_name}</div>
-                <div className="text-[10px] text-gray-400">Qty: {s.quantity} {s.product_sku ? `(SKU: ${s.product_sku})` : ''}</div>
+                <div className="text-[10px] text-gray-400">
+                  Qty: {s.quantity} {s.product_sku ? `(SKU: ${s.product_sku})` : ''}
+                </div>
               </td>
               <td className="px-4 py-4 align-middle">
                 <div className="text-xs text-gray-800">{s.recipient_name}</div>
-                <div className="text-[10px] text-gray-500 truncate max-w-[180px]" title={s.shipping_address_line1}>{s.shipping_address_line1}</div>
+                <div
+                  className="text-[10px] text-gray-500 truncate max-w-[180px]"
+                  title={s.shipping_address_line1}
+                >
+                  {s.shipping_address_line1}
+                </div>
               </td>
               <td className="px-4 py-4 text-center align-middle">
                 <StatusBadge status={s.status} />
@@ -61,7 +78,12 @@ export function CreatorShipmentsSection({ creatorShipments, creatorId, loadData 
                       <Truck size={10} className="text-gray-400" /> {s.carrier}: {s.tracking_number}
                     </div>
                     {s.tracking_url && (
-                      <a href={s.tracking_url} target="_blank" rel="noreferrer" className="text-[10px] text-primary-600 hover:underline inline-flex items-center gap-0.5 mt-0.5">
+                      <a
+                        href={s.tracking_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-primary-600 hover:underline inline-flex items-center gap-0.5 mt-0.5"
+                      >
                         Track <ExternalLink size={8} />
                       </a>
                     )}
@@ -70,29 +92,44 @@ export function CreatorShipmentsSection({ creatorShipments, creatorId, loadData 
                   <span className="text-[10px] text-gray-400 italic">No tracking info</span>
                 )}
               </td>
-              <td className="px-4 py-4 align-middle text-center relative z-10" onClick={(e) => e.stopPropagation()}>
+              <td
+                className="px-4 py-4 align-middle text-center relative z-10"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="flex items-center justify-center gap-2">
                   {s.status === 'pending' && (
-                    <Button size="sm" className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => {
-                      updateShipment(s.id, { status: 'shipped' }).then(() => loadData(true));
-                    }}>
+                    <Button
+                      size="sm"
+                      className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2"
+                      onClick={() => {
+                        updateShipment(s.id, { status: 'shipped' }).then(() => loadData(true));
+                      }}
+                    >
                       Ship
                     </Button>
                   )}
                   {s.status === 'shipped' && (
-                    <Button size="sm" className="bg-green-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => {
-                      updateShipment(s.id, { status: 'delivered' }).then(() => loadData(true));
-                    }}>
+                    <Button
+                      size="sm"
+                      className="bg-green-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2"
+                      onClick={() => {
+                        updateShipment(s.id, { status: 'delivered' }).then(() => loadData(true));
+                      }}
+                    >
                       Deliver
                     </Button>
                   )}
-                  <button 
+                  <button
                     onClick={() => {
-                      const carrier = prompt("Enter Carrier (e.g. USPS, UPS):", s.carrier || "");
-                      const tracking = prompt("Enter Tracking Number:", s.tracking_number || "");
-                      const tracking_url = prompt("Enter Tracking URL:", s.tracking_url || "");
+                      const carrier = prompt('Enter Carrier (e.g. USPS, UPS):', s.carrier || '');
+                      const tracking = prompt('Enter Tracking Number:', s.tracking_number || '');
+                      const tracking_url = prompt('Enter Tracking URL:', s.tracking_url || '');
                       if (carrier !== null && tracking !== null) {
-                        updateShipment(s.id, { carrier, tracking_number: tracking, tracking_url: tracking_url || undefined }).then(() => loadData(true));
+                        updateShipment(s.id, {
+                          carrier,
+                          tracking_number: tracking,
+                          tracking_url: tracking_url || undefined,
+                        }).then(() => loadData(true));
                       }
                     }}
                     className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"

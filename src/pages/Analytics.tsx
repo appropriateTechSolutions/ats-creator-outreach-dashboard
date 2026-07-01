@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { getContents } from '../lib/api';
+import { useMemo } from 'react';
+import { useContents } from '../hooks/queries';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { LoadingState } from '../components/ui/LoadingState';
@@ -10,28 +10,11 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Analytics() {
   const navigate = useNavigate();
-  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
-  const [contents, setContents] = useState<any[]>([]);
-
-  const loadAllContents = async () => {
-    setLoadingAnalytics(true);
-    try {
-      const contentData = await getContents();
-      setContents(contentData);
-    } catch (err) {
-      console.error('Failed to load content deliverables:', err);
-    } finally {
-      setLoadingAnalytics(false);
-    }
-  };
-
-  useEffect(() => {
-    loadAllContents();
-  }, []);
+  const { data: contents = [], isLoading: loadingAnalytics } = useContents();
 
   const groupedAnalytics = useMemo(() => {
     const groups: { [key: string]: any } = {};
-    contents.forEach(c => {
+    contents.forEach((c) => {
       if (!c.creator_id || !c.campaign_id) return;
       const key = `${c.creator_id}-${c.campaign_id}`;
       if (!groups[key]) {
@@ -44,7 +27,7 @@ export default function Analytics() {
           publishedCount: 0,
           approvedCount: 0,
           totalCount: 0,
-          earliestDueDate: null
+          earliestDueDate: null,
         };
       }
       groups[key].deliverables.push(c);
@@ -56,7 +39,10 @@ export default function Analytics() {
         groups[key].approvedCount += 1;
       }
       if (c.due_date) {
-        if (!groups[key].earliestDueDate || new Date(c.due_date) < new Date(groups[key].earliestDueDate)) {
+        if (
+          !groups[key].earliestDueDate ||
+          new Date(c.due_date) < new Date(groups[key].earliestDueDate)
+        ) {
           groups[key].earliestDueDate = c.due_date;
         }
       }
@@ -77,14 +63,18 @@ export default function Analytics() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-gray-100">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Analytics Performance</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
+            Analytics Performance
+          </h1>
         </div>
       </div>
 
       {/* Creator Deliverables Table */}
       <Card className="border-none shadow-xl bg-white/80 backdrop-blur-md overflow-hidden">
         <CardHeader className="p-6 border-b border-gray-150/10">
-          <h2 className="text-sm font-normal text-gray-900 uppercase tracking-widest font-outfit">Creator Deliverables</h2>
+          <h2 className="text-sm font-normal text-gray-900 uppercase tracking-widest font-outfit">
+            Creator Deliverables
+          </h2>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -104,10 +94,10 @@ export default function Analytics() {
                 {groupedAnalytics.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-12">
-                      <EmptyState 
-                        icon={BarChart3} 
-                        title="No Analytics" 
-                        description="No content deliverables recorded in the system." 
+                      <EmptyState
+                        icon={BarChart3}
+                        title="No Analytics"
+                        description="No content deliverables recorded in the system."
                       />
                     </td>
                   </tr>
@@ -115,21 +105,32 @@ export default function Analytics() {
                   groupedAnalytics.map((group: any) => {
                     const profileKey = `${group.creatorId}-${group.campaignId}`;
                     return (
-                      <tr 
+                      <tr
                         key={profileKey}
-                        onClick={() => navigate(`/analytics/creator-campaign/${group.creatorId}/${group.campaignId}`)}
+                        onClick={() =>
+                          navigate(
+                            `/analytics/creator-campaign/${group.creatorId}/${group.campaignId}`,
+                          )
+                        }
                         className="hover:bg-primary-50/10 transition-colors text-xs cursor-pointer"
                       >
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-3">
-                            <img 
-                              src={group.Creator?.profile_pic || `https://ui-avatars.com/api/?name=${encodeURIComponent(group.Creator?.full_name || 'C')}&background=random`} 
-                              alt="" 
+                            <img
+                              src={
+                                group.Creator?.profile_pic ||
+                                `https://ui-avatars.com/api/?name=${encodeURIComponent(group.Creator?.full_name || 'C')}&background=random`
+                              }
+                              alt=""
                               className="w-8 h-8 rounded-full border border-gray-200 object-cover"
                             />
                             <div>
-                              <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight">{group.Creator?.full_name}</div>
-                              <div className="text-[9px] text-gray-400 uppercase tracking-wider mt-0.5">@{group.Creator?.handle}</div>
+                              <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight">
+                                {group.Creator?.full_name}
+                              </div>
+                              <div className="text-[9px] text-gray-400 uppercase tracking-wider mt-0.5">
+                                @{group.Creator?.handle}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -139,9 +140,22 @@ export default function Analytics() {
                         <td className="px-6 py-5">
                           <div className="flex flex-col gap-2">
                             {group.deliverables.map((d: any, idx: number) => {
-                              const typeLabel = d.content_type?.replace('instagram_', '').replace('youtube_', '').replace('tiktok_', '').replace('_', ' ').replace('video', '').replace('post', '').replace('short', '').replace('reel', 'REEL').replace('story', 'STORY').toUpperCase();
+                              const typeLabel = d.content_type
+                                ?.replace('instagram_', '')
+                                .replace('youtube_', '')
+                                .replace('tiktok_', '')
+                                .replace('_', ' ')
+                                .replace('video', '')
+                                .replace('post', '')
+                                .replace('short', '')
+                                .replace('reel', 'REEL')
+                                .replace('story', 'STORY')
+                                .toUpperCase();
                               return (
-                                <span key={idx} className="text-[10px] text-gray-500 font-mono font-medium uppercase block">
+                                <span
+                                  key={idx}
+                                  className="text-[10px] text-gray-500 font-mono font-medium uppercase block"
+                                >
                                   {typeLabel}
                                 </span>
                               );
@@ -151,14 +165,34 @@ export default function Analytics() {
                         <td className="px-6 py-5">
                           <div className="flex flex-col gap-2">
                             {group.deliverables.map((d: any, idx: number) => {
-                              const typeLabel = d.content_type?.replace('instagram_', '').replace('youtube_', '').replace('tiktok_', '').replace('_', ' ').replace('video', '').replace('post', '').replace('short', '').replace('reel', 'REEL').replace('story', 'STORY').toUpperCase();
+                              const typeLabel = d.content_type
+                                ?.replace('instagram_', '')
+                                .replace('youtube_', '')
+                                .replace('tiktok_', '')
+                                .replace('_', ' ')
+                                .replace('video', '')
+                                .replace('post', '')
+                                .replace('short', '')
+                                .replace('reel', 'REEL')
+                                .replace('story', 'STORY')
+                                .toUpperCase();
                               return (
-                                <div key={idx} className="flex items-center gap-1.5 text-[9px] font-mono uppercase">
-                                  <span className="text-gray-400 font-medium inline-block w-14">{typeLabel}:</span>
-                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-bold ${
-                                    d.status === 'published' ? 'bg-green-50 text-green-700' :
-                                    d.status === 'approved' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
-                                  }`}>
+                                <div
+                                  key={idx}
+                                  className="flex items-center gap-1.5 text-[9px] font-mono uppercase"
+                                >
+                                  <span className="text-gray-400 font-medium inline-block w-14">
+                                    {typeLabel}:
+                                  </span>
+                                  <span
+                                    className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                                      d.status === 'published'
+                                        ? 'bg-green-50 text-green-700'
+                                        : d.status === 'approved'
+                                          ? 'bg-blue-50 text-blue-700'
+                                          : 'bg-amber-50 text-amber-700'
+                                    }`}
+                                  >
                                     {d.status}
                                   </span>
                                 </div>
@@ -172,15 +206,21 @@ export default function Analytics() {
                               <div>{format(new Date(group.earliestDueDate), 'MMM d,')}</div>
                               <div>{format(new Date(group.earliestDueDate), 'yyyy')}</div>
                             </>
-                          ) : '---'}
+                          ) : (
+                            '---'
+                          )}
                         </td>
                         <td className="px-6 py-5 text-center font-bold text-gray-800 text-xs">
                           {group.totalCount}
                         </td>
-                        <td className="px-6 py-5 text-right" onClick={e => e.stopPropagation()}>
-                          <Button 
-                            size="sm" 
-                            onClick={() => navigate(`/analytics/creator-campaign/${group.creatorId}/${group.campaignId}`)}
+                        <td className="px-6 py-5 text-right" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              navigate(
+                                `/analytics/creator-campaign/${group.creatorId}/${group.campaignId}`,
+                              )
+                            }
                             className="bg-primary-600 hover:bg-primary-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-4 shadow-sm"
                           >
                             View Details

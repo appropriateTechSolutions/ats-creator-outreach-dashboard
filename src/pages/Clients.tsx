@@ -1,14 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Building2,
-  Plus,
-  Search,
-  Shield,
-  User,
-  X
-} from 'lucide-react';
+import { clickable } from '../lib/a11y';
+import { toast } from '../lib/toast';
+import { hasRole, ROLE_GROUPS } from '../lib/constants';
+import React, { useState, useMemo } from 'react';
+import { Building2, Plus, Search, Shield, User, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
+import { useClients, useCampaigns } from '../hooks/queries';
+import { useInvalidate } from '../hooks/useInvalidate';
+import { queryKeys } from '../lib/queryKeys';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -17,23 +16,25 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 
-interface Client {
-  id: string;
-  name: string;
-  status: string;
-  plan_type: string;
-  billing_status: string;
-  created_at: string;
-  industry?: string;
-  brands?: any[];
-  users?: any[];
-  campaign_count?: number;
-}
+import type { Client } from '../types';
 
 export default function Clients() {
   const { user } = useAuth();
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: clientsData = [], isLoading: loading } = useClients();
+  const { data: campaignsData = [] } = useCampaigns();
+  const invalidate = useInvalidate();
+
+  // Enrich each client with a campaign count computed from the campaigns list.
+  const clients = useMemo<Client[]>(
+    () =>
+      clientsData.map((client) => ({
+        ...client,
+        campaign_count: campaignsData.filter(
+          (c) => c.client_id === client.id || c.Client?.id === client.id,
+        ).length,
+      })),
+    [clientsData, campaignsData],
+  );
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
@@ -50,34 +51,8 @@ export default function Clients() {
     plan_type: 'pilot',
     billing_status: 'not_applicable',
     status: 'active',
-    notes: ''
+    notes: '',
   });
-
-  const fetchClients = async () => {
-    try {
-      // Fetch both clients and campaigns to get accurate counts
-      const [clientsData, campaignsData] = await Promise.all([
-        api.getClients(),
-        api.getCampaigns()
-      ]);
-      
-      // Map campaign counts to clients
-      const clientsWithCounts = clientsData.map((client: any) => ({
-        ...client,
-        campaign_count: campaignsData.filter((c: any) => (c.client_id === client.id) || (c.Client?.id === client.id)).length
-      }));
-      
-      setClients(clientsWithCounts);
-    } catch (err) {
-      console.error('Failed to fetch clients or campaigns', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchClients();
-  }, []);
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,26 +70,28 @@ export default function Clients() {
         plan_type: 'pilot',
         billing_status: 'not_applicable',
         status: 'active',
-        notes: ''
+        notes: '',
       });
-      fetchClients();
+      invalidate(queryKeys.clients.all);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to create client');
+      toast.error(err instanceof Error ? err.message : 'Failed to create client');
     }
   };
 
-  const filteredClients = clients.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase())
+  const filteredClients = clients.filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.2s_ease]">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Clients</h1>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
+            Clients
+          </h1>
         </div>
-        {['super_admin', 'admin'].includes(user?.role || '') && (
-          <Button 
+        {hasRole(user?.role, ROLE_GROUPS.ADMINS) && (
+          <Button
             onClick={() => setIsModalOpen(true)}
             className="hidden sm:inline-flex bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20 whitespace-nowrap"
             icon={<Plus size={20} />}
@@ -168,16 +145,20 @@ export default function Clients() {
                 </tr>
               ) : (
                 filteredClients.map((client) => (
-                  <tr 
-                    key={client.id} 
+                  <tr
+                    key={client.id}
                     onClick={() => navigate(`/clients/${client.id}`)}
                     className="hover:bg-primary-50/30 transition-colors group cursor-pointer"
                   >
                     <td className="px-8 py-6">
-                        <div>
-                          <div className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit group-hover:text-primary-600 transition-colors">{client.name}</div>
-                          <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1">{client.industry || 'General Sector'}</div>
+                      <div>
+                        <div className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit group-hover:text-primary-600 transition-colors">
+                          {client.name}
                         </div>
+                        <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1">
+                          {client.industry || 'General Sector'}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-8 py-6 text-center">
                       <div className="flex justify-center">
@@ -190,26 +171,43 @@ export default function Clients() {
                       </span>
                     </td>
                     <td className="px-8 py-6 text-center">
-                       <div className="flex justify-center gap-6">
-                          <div className="text-center">
-                            <div className="text-lg font-normal text-gray-900 font-outfit">{client.brands?.length || 0}</div>
-                            <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-0.5">Brands</div>
+                      <div className="flex justify-center gap-6">
+                        <div className="text-center">
+                          <div className="text-lg font-normal text-gray-900 font-outfit">
+                            {client.brands?.length || 0}
                           </div>
-                          <div className="text-center">
-                            <div className="text-lg font-normal text-gray-900 font-outfit">{client.campaign_count || 0}</div>
-                            <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-0.5">Campaigns</div>
+                          <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-0.5">
+                            Brands
                           </div>
-                          <div className="text-center">
-                            <div className="text-lg font-normal text-gray-900 font-outfit">{client.users?.length || 0}</div>
-                            <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-0.5">Users</div>
-                          </div>
-                       </div>
-                    </td>
-                     <td className="px-8 py-6 text-right">
-                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
-                          {client.created_at || (client as any).createdAt ? format(new Date(client.created_at || (client as any).createdAt), 'MMM d, yyyy') : '---'}
                         </div>
-                     </td>
+                        <div className="text-center">
+                          <div className="text-lg font-normal text-gray-900 font-outfit">
+                            {client.campaign_count || 0}
+                          </div>
+                          <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-0.5">
+                            Campaigns
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-normal text-gray-900 font-outfit">
+                            {client.users?.length || 0}
+                          </div>
+                          <div className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-0.5">
+                            Users
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
+                        {client.created_at || (client as any).createdAt
+                          ? format(
+                              new Date(client.created_at || (client as any).createdAt),
+                              'MMM d, yyyy',
+                            )
+                          : '---'}
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -229,15 +227,19 @@ export default function Clients() {
             </div>
           ) : (
             filteredClients.map((client) => (
-              <div 
-                key={client.id} 
-                onClick={() => navigate(`/clients/${client.id}`)}
+              <div
+                key={client.id}
+                {...clickable(() => navigate(`/clients/${client.id}`))}
                 className="p-5 active:bg-gray-50 transition-all cursor-pointer space-y-4"
               >
                 <div className="flex justify-between items-start gap-4">
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit truncate">{client.name}</h4>
-                    <p className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1 truncate">{client.industry || 'General Sector'}</p>
+                    <h4 className="font-normal text-gray-900 text-sm leading-tight uppercase tracking-tight font-outfit truncate">
+                      {client.name}
+                    </h4>
+                    <p className="text-[9px] text-gray-400 font-normal uppercase tracking-widest mt-1 truncate">
+                      {client.industry || 'General Sector'}
+                    </p>
                   </div>
                   <div className="flex-shrink-0">
                     <StatusBadge status={client.status as any} />
@@ -246,30 +248,51 @@ export default function Clients() {
 
                 <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 pt-1 text-xs">
                   <div>
-                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Service Tier</span>
+                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
+                      Service Tier
+                    </span>
                     <span className="px-2.5 py-0.5 rounded-full bg-primary-50 text-primary-600 border border-primary-100 text-[10px] font-normal uppercase tracking-widest font-outfit">
                       {client.plan_type}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Joined</span>
+                    <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
+                      Joined
+                    </span>
                     <span className="font-normal text-gray-900 uppercase tracking-tight font-outfit">
-                      {client.created_at || (client as any).createdAt ? format(new Date(client.created_at || (client as any).createdAt), 'MMM d, yyyy') : '---'}
+                      {client.created_at || (client as any).createdAt
+                        ? format(
+                            new Date(client.created_at || (client as any).createdAt),
+                            'MMM d, yyyy',
+                          )
+                        : '---'}
                     </span>
                   </div>
-                  
+
                   <div className="col-span-2 pt-2 border-t border-slate-50 flex gap-6">
                     <div>
-                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Brands</span>
-                      <span className="text-base font-normal text-gray-900 font-outfit">{client.brands?.length || 0}</span>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
+                        Brands
+                      </span>
+                      <span className="text-base font-normal text-gray-900 font-outfit">
+                        {client.brands?.length || 0}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Campaigns</span>
-                      <span className="text-base font-normal text-gray-900 font-outfit">{client.campaign_count || 0}</span>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
+                        Campaigns
+                      </span>
+                      <span className="text-base font-normal text-gray-900 font-outfit">
+                        {client.campaign_count || 0}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">Users</span>
-                      <span className="text-base font-normal text-gray-900 font-outfit">{client.users?.length || 0}</span>
+                      <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
+                        Users
+                      </span>
+                      <span className="text-base font-normal text-gray-900 font-outfit">
+                        {client.users?.length || 0}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -288,13 +311,18 @@ export default function Clients() {
                 <h2 className="text-2xl font-normal text-gray-900 font-outfit uppercase tracking-tight flex items-center gap-3">
                   <Shield className="text-primary-600" size={28} /> Register New Tenant
                 </h2>
-                <p className="text-slate-400 text-[10px] font-normal mt-1 uppercase tracking-widest font-outfit leading-relaxed">Initialize a secure agency environment.</p>
+                <p className="text-slate-400 text-[10px] font-normal mt-1 uppercase tracking-widest font-outfit leading-relaxed">
+                  Initialize a secure agency environment.
+                </p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors"
+              >
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-8 space-y-8">
               <form id="client-form" onSubmit={handleCreateClient} className="space-y-8">
                 {/* Basic Info Section */}
@@ -302,20 +330,20 @@ export default function Clients() {
                   <h3 className="text-xs font-normal text-slate-400 font-outfit uppercase tracking-widest flex items-center gap-2 mb-4">
                     <Building2 size={14} className="text-primary-600" /> Agency Identity
                   </h3>
-                  
+
                   {/* Row 1: Display Name & Legal Name */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                     <Input
                       label="Display Name (Agency Name)"
                       required
                       value={formData.name}
-                      onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="e.g. ATS Global"
                     />
                     <Input
                       label="Legal Entity Name"
                       value={formData.legal_name}
-                      onChange={e => setFormData({ ...formData, legal_name: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })}
                       placeholder="Full registered company name"
                     />
                   </div>
@@ -323,21 +351,33 @@ export default function Clients() {
                   {/* Row 2: Website & Industry */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Website URL</label>
+                      <label
+                        htmlFor="clients-1"
+                        className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest"
+                      >
+                        Website URL
+                      </label>
                       <input
+                        id="clients-1"
                         type="url"
                         value={formData.website}
-                        onChange={e => setFormData({ ...formData, website: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                         className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl py-2.5 px-4 text-slate-900 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
                         placeholder="https://..."
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Industry Sector</label>
+                      <label
+                        htmlFor="clients-2"
+                        className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest"
+                      >
+                        Industry Sector
+                      </label>
                       <input
+                        id="clients-2"
                         type="text"
                         value={formData.industry}
-                        onChange={e => setFormData({ ...formData, industry: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
                         className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl py-2.5 px-4 text-slate-900 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
                         placeholder="e.g. Fashion, Tech, etc."
                       />
@@ -356,7 +396,9 @@ export default function Clients() {
                         label="Full Name"
                         placeholder="Contact person name"
                         value={formData.primary_contact_name}
-                        onChange={e => setFormData({ ...formData, primary_contact_name: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, primary_contact_name: e.target.value })
+                        }
                       />
                       <Input
                         label="Work Email"
@@ -364,7 +406,9 @@ export default function Clients() {
                         type="email"
                         required
                         value={formData.primary_contact_email}
-                        onChange={e => setFormData({ ...formData, primary_contact_email: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, primary_contact_email: e.target.value })
+                        }
                       />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
@@ -374,7 +418,9 @@ export default function Clients() {
                         type="tel"
                         pattern="[\+0-9\- ]*"
                         value={formData.primary_contact_phone}
-                        onChange={e => setFormData({ ...formData, primary_contact_phone: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, primary_contact_phone: e.target.value })
+                        }
                       />
                     </div>
                   </div>
@@ -387,10 +433,16 @@ export default function Clients() {
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Plan Type</label>
+                      <label
+                        htmlFor="clients-3"
+                        className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest"
+                      >
+                        Plan Type
+                      </label>
                       <select
+                        id="clients-3"
                         value={formData.plan_type}
-                        onChange={e => setFormData({ ...formData, plan_type: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, plan_type: e.target.value })}
                         className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl py-2.5 px-4 text-slate-900 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit"
                       >
                         <option value="internal">Internal</option>
@@ -401,10 +453,18 @@ export default function Clients() {
                       </select>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Billing Status</label>
+                      <label
+                        htmlFor="clients-4"
+                        className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest"
+                      >
+                        Billing Status
+                      </label>
                       <select
+                        id="clients-4"
                         value={formData.billing_status}
-                        onChange={e => setFormData({ ...formData, billing_status: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, billing_status: e.target.value })
+                        }
                         className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl py-2.5 px-4 text-slate-900 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit"
                       >
                         <option value="not_applicable">N/A</option>
@@ -416,10 +476,16 @@ export default function Clients() {
                       </select>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Account Status</label>
+                      <label
+                        htmlFor="clients-5"
+                        className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest"
+                      >
+                        Account Status
+                      </label>
                       <select
+                        id="clients-5"
                         value={formData.status}
-                        onChange={e => setFormData({ ...formData, status: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                         className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl py-2.5 px-4 text-slate-900 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit"
                       >
                         <option value="active">Active</option>
@@ -431,10 +497,16 @@ export default function Clients() {
                 </div>
 
                 <div className="space-y-1.5 pb-4">
-                  <label className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest">Internal Notes</label>
+                  <label
+                    htmlFor="clients-6"
+                    className="text-xs font-normal text-slate-500 block font-outfit uppercase tracking-widest"
+                  >
+                    Internal Notes
+                  </label>
                   <textarea
+                    id="clients-6"
                     value={formData.notes}
-                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={3}
                     className="w-full bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl p-4 text-slate-900 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-outfit placeholder:text-slate-400"
                     placeholder="Private notes about this client..."
@@ -445,9 +517,15 @@ export default function Clients() {
 
             {/* Sticky Footer */}
             <div className="p-8 border-t border-gray-100 bg-white rounded-b-2xl shrink-0 flex gap-4">
-              <Button variant="ghost" className="flex-1 font-normal uppercase tracking-widest text-[10px] font-outfit" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-              <Button 
-                type="submit" 
+              <Button
+                variant="ghost"
+                className="flex-1 font-normal uppercase tracking-widest text-[10px] font-outfit"
+                onClick={() => setIsModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
                 form="client-form"
                 className="flex-[2] bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 font-normal uppercase tracking-widest text-[10px] font-outfit"
               >
@@ -458,7 +536,7 @@ export default function Clients() {
         </div>
       )}
       {/* Floating Action Button for Mobile */}
-      {['super_admin', 'admin'].includes(user?.role || '') && (
+      {hasRole(user?.role, ROLE_GROUPS.ADMINS) && (
         <button
           onClick={() => setIsModalOpen(true)}
           className="sm:hidden fixed bottom-6 right-6 z-50 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-4 shadow-2xl shadow-primary-500/40 flex items-center justify-center transition-transform active:scale-95 border border-primary-500/20"

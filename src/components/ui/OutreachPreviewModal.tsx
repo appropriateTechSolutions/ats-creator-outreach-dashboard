@@ -1,3 +1,5 @@
+import { logger } from '../../lib/logger';
+import { toast } from '../../lib/toast';
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { previewOutreach } from '../../lib/api';
@@ -9,7 +11,12 @@ interface OutreachPreviewModalProps {
   messageType?: string;
   isOpen: boolean;
   onClose: () => void;
-  onSend: (customSubject?: string, customBody?: string, messageType?: string, customTo?: string) => Promise<void>;
+  onSend: (
+    customSubject?: string,
+    customBody?: string,
+    messageType?: string,
+    customTo?: string,
+  ) => Promise<void>;
   initialSubject?: string;
   initialBody?: string;
   skipFetch?: boolean;
@@ -42,7 +49,7 @@ export function OutreachPreviewModal({
           setToEmail(data.to || null);
         })
         .catch((err) => {
-          console.error('Failed to load preview:', err);
+          logger.error('Failed to load preview:', err);
         })
         .finally(() => {
           setLoading(false);
@@ -65,8 +72,8 @@ export function OutreachPreviewModal({
       await onSend(subject, body, messageType, toEmail || undefined);
       onClose();
     } catch (error) {
-      console.error(error);
-      alert('Failed to send outreach');
+      logger.error(error);
+      toast.error('Failed to send outreach');
     } finally {
       setSending(false);
     }
@@ -76,7 +83,9 @@ export function OutreachPreviewModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <h2 className="text-xl font-normal text-gray-900 font-outfit uppercase tracking-tight">Review Outreach Email</h2>
+          <h2 className="text-xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
+            Review Outreach Email
+          </h2>
           <button
             onClick={onClose}
             className="p-2 text-gray-400 hover:bg-gray-50 hover:text-gray-600 rounded-lg transition-colors"
@@ -93,10 +102,14 @@ export function OutreachPreviewModal({
           ) : (
             <>
               <div>
-                <label className="block text-[10px] font-normal text-gray-700 mb-1 uppercase tracking-widest">
+                <label
+                  htmlFor="outreachpreviewmodal-1"
+                  className="block text-[10px] font-normal text-gray-700 mb-1 uppercase tracking-widest"
+                >
                   To
                 </label>
                 <input
+                  id="outreachpreviewmodal-1"
                   type="email"
                   value={toEmail || ''}
                   onChange={(e) => setToEmail(e.target.value)}
@@ -106,10 +119,14 @@ export function OutreachPreviewModal({
               </div>
 
               <div>
-                <label className="block text-[10px] font-normal text-gray-700 mb-1 uppercase tracking-widest">
+                <label
+                  htmlFor="outreachpreviewmodal-2"
+                  className="block text-[10px] font-normal text-gray-700 mb-1 uppercase tracking-widest"
+                >
                   Subject Line
                 </label>
                 <input
+                  id="outreachpreviewmodal-2"
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
@@ -119,10 +136,14 @@ export function OutreachPreviewModal({
               </div>
 
               <div>
-                <label className="block text-[10px] font-normal text-gray-700 mb-1 uppercase tracking-widest">
+                <label
+                  htmlFor="outreachpreviewmodal-3"
+                  className="block text-[10px] font-normal text-gray-700 mb-1 uppercase tracking-widest"
+                >
                   Message Body
                 </label>
                 <textarea
+                  id="outreachpreviewmodal-3"
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
                   rows={10}

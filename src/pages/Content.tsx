@@ -1,3 +1,5 @@
+import { logger } from '../lib/logger';
+import { toast } from '../lib/toast';
 import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -6,9 +8,7 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { LoadingState } from '../components/ui/LoadingState';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '../components/ui/Modal';
-import { 
-  getContents, 
-  getCampaigns,
+import {
   updateContent,
   markContentSubmitted,
   approveContent,
@@ -16,10 +16,13 @@ import {
   markContentPublished,
   rejectContent,
   syncContentPerformance,
-  sendSingleOutreach
+  sendSingleOutreach,
 } from '../lib/api';
-import { 
-  Search, 
+import { useContents, useCampaigns } from '../hooks/queries';
+import { useInvalidate } from '../hooks/useInvalidate';
+import { queryKeys } from '../lib/queryKeys';
+import {
+  Search,
   ExternalLink,
   ChevronDown,
   Eye,
@@ -29,19 +32,16 @@ import {
   Edit3,
   Calendar,
   SlidersHorizontal,
-  ImageIcon
+  ImageIcon,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Content() {
   const navigate = useNavigate();
-  const [contents, setContents] = useState<any[]>([]);
-  const [campaigns, setCampaigns] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  
+
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // Filters
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
@@ -59,6 +59,18 @@ export default function Content() {
   const [showEditContentModal, setShowEditContentModal] = useState(false);
   const [selectedContent, setSelectedContent] = useState<any | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Server-side filtered content; the query key includes the filters, so changing
+  // a filter refetches automatically (no manual effect).
+  const contentParams = {
+    campaign_id: selectedCampaign || undefined,
+    status: selectedStatus || undefined,
+    platform: selectedPlatform || undefined,
+  };
+  const { data: contents = [], isLoading: loading } = useContents(contentParams);
+  const { data: campaigns = [] } = useCampaigns();
+  const invalidate = useInvalidate();
+  const refresh = () => invalidate(queryKeys.content.root, queryKeys.creators.all);
   const [editContentForm, setEditContentForm] = useState({
     id: '',
     platform: 'instagram',
@@ -66,7 +78,7 @@ export default function Content() {
     due_date: '',
     notes: '',
     draft_url: '',
-    published_url: ''
+    published_url: '',
   });
 
   const [showRevisionModal, setShowRevisionModal] = useState(false);
@@ -93,7 +105,7 @@ export default function Content() {
       due_date: c.due_date || '',
       notes: c.notes || '',
       draft_url: c.draft_url || '',
-      published_url: c.published_url || ''
+      published_url: c.published_url || '',
     });
     setShowEditContentModal(true);
   };
@@ -108,12 +120,12 @@ export default function Content() {
         due_date: editContentForm.due_date || null,
         notes: editContentForm.notes,
         draft_url: editContentForm.draft_url || null,
-        published_url: editContentForm.published_url || null
+        published_url: editContentForm.published_url || null,
       });
       setShowEditContentModal(false);
-      await loadData();
+      await refresh();
     } catch (err: any) {
-      alert('Failed to update deliverable: ' + (err.message || err));
+      toast.error('Failed to update deliverable: ' + (err.message || err));
     } finally {
       setSubmitting(false);
     }
@@ -125,19 +137,19 @@ export default function Content() {
     try {
       setSubmitting(true);
       await requestContentRevision(activeRevisionContentId, { notes: revisionBody });
-      const currentItem = contents.find(c => c.id === activeRevisionContentId);
+      const currentItem = contents.find((c) => c.id === activeRevisionContentId);
       await sendSingleOutreach(
         currentItem?.Creator?.id || '',
         currentItem?.campaign_id || undefined,
         revisionSubject,
         revisionBody,
-        'initial'
+        'initial',
       );
       setShowRevisionModal(false);
-      await loadData();
-      alert('Revision request logged and email sent to creator!');
+      await refresh();
+      toast.success('Revision request logged and email sent to creator!');
     } catch (err: any) {
-      alert('Failed to request revision: ' + (err.message || err));
+      toast.error('Failed to request revision: ' + (err.message || err));
     } finally {
       setSubmitting(false);
     }
@@ -156,46 +168,22 @@ export default function Content() {
       } else if (currentPromptAction === 'reject') {
         await rejectContent(activePromptContentId, { notes: promptValue });
       }
-      await loadData();
+      await refresh();
     } catch (err: any) {
-      alert('Action failed: ' + (err.message || err));
+      toast.error('Action failed: ' + (err.message || err));
     } finally {
       setSubmitting(false);
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [selectedCampaign, selectedStatus, selectedPlatform]);
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [contentData, campaignData] = await Promise.all([
-        getContents({
-          campaign_id: selectedCampaign || undefined,
-          status: selectedStatus || undefined,
-          platform: selectedPlatform || undefined
-        }),
-        getCampaigns()
-      ]);
-      setContents(contentData);
-      setCampaigns(campaignData);
-    } catch (err) {
-      console.error("Failed to load content:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleAction = async (id: string, action: string) => {
     try {
-      const currentItem = contents.find(c => c.id === id);
+      const currentItem = contents.find((c) => c.id === id);
       if (action === 'submit') {
-        setPromptTitle("Submit Content Draft");
-        setPromptLabel("Draft URL");
-        setPromptPlaceholder("https://instagram.com/p/mock_draft_url");
-        setPromptValue(currentItem?.draft_url || "https://instagram.com/p/mock_draft_url");
+        setPromptTitle('Submit Content Draft');
+        setPromptLabel('Draft URL');
+        setPromptPlaceholder('https://instagram.com/p/mock_draft_url');
+        setPromptValue(currentItem?.draft_url || 'https://instagram.com/p/mock_draft_url');
         setPromptType('input');
         setCurrentPromptAction('submit');
         setActivePromptContentId(id);
@@ -206,11 +194,12 @@ export default function Content() {
         await approveContent(id);
       }
       if (action === 'revise') {
-        const creatorName = currentItem?.Creator?.full_name || `@${currentItem?.Creator?.handle}` || 'Creator';
-        const defaultNotes = "Please revise the lighting/audio.";
+        const creatorName =
+          currentItem?.Creator?.full_name || `@${currentItem?.Creator?.handle}` || 'Creator';
+        const defaultNotes = 'Please revise the lighting/audio.';
         const subject = `Revision Requested: ${currentItem?.Campaign?.name || 'Campaign'} Content Deliverable`;
         const body = `Hi ${creatorName},\n\nWe have reviewed your content draft and would like to request some revisions.\n\nRevision Notes:\n${defaultNotes}\n\nPlease update the draft and share the new link with us.\n\nBest regards,\nCampaign Management Team`;
-        
+
         setActiveRevisionContentId(id);
         setRevisionSubject(subject);
         setRevisionBody(body);
@@ -218,10 +207,10 @@ export default function Content() {
         return;
       }
       if (action === 'publish') {
-        setPromptTitle("Publish Content Deliverable");
-        setPromptLabel("Live Published URL");
-        setPromptPlaceholder("https://instagram.com/p/mock_published_url");
-        setPromptValue(currentItem?.published_url || "https://instagram.com/p/mock_published_url");
+        setPromptTitle('Publish Content Deliverable');
+        setPromptLabel('Live Published URL');
+        setPromptPlaceholder('https://instagram.com/p/mock_published_url');
+        setPromptValue(currentItem?.published_url || 'https://instagram.com/p/mock_published_url');
         setPromptType('input');
         setCurrentPromptAction('publish');
         setActivePromptContentId(id);
@@ -232,25 +221,25 @@ export default function Content() {
         await syncContentPerformance(id);
       }
       if (action === 'reject') {
-        setPromptTitle("Reject Content Deliverable");
-        setPromptLabel("Rejection Reason / Notes");
-        setPromptPlaceholder("Not matching campaign guidelines.");
-        setPromptValue("Not matching campaign guidelines.");
+        setPromptTitle('Reject Content Deliverable');
+        setPromptLabel('Rejection Reason / Notes');
+        setPromptPlaceholder('Not matching campaign guidelines.');
+        setPromptValue('Not matching campaign guidelines.');
         setPromptType('textarea');
         setCurrentPromptAction('reject');
         setActivePromptContentId(id);
         setShowPromptModal(true);
         return;
       }
-      await loadData();
+      await refresh();
     } catch (err) {
-      console.error("Action failed:", err);
+      logger.error('Action failed:', err);
     }
     setOpenActionDropdownId(null);
   };
 
   // Client-side filtration for advanced filters
-  const filteredContents = contents.filter(c => {
+  const filteredContents = contents.filter((c) => {
     // Text search
     if (search) {
       const s = search.toLowerCase();
@@ -291,7 +280,7 @@ export default function Content() {
     dueStartDate,
     dueEndDate,
     pubStartDate,
-    pubEndDate
+    pubEndDate,
   ].filter(Boolean).length;
 
   if (loading) return <LoadingState message="Loading content..." />;
@@ -314,15 +303,15 @@ export default function Content() {
             <div className="flex gap-2 w-full sm:max-w-xl flex-1">
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-gray-400" />
-                <input 
-                  type="text" 
-                  placeholder="Search by creator or campaign..." 
+                <input
+                  type="text"
+                  placeholder="Search by creator or campaign..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-outfit"
                 />
               </div>
-              
+
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-outfit uppercase tracking-wider transition-all select-none ${
@@ -334,9 +323,13 @@ export default function Content() {
                 <SlidersHorizontal size={14} />
                 <span>Filters</span>
                 {activeFiltersCount > 0 && (
-                  <span className={`flex items-center justify-center rounded-full min-w-[18px] h-[18px] px-1 text-[10px] font-bold ${
-                    showFilters || activeFiltersCount > 0 ? 'bg-white text-primary-700' : 'bg-primary-600 text-white'
-                  }`}>
+                  <span
+                    className={`flex items-center justify-center rounded-full min-w-[18px] h-[18px] px-1 text-[10px] font-bold ${
+                      showFilters || activeFiltersCount > 0
+                        ? 'bg-white text-primary-700'
+                        : 'bg-primary-600 text-white'
+                    }`}
+                  >
                     {activeFiltersCount}
                   </span>
                 )}
@@ -351,22 +344,36 @@ export default function Content() {
           {showFilters && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 pt-5 border-t border-gray-150/10 animate-[fadeIn_0.2s_ease]">
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Campaign</label>
+                <label
+                  htmlFor="content-1"
+                  className="text-[10px] font-bold text-gray-400 uppercase tracking-wider"
+                >
+                  Campaign
+                </label>
                 <select
+                  id="content-1"
                   value={selectedCampaign}
                   onChange={(e) => setSelectedCampaign(e.target.value)}
                   className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit truncate"
                 >
                   <option value="">All Campaigns</option>
-                  {campaigns.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                  {campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
                   ))}
                 </select>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
+                <label
+                  htmlFor="content-2"
+                  className="text-[10px] font-bold text-gray-400 uppercase tracking-wider"
+                >
+                  Status
+                </label>
                 <select
+                  id="content-2"
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
                   className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
@@ -382,8 +389,14 @@ export default function Content() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Platform</label>
+                <label
+                  htmlFor="content-3"
+                  className="text-[10px] font-bold text-gray-400 uppercase tracking-wider"
+                >
+                  Platform
+                </label>
                 <select
+                  id="content-3"
                   value={selectedPlatform}
                   onChange={(e) => setSelectedPlatform(e.target.value)}
                   className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
@@ -399,8 +412,14 @@ export default function Content() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Type</label>
+                <label
+                  htmlFor="content-4"
+                  className="text-[10px] font-bold text-gray-400 uppercase tracking-wider"
+                >
+                  Type
+                </label>
                 <select
+                  id="content-4"
                   value={selectedContentType}
                   onChange={(e) => setSelectedContentType(e.target.value)}
                   className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
@@ -419,9 +438,15 @@ export default function Content() {
 
               {/* Due Date Selector */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Due Date</label>
+                <label
+                  htmlFor="content-2001"
+                  className="text-[10px] font-bold text-gray-400 uppercase tracking-wider"
+                >
+                  Due Date
+                </label>
                 <div className="flex items-center gap-2 border border-gray-200 rounded-lg py-2 px-3 bg-white shadow-sm text-xs font-outfit w-full">
                   <input
+                    id="content-2001"
                     type="date"
                     value={dueStartDate}
                     onChange={(e) => setDueStartDate(e.target.value)}
@@ -432,9 +457,15 @@ export default function Content() {
 
               {/* Published Date Selector */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Pub Date</label>
+                <label
+                  htmlFor="content-2002"
+                  className="text-[10px] font-bold text-gray-400 uppercase tracking-wider"
+                >
+                  Pub Date
+                </label>
                 <div className="flex items-center gap-2 border border-gray-200 rounded-lg py-2 px-3 bg-white shadow-sm text-xs font-outfit w-full">
                   <input
+                    id="content-2002"
                     type="date"
                     value={pubStartDate}
                     onChange={(e) => setPubStartDate(e.target.value)}
@@ -473,157 +504,219 @@ export default function Content() {
             <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
               <th className="px-4 py-3">Creator</th>
               <th className="px-4 py-3">Campaign</th>
-                <th className="px-4 py-3">Platform & Type</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Due Date</th>
-                <th className="px-4 py-3">Draft URL</th>
-                <th className="px-4 py-3">Published URL</th>
-                <th className="px-4 py-3">Published At</th>
-                <th className="px-4 py-3 text-right">Metrics (V/L/C)</th>
-                <th className="px-4 py-3 text-right">ER</th>
-                <th className="px-4 py-3 text-center">Actions</th>
+              <th className="px-4 py-3">Platform & Type</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Due Date</th>
+              <th className="px-4 py-3">Draft URL</th>
+              <th className="px-4 py-3">Published URL</th>
+              <th className="px-4 py-3">Published At</th>
+              <th className="px-4 py-3 text-right">Metrics (V/L/C)</th>
+              <th className="px-4 py-3 text-right">ER</th>
+              <th className="px-4 py-3 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {filteredContents.length === 0 ? (
+              <tr>
+                <td colSpan={11} className="p-12">
+                  <EmptyState
+                    icon={ImageIcon}
+                    title="No Content Deliverables"
+                    description="No content deliverables found matching filters."
+                  />
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredContents.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="p-12">
-                    <EmptyState 
-                      icon={ImageIcon} 
-                      title="No Content Deliverables" 
-                      description="No content deliverables found matching filters." 
-                    />
+            ) : (
+              filteredContents.map((c) => (
+                <tr
+                  key={c.id}
+                  onClick={() => navigate(`/content/${c.id}`)}
+                  className="hover:bg-primary-50/10 transition-colors text-xs cursor-pointer"
+                >
+                  <td className="px-4 py-4">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={
+                          c.Creator?.profile_pic ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(c.Creator?.full_name || 'C')}&background=random`
+                        }
+                        alt=""
+                        className="w-8 h-8 rounded-full border border-gray-200 object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.onerror = null;
+                          target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.Creator?.full_name || c.Creator?.handle || 'C')}&background=E0E7FF&color=4338CA`;
+                        }}
+                      />
+                      <div>
+                        <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
+                          {c.Creator?.full_name}
+                        </div>
+                        <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-1">
+                          @{c.Creator?.handle}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight">
+                    {c.Campaign?.name}
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight">
+                      {c.platform}
+                    </div>
+                    <div className="text-[10px] text-gray-500 uppercase mt-0.5">
+                      {c.content_type?.replace('_', ' ')}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4">
+                    <StatusBadge status={c.status} />
+                  </td>
+                  <td className="px-4 py-4 text-gray-600 font-mono">
+                    {c.due_date ? format(new Date(c.due_date), 'MMM d, yyyy') : '---'}
+                  </td>
+                  <td
+                    className="px-4 py-4 max-w-[150px] truncate"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {c.draft_url ? (
+                      <a
+                        href={c.draft_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary-600 hover:underline inline-flex items-center gap-0.5"
+                      >
+                        View Draft <ExternalLink size={10} />
+                      </a>
+                    ) : (
+                      <span className="text-gray-400 italic">No link</span>
+                    )}
+                  </td>
+                  <td
+                    className="px-4 py-4 max-w-[150px] truncate"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {c.published_url ? (
+                      <a
+                        href={c.published_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary-600 hover:underline inline-flex items-center gap-0.5"
+                      >
+                        View Post <ExternalLink size={10} />
+                      </a>
+                    ) : (
+                      <span className="text-gray-400 italic">No link</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-4 text-gray-600 font-mono">
+                    {c.published_at ? format(new Date(c.published_at), 'MMM d, yyyy') : '---'}
+                  </td>
+                  <td className="px-4 py-4 text-right">
+                    {c.status === 'published' ? (
+                      <div className="flex flex-col items-end gap-0.5 font-mono text-gray-600 text-[10px]">
+                        <span>{Number(c.views || 0).toLocaleString()} Views</span>
+                        <span>{Number(c.likes || 0).toLocaleString()} Likes</span>
+                        <span>{Number(c.comments || 0).toLocaleString()} Comments</span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 italic text-[10px]">---</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-4 text-right font-mono font-semibold">
+                    {c.status === 'published' && c.engagement_rate
+                      ? `${Number(c.engagement_rate).toFixed(2)}%`
+                      : '---'}
+                  </td>
+                  <td
+                    className="px-4 py-4 text-right relative"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-end gap-2">
+                      {c.status === 'submitted' && (
+                        <>
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2"
+                            onClick={() => handleAction(c.id, 'approve')}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-amber-600 hover:bg-amber-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2"
+                            onClick={() => handleAction(c.id, 'revise')}
+                          >
+                            Revise
+                          </Button>
+                        </>
+                      )}
+                      {c.status === 'approved' && (
+                        <Button
+                          size="sm"
+                          className="bg-primary-600 hover:bg-primary-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2"
+                          onClick={() => handleAction(c.id, 'publish')}
+                        >
+                          Publish
+                        </Button>
+                      )}
+                      {c.status === 'published' && (
+                        <Button
+                          size="sm"
+                          className="bg-gray-800 hover:bg-gray-900 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2"
+                          onClick={() => handleAction(c.id, 'sync')}
+                        >
+                          Sync
+                        </Button>
+                      )}
+                      {['pending', 'revision_requested', 'rejected'].includes(c.status) && (
+                        <button
+                          onClick={() => handleOpenEditContent(c)}
+                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                          title="Edit requirement details"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
-              ) : (
-                filteredContents.map((c) => (
-                  <tr 
-                    key={c.id} 
-                    onClick={() => navigate(`/content/${c.id}`)}
-                    className="hover:bg-primary-50/10 transition-colors text-xs cursor-pointer"
-                  >
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <img 
-                          src={c.Creator?.profile_pic || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.Creator?.full_name || 'C')}&background=random`} 
-                          alt="" 
-                          className="w-8 h-8 rounded-full border border-gray-200 object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.onerror = null;
-                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.Creator?.full_name || c.Creator?.handle || 'C')}&background=E0E7FF&color=4338CA`;
-                          }}
-                        />
-                        <div>
-                          <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">{c.Creator?.full_name}</div>
-                          <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-1">@{c.Creator?.handle}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight">
-                      {c.Campaign?.name}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight">{c.platform}</div>
-                      <div className="text-[10px] text-gray-500 uppercase mt-0.5">{c.content_type?.replace('_', ' ')}</div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <StatusBadge status={c.status} />
-                    </td>
-                    <td className="px-4 py-4 text-gray-600 font-mono">
-                      {c.due_date ? format(new Date(c.due_date), 'MMM d, yyyy') : '---'}
-                    </td>
-                    <td className="px-4 py-4 max-w-[150px] truncate" onClick={e => e.stopPropagation()}>
-                      {c.draft_url ? (
-                        <a href={c.draft_url} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline inline-flex items-center gap-0.5">
-                          View Draft <ExternalLink size={10} />
-                        </a>
-                      ) : (
-                        <span className="text-gray-400 italic">No link</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 max-w-[150px] truncate" onClick={e => e.stopPropagation()}>
-                      {c.published_url ? (
-                        <a href={c.published_url} target="_blank" rel="noreferrer" className="text-primary-600 hover:underline inline-flex items-center gap-0.5">
-                          View Post <ExternalLink size={10} />
-                        </a>
-                      ) : (
-                        <span className="text-gray-400 italic">No link</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-gray-600 font-mono">
-                      {c.published_at ? format(new Date(c.published_at), 'MMM d, yyyy') : '---'}
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      {c.status === 'published' ? (
-                        <div className="flex flex-col items-end gap-0.5 font-mono text-gray-600 text-[10px]">
-                          <span>{Number(c.views || 0).toLocaleString()} Views</span>
-                          <span>{Number(c.likes || 0).toLocaleString()} Likes</span>
-                          <span>{Number(c.comments || 0).toLocaleString()} Comments</span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 italic text-[10px]">---</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-right font-mono font-semibold">
-                      {c.status === 'published' && c.engagement_rate ? `${Number(c.engagement_rate).toFixed(2)}%` : '---'}
-                    </td>
-                    <td className="px-4 py-4 text-right relative" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-2">
-                        {c.status === 'submitted' && (
-                          <>
-                            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleAction(c.id, 'approve')}>
-                              Approve
-                            </Button>
-                            <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleAction(c.id, 'revise')}>
-                              Revise
-                            </Button>
-                          </>
-                        )}
-                        {c.status === 'approved' && (
-                          <Button size="sm" className="bg-primary-600 hover:bg-primary-700 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleAction(c.id, 'publish')}>
-                            Publish
-                          </Button>
-                        )}
-                        {c.status === 'published' && (
-                          <Button size="sm" className="bg-gray-800 hover:bg-gray-900 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2" onClick={() => handleAction(c.id, 'sync')}>
-                            Sync
-                          </Button>
-                        )}
-                        {['pending', 'revision_requested', 'rejected'].includes(c.status) && (
-                          <button 
-                            onClick={() => handleOpenEditContent(c)}
-                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                            title="Edit requirement details"
-                          >
-                            <Edit3 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {/* ─── Edit Content Deliverable Modal ─── */}
-      <Modal isOpen={showEditContentModal} onClose={() => setShowEditContentModal(false)} title="Edit Content Deliverable">
+      <Modal
+        isOpen={showEditContentModal}
+        onClose={() => setShowEditContentModal(false)}
+        title="Edit Content Deliverable"
+      >
         <form onSubmit={handleEditContentSubmit} className="space-y-4 font-outfit">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Platform</label>
+              <label
+                htmlFor="content-5"
+                className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+              >
+                Platform
+              </label>
               <select
+                id="content-5"
                 value={editContentForm.platform}
-                onChange={e => {
+                onChange={(e) => {
                   const plat = e.target.value;
                   let defType = 'other';
                   if (plat === 'instagram') defType = 'instagram_reel';
                   if (plat === 'youtube') defType = 'youtube_video';
                   if (plat === 'tiktok') defType = 'tiktok_video';
                   if (plat === 'blog') defType = 'blog_post';
-                  setEditContentForm(prev => ({ ...prev, platform: plat, content_type: defType }));
+                  setEditContentForm((prev) => ({
+                    ...prev,
+                    platform: plat,
+                    content_type: defType,
+                  }));
                 }}
                 className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
               >
@@ -637,10 +730,18 @@ export default function Content() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Content Type</label>
+              <label
+                htmlFor="content-6"
+                className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+              >
+                Content Type
+              </label>
               <select
+                id="content-6"
                 value={editContentForm.content_type}
-                onChange={e => setEditContentForm(prev => ({ ...prev, content_type: e.target.value }))}
+                onChange={(e) =>
+                  setEditContentForm((prev) => ({ ...prev, content_type: e.target.value }))
+                }
                 className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
               >
                 {editContentForm.platform === 'instagram' && (
@@ -670,52 +771,91 @@ export default function Content() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Due Date</label>
+            <label
+              htmlFor="content-7"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Due Date
+            </label>
             <input
+              id="content-7"
               type="date"
               value={editContentForm.due_date}
-              onChange={e => setEditContentForm(prev => ({ ...prev, due_date: e.target.value }))}
+              onChange={(e) =>
+                setEditContentForm((prev) => ({ ...prev, due_date: e.target.value }))
+              }
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Draft URL (Triggers Submitted State)</label>
+            <label
+              htmlFor="content-8"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Draft URL (Triggers Submitted State)
+            </label>
             <input
+              id="content-8"
               type="text"
               value={editContentForm.draft_url}
-              onChange={e => setEditContentForm(prev => ({ ...prev, draft_url: e.target.value }))}
+              onChange={(e) =>
+                setEditContentForm((prev) => ({ ...prev, draft_url: e.target.value }))
+              }
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
               placeholder="https://drive.google.com/..."
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Published URL (Triggers Live State)</label>
+            <label
+              htmlFor="content-9"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Published URL (Triggers Live State)
+            </label>
             <input
+              id="content-9"
               type="text"
               value={editContentForm.published_url}
-              onChange={e => setEditContentForm(prev => ({ ...prev, published_url: e.target.value }))}
+              onChange={(e) =>
+                setEditContentForm((prev) => ({ ...prev, published_url: e.target.value }))
+              }
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
               placeholder="https://instagram.com/p/..."
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Notes & Requirements</label>
+            <label
+              htmlFor="content-10"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Notes & Requirements
+            </label>
             <textarea
+              id="content-10"
               value={editContentForm.notes}
-              onChange={e => setEditContentForm(prev => ({ ...prev, notes: e.target.value }))}
+              onChange={(e) => setEditContentForm((prev) => ({ ...prev, notes: e.target.value }))}
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[80px]"
               placeholder="e.g. guidelines..."
             />
           </div>
 
           <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowEditContentModal(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 font-normal text-xs uppercase tracking-widest"
+              onClick={() => setShowEditContentModal(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest"
+            >
               {submitting ? 'Saving...' : 'Save Deliverable'}
             </Button>
           </div>
@@ -723,34 +863,59 @@ export default function Content() {
       </Modal>
 
       {/* ─── Request Revision Modal ─── */}
-      <Modal isOpen={showRevisionModal} onClose={() => setShowRevisionModal(false)} title="Request Content Revision">
+      <Modal
+        isOpen={showRevisionModal}
+        onClose={() => setShowRevisionModal(false)}
+        title="Request Content Revision"
+      >
         <form onSubmit={handleRevisionSubmit} className="space-y-4 font-outfit">
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Subject</label>
+            <label
+              htmlFor="content-11"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Email Subject
+            </label>
             <input
+              id="content-11"
               type="text"
               value={revisionSubject}
-              onChange={e => setRevisionSubject(e.target.value)}
+              onChange={(e) => setRevisionSubject(e.target.value)}
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
               required
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Message Body (Sent to Creator & Saved to CRM)</label>
+            <label
+              htmlFor="content-12"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block"
+            >
+              Email Message Body (Sent to Creator & Saved to CRM)
+            </label>
             <textarea
+              id="content-12"
               value={revisionBody}
-              onChange={e => setRevisionBody(e.target.value)}
+              onChange={(e) => setRevisionBody(e.target.value)}
               className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[200px]"
               required
             />
           </div>
 
           <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowRevisionModal(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 font-normal text-xs uppercase tracking-widest"
+              onClick={() => setShowRevisionModal(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-normal text-xs uppercase tracking-widest">
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-normal text-xs uppercase tracking-widest"
+            >
               {submitting ? 'Sending Request...' : 'Send Revision Request'}
             </Button>
           </div>
@@ -761,12 +926,14 @@ export default function Content() {
       <Modal isOpen={showPromptModal} onClose={() => setShowPromptModal(false)} title={promptTitle}>
         <form onSubmit={handlePromptSubmit} className="space-y-4 font-outfit">
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">{promptLabel}</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
+              {promptLabel}
+            </label>
             {promptType === 'input' ? (
               <input
                 type="text"
                 value={promptValue}
-                onChange={e => setPromptValue(e.target.value)}
+                onChange={(e) => setPromptValue(e.target.value)}
                 placeholder={promptPlaceholder}
                 className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                 required
@@ -774,7 +941,7 @@ export default function Content() {
             ) : (
               <textarea
                 value={promptValue}
-                onChange={e => setPromptValue(e.target.value)}
+                onChange={(e) => setPromptValue(e.target.value)}
                 placeholder={promptPlaceholder}
                 className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all min-h-[120px]"
                 required
@@ -783,10 +950,18 @@ export default function Content() {
           </div>
 
           <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowPromptModal(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 font-normal text-xs uppercase tracking-widest"
+              onClick={() => setShowPromptModal(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit" className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
+            <Button
+              type="submit"
+              className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest"
+            >
               Confirm Action
             </Button>
           </div>

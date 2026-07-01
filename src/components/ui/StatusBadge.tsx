@@ -1,7 +1,19 @@
 import React from 'react';
 import { Badge } from './Badge';
 
-export type StatusType = 'active' | 'pending' | 'failed' | 'draft' | 'approved' | 'rejected' | 'contacted' | 'replied' | 'converted' | 'inactive' | 'not_respond' | string;
+export type StatusType =
+  | 'active'
+  | 'pending'
+  | 'failed'
+  | 'draft'
+  | 'approved'
+  | 'rejected'
+  | 'contacted'
+  | 'replied'
+  | 'converted'
+  | 'inactive'
+  | 'not_respond'
+  | string;
 
 export function StatusBadge({ status }: { status: StatusType }) {
   let variant: React.ComponentProps<typeof Badge>['variant'] = 'gray';

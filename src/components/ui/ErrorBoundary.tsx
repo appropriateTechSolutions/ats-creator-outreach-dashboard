@@ -1,3 +1,4 @@
+import { logger } from '../../lib/logger';
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
@@ -12,7 +13,7 @@ interface State {
 
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
-    hasError: false
+    hasError: false,
   };
 
   public static getDerivedStateFromError(error: Error): State {
@@ -20,7 +21,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    logger.error('Uncaught error:', error, errorInfo);
   }
 
   public render() {
@@ -31,7 +32,9 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="text-red-600" size={32} />
             </div>
-            <h2 className="text-xl font-bold text-gray-900 font-outfit uppercase tracking-tight">Something went wrong</h2>
+            <h2 className="text-xl font-bold text-gray-900 font-outfit uppercase tracking-tight">
+              Something went wrong
+            </h2>
             <p className="text-sm text-gray-500">
               An unexpected error occurred in the dashboard. Our team has been notified.
             </p>

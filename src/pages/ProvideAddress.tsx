@@ -1,3 +1,4 @@
+import { toast } from '../lib/toast';
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
@@ -21,12 +22,12 @@ export default function ProvideAddress() {
 
   useEffect(() => {
     fetch(`/api/shipments/public/${id}`)
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         if (data.success) {
           setShipment(data.data);
           if (data.data.Creator) {
-            setForm(f => ({
+            setForm((f) => ({
               ...f,
               shipping_address_line1: data.data.Creator.shipping_address_line1 || '',
               shipping_address_line2: data.data.Creator.shipping_address_line2 || '',
@@ -40,7 +41,7 @@ export default function ProvideAddress() {
           setError(data.error || 'Shipment not found');
         }
       })
-      .catch(err => setError(err.message))
+      .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -51,23 +52,27 @@ export default function ProvideAddress() {
       const res = await fetch(`/api/shipments/public/${id}/provide-address`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(form),
       });
       const data = await res.json();
       if (data.success) {
         setSuccess(true);
       } else {
-        alert(data.error || 'Something went wrong');
+        toast.error(data.error || 'Something went wrong');
       }
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center font-outfit text-gray-500">Loading...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center font-outfit text-gray-500">
+        Loading...
+      </div>
+    );
   }
 
   if (error) {
@@ -85,9 +90,13 @@ export default function ProvideAddress() {
     return (
       <div className="flex h-screen items-center justify-center font-outfit bg-gray-50">
         <div className="bg-white p-10 rounded-2xl shadow-xl max-w-md w-full text-center">
-          <div className="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">✓</div>
+          <div className="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
+            ✓
+          </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Address Submitted!</h1>
-          <p className="text-gray-600">Thank you for providing your shipping details. We will process your shipment shortly.</p>
+          <p className="text-gray-600">
+            Thank you for providing your shipping details. We will process your shipment shortly.
+          </p>
         </div>
       </div>
     );
@@ -101,71 +110,108 @@ export default function ProvideAddress() {
             <h1 className="text-2xl font-bold mb-2">Provide Shipping Address</h1>
             <p className="text-primary-100 text-sm opacity-90">{shipment?.Campaign?.name}</p>
           </div>
-          
+
           <div className="p-8">
             <p className="text-gray-600 mb-6 text-center text-sm">
-              Please provide your correct shipping address so we can dispatch your product for the campaign.
+              Please provide your correct shipping address so we can dispatch your product for the
+              campaign.
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Address Line 1 <span className="text-red-500">*</span></label>
+                  <label
+                    htmlFor="provideaddress-1"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Address Line 1 <span className="text-red-500">*</span>
+                  </label>
                   <input
+                    id="provideaddress-1"
                     type="text"
                     required
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                     value={form.shipping_address_line1}
-                    onChange={e => setForm({...form, shipping_address_line1: e.target.value})}
+                    onChange={(e) => setForm({ ...form, shipping_address_line1: e.target.value })}
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Address Line 2</label>
+                  <label
+                    htmlFor="provideaddress-2"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Address Line 2
+                  </label>
                   <input
+                    id="provideaddress-2"
                     type="text"
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                     value={form.shipping_address_line2}
-                    onChange={e => setForm({...form, shipping_address_line2: e.target.value})}
+                    onChange={(e) => setForm({ ...form, shipping_address_line2: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">City <span className="text-red-500">*</span></label>
+                  <label
+                    htmlFor="provideaddress-3"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    City <span className="text-red-500">*</span>
+                  </label>
                   <input
+                    id="provideaddress-3"
                     type="text"
                     required
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                     value={form.shipping_city}
-                    onChange={e => setForm({...form, shipping_city: e.target.value})}
+                    onChange={(e) => setForm({ ...form, shipping_city: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">State / Province <span className="text-red-500">*</span></label>
+                  <label
+                    htmlFor="provideaddress-4"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    State / Province <span className="text-red-500">*</span>
+                  </label>
                   <input
+                    id="provideaddress-4"
                     type="text"
                     required
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                     value={form.shipping_state}
-                    onChange={e => setForm({...form, shipping_state: e.target.value})}
+                    onChange={(e) => setForm({ ...form, shipping_state: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">ZIP / Postal Code <span className="text-red-500">*</span></label>
+                  <label
+                    htmlFor="provideaddress-5"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    ZIP / Postal Code <span className="text-red-500">*</span>
+                  </label>
                   <input
+                    id="provideaddress-5"
                     type="text"
                     required
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                     value={form.shipping_zip}
-                    onChange={e => setForm({...form, shipping_zip: e.target.value})}
+                    onChange={(e) => setForm({ ...form, shipping_zip: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Country <span className="text-red-500">*</span></label>
+                  <label
+                    htmlFor="provideaddress-6"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Country <span className="text-red-500">*</span>
+                  </label>
                   <input
+                    id="provideaddress-6"
                     type="text"
                     required
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
                     value={form.shipping_country}
-                    onChange={e => setForm({...form, shipping_country: e.target.value})}
+                    onChange={(e) => setForm({ ...form, shipping_country: e.target.value })}
                   />
                 </div>
               </div>

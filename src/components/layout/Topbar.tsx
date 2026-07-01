@@ -6,10 +6,8 @@ interface TopbarProps {
 }
 
 export function Topbar({ onMenuToggle, sidebarOpen }: TopbarProps) {
-
   return (
     <header className="h-16 glass px-4 flex items-center justify-between z-10 sticky top-0 gap-4">
-
       {/* Left: Hamburger (only when sidebar is closed) */}
       <div className="flex-1 flex items-center justify-start min-w-[40px]">
         {!sidebarOpen && (
@@ -22,7 +20,6 @@ export function Topbar({ onMenuToggle, sidebarOpen }: TopbarProps) {
           </button>
         )}
       </div>
-
     </header>
   );
 }

@@ -1,3 +1,4 @@
+import { dismissOverlay } from '../../lib/a11y';
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
 
@@ -24,7 +25,7 @@ export function ImageLightbox({ src, alt = '', onClose }: ImageLightboxProps) {
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-[fadeIn_0.15s_ease]"
-      onClick={onClose}
+      {...dismissOverlay(onClose)}
       role="dialog"
       aria-modal="true"
     >
@@ -35,6 +36,7 @@ export function ImageLightbox({ src, alt = '', onClose }: ImageLightboxProps) {
       >
         <X size={22} />
       </button>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events -- stops propagation so clicking the image does not close the lightbox */}
       <img
         src={src}
         alt={alt}

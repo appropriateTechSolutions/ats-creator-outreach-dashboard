@@ -1,19 +1,111 @@
+import { logger } from '../lib/logger';
+import { toast } from '../lib/toast';
+import { getErRating, cleanMessageText } from '../lib/formatters';
+import { hasRole, ROLE_GROUPS } from '../lib/constants';
 import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
-import { getCreatorById, getCampaignById, reviewLead, sendSingleOutreach, linkAffiliate, findSimilarCreators, previewOutreach, regenerateCreatorSummary, getAudienceAnalytics, uploadMediaKit, getMediaKitUrl, updateCreatorNotes, getPartnerships, getCreatorActivities, markQualified, sendOffer, sendDiscoveryEmail, markAccepted, activatePartnership, completePartnership, rejectPartnership, updatePartnership, getShipments, updateShipment, getContents, createContent, updateContent, markContentSubmitted, approveContent, requestContentRevision, markContentPublished, syncContentPerformance, syncCreator } from '../lib/api';
-import type { Creator, Campaign } from '../types';
+import {
+  reviewLead,
+  sendSingleOutreach,
+  linkAffiliate,
+  findSimilarCreators,
+  previewOutreach,
+  regenerateCreatorSummary,
+  getAudienceAnalytics,
+  uploadMediaKit,
+  getMediaKitUrl,
+  updateCreatorNotes,
+  markQualified,
+  sendOffer,
+  sendDiscoveryEmail,
+  markAccepted,
+  activatePartnership,
+  completePartnership,
+  rejectPartnership,
+  updatePartnership,
+  updateShipment,
+  createContent,
+  updateContent,
+  markContentSubmitted,
+  approveContent,
+  requestContentRevision,
+  markContentPublished,
+  syncContentPerformance,
+  syncCreator,
+} from '../lib/api';
+import {
+  useCreator,
+  usePartnerships,
+  useCreatorActivities,
+  useShipments,
+  useContents,
+} from '../hooks/queries';
+import { useInvalidate } from '../hooks/useInvalidate';
+import { queryKeys } from '../lib/queryKeys';
+import { useQueryClient } from '@tanstack/react-query';
+import type { Creator } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Instagram, Youtube, UserCheck, Activity, Check, X, Star, Heart, Mail, MapPin, ExternalLink, FileText, Users, Send, RefreshCw, Sparkles, MessageCircle, ChevronDown, ChevronUp, Link as LinkIcon, Copy, Tag, Calendar, TrendingUp, MousePointer2, ShoppingCart, DollarSign, ArrowUpRight, Clock, Eye, Download, Coins, Edit3, Truck } from 'lucide-react';
+import {
+  ArrowLeft,
+  Instagram,
+  Youtube,
+  UserCheck,
+  Activity,
+  Check,
+  X,
+  Star,
+  Heart,
+  Mail,
+  MapPin,
+  ExternalLink,
+  FileText,
+  Users,
+  Send,
+  RefreshCw,
+  Sparkles,
+  MessageCircle,
+  ChevronDown,
+  ChevronUp,
+  Link as LinkIcon,
+  Copy,
+  Tag,
+  Calendar,
+  TrendingUp,
+  MousePointer2,
+  ShoppingCart,
+  DollarSign,
+  ArrowUpRight,
+  Clock,
+  Eye,
+  Download,
+  Coins,
+  Edit3,
+  Truck,
+} from 'lucide-react';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { LoadingState } from '../components/ui/LoadingState';
 import { ImageLightbox } from '../components/ui/ImageLightbox';
 import { InfoTip } from '../components/ui/InfoTip';
 import { useAuth } from '../contexts/AuthContext';
-import { Modal } from '../components/ui/Modal';
 import { DiscussionModal } from '../components/workflow/DiscussionModal';
+import {
+  PartnershipOfferModal,
+  PartnershipEditModal,
+  type OfferForm,
+  type PartnershipEditForm,
+} from '../components/creators/CreatorPartnershipModals';
+import {
+  AddContentModal,
+  EditContentModal,
+  PromptModal,
+  RevisionModal,
+  ContentEmailModal,
+  type ContentForm,
+  type EditContentForm,
+} from '../components/creators/CreatorContentModals';
 import { CreatorShipmentsSection } from '../components/creators/CreatorShipmentsSection';
 import { CreatorContentSection } from '../components/creators/CreatorContentSection';
 import { CreatorPartnershipsSection } from '../components/creators/CreatorPartnershipsSection';
@@ -23,38 +115,6 @@ import { useToast } from '../contexts/ToastContext';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { format } from 'date-fns';
 
-export const getErRating = (followers: number, er: number): { label: string; colorClass: string } | null => {
-  if (followers <= 0 || er <= 0) return null;
-  
-  let goodThreshold = 0;
-  let avgLower = 0;
-  
-  if (followers < 10000) {
-    goodThreshold = 6.0;
-    avgLower = 3.0;
-  } else if (followers < 100000) {
-    goodThreshold = 4.0;
-    avgLower = 1.5;
-  } else if (followers < 500000) {
-    goodThreshold = 2.0;
-    avgLower = 0.7;
-  } else if (followers < 1000000) {
-    goodThreshold = 1.5;
-    avgLower = 0.5;
-  } else {
-    goodThreshold = 1.0;
-    avgLower = 0.3;
-  }
-  
-  if (er >= goodThreshold) {
-    return { label: 'Good ER', colorClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
-  } else if (er >= avgLower) {
-    return { label: 'Avg ER', colorClass: 'bg-blue-50 text-blue-700 border border-blue-200' };
-  } else {
-    return { label: 'Below Avg', colorClass: 'bg-rose-50 text-rose-700 border border-rose-200' };
-  }
-};
-
 export default function CreatorDetail() {
   const { user: currentUser } = useAuth();
   const { id } = useParams<{ id: string }>();
@@ -62,9 +122,10 @@ export default function CreatorDetail() {
   const location = useLocation();
   const { showToast } = useToast();
   const { confirm } = useConfirm();
-  const [loading, setLoading] = useState(true);
-  const [creator, setCreator] = useState<Creator | null>(null);
-  const [, setCampaign] = useState<Campaign | null>(null);
+  const { data: creatorData, isLoading: loading } = useCreator(id);
+  const creator = creatorData ?? null;
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidate();
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
@@ -87,7 +148,7 @@ export default function CreatorDetail() {
   const [isAffiliateModalOpen, setIsAffiliateModalOpen] = useState(false);
   const [affiliateFormData, setAffiliateFormData] = useState({
     code: '',
-    link: ''
+    link: '',
   });
 
   // Creator Notes States
@@ -96,11 +157,16 @@ export default function CreatorDetail() {
   const [savingNotes, setSavingNotes] = useState(false);
 
   // V3 CRM Tab & Partnership States
-  const [activeTab, setActiveTab] = useState<'partnerships' | 'shipments' | 'content' | 'activities'>('partnerships');
-  const [partnerships, setPartnerships] = useState<any[]>([]);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [creatorShipments, setCreatorShipments] = useState<any[]>([]);
-  const [creatorContent, setCreatorContent] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<
+    'partnerships' | 'shipments' | 'content' | 'activities'
+  >('partnerships');
+  const { data: allPartnerships = [] } = usePartnerships();
+  const partnerships = allPartnerships.filter(
+    (p) => String(p.creator_id) === String(id) || String(p.Creator?.id) === String(id),
+  );
+  const { data: activities = [] } = useCreatorActivities(id);
+  const { data: creatorShipments = [] } = useShipments(id ? { creator_id: id } : undefined);
+  const { data: creatorContent = [] } = useContents(id ? { creator_id: id } : undefined);
   const [partnershipsLoading, setPartnershipsLoading] = useState(false);
 
   const [activePartnership, setActivePartnership] = useState<any | null>(null);
@@ -129,33 +195,33 @@ export default function CreatorDetail() {
   const [promptValue, setPromptValue] = useState('');
   const [activePromptContentId, setActivePromptContentId] = useState<string | null>(null);
   const [currentPromptAction, setCurrentPromptAction] = useState('');
-  const [contentForm, setContentForm] = useState({
+  const [contentForm, setContentForm] = useState<ContentForm>({
     campaign_id: '',
     platform: 'instagram',
     content_type: 'instagram_reel',
     due_date: new Date().toISOString().split('T')[0],
-    notes: ''
+    notes: '',
   });
-  const [editContentForm, setEditContentForm] = useState({
+  const [editContentForm, setEditContentForm] = useState<EditContentForm>({
     id: '',
     platform: 'instagram',
     content_type: 'instagram_reel',
     due_date: '',
     notes: '',
     draft_url: '',
-    published_url: ''
+    published_url: '',
   });
 
-  const [offerForm, setOfferForm] = useState({
+  const [offerForm, setOfferForm] = useState<OfferForm>({
     offer_type: 'free_product',
     flat_fee: 0,
     affiliate_enabled: false,
     affiliate_percentage: 0,
     affiliate_code: '',
-    affiliate_link: ''
+    affiliate_link: '',
   });
 
-  const [editForm, setEditForm] = useState({
+  const [editForm, setEditForm] = useState<PartnershipEditForm>({
     creator_tier: 'unknown',
     contract_required: false,
     contract_signed: false,
@@ -163,49 +229,14 @@ export default function CreatorDetail() {
     start_date: '',
     end_date: '',
     activation_notes: '',
-    internal_notes: ''
+    internal_notes: '',
   });
 
   const togglePlatform = (key: string) => {
-    setExpandedPlatforms(prev => ({ ...prev, [key]: !prev[key] }));
+    setExpandedPlatforms((prev) => ({ ...prev, [key]: !prev[key] }));
   };
-
 
   // Helper to clean up email signatures and quoted replies
-  const cleanMessageText = (text: string) => {
-    if (!text) return '';
-    // Normalize all line endings first and remove carriage returns
-    const normalizedText = text.replace(/\r/g, '');
-    const lines = normalizedText.split('\n');
-    const cleanedLines = [];
-    
-    for (let line of lines) {
-      const trimmedLine = line.trim();
-      if (!trimmedLine && cleanedLines.length === 0) continue; 
-
-      // Aggressive stop for any common email reply headers
-      // We look for these anywhere in the line now for maximum safety
-      if (
-        /^\s*(On|From|Sent|To|Subject):/i.test(trimmedLine) || 
-        /wrote:$/i.test(trimmedLine) ||
-        trimmedLine.includes('Original Message') ||
-        trimmedLine.startsWith('---') ||
-        trimmedLine.startsWith('___')
-      ) {
-        break;
-      }
-      
-      // Skip quoted lines
-      if (trimmedLine.startsWith('>') || trimmedLine.startsWith('>>')) {
-        continue;
-      }
-      
-      cleanedLines.push(line);
-    }
-    
-    return cleanedLines.join('\n').trim();
-  };
-
   const loadAudienceData = (silent = false) => {
     if (!id) return;
     if (!silent) setLoadingAudience(true);
@@ -214,70 +245,61 @@ export default function CreatorDetail() {
         setAudienceData(res);
       })
       .catch((err) => {
-        console.error('Error loading audience analytics:', err);
+        logger.error('Error loading audience analytics:', err);
       })
       .finally(() => {
         if (!silent) setLoadingAudience(false);
       });
   };
 
+  // Refresh via cache invalidation; kept as a named fn so all existing call
+  // sites (post-mutation refreshes) work unchanged.
   const loadData = (silent = false) => {
     if (!id) return;
-    if (!silent) setLoading(true);
-    
-    // Also load audience analytics
     loadAudienceData(silent);
-
-    getCreatorById(id)
-      .then(async (data) => {
-        setCreator(data);
-        setNotesValue(data.notes || '');
-        
-        // Use the messages already bundled in the creator data
-        if (data.conversation?.messages) {
-          // Sort messages by time ASC
-          const sorted = [...data.conversation.messages].sort((a: any, b: any) => 
-            new Date(a.message_time).getTime() - new Date(b.message_time).getTime()
-          );
-          setMessages(sorted);
-        }
-
-        try {
-          const [partsList, actsList, shipmentsList, contentList] = await Promise.all([
-            getPartnerships(),
-            getCreatorActivities(id),
-            getShipments({ creator_id: id }),
-            getContents({ creator_id: id })
-          ]);
-          const creatorParts = partsList.filter((p: any) => String(p.creator_id) === String(id) || String(p.creatorId) === String(id) || String(p.Creator?.id) === String(id));
-          setPartnerships(creatorParts);
-          setActivities(actsList);
-          setCreatorShipments(shipmentsList);
-          setCreatorContent(contentList);
-          if (creatorParts.length > 0) {
-            setContentForm(f => ({ ...f, campaign_id: f.campaign_id || creatorParts[0].Campaign?.id || creatorParts[0].campaign_id || '' }));
-          }
-        } catch (e) {
-          console.error('Failed to load V3 partnerships/activities/shipments', e);
-        }
-
-        if (data.campaign_id) {
-          try {
-            const camp = await getCampaignById(data.campaign_id);
-            setCampaign(camp);
-          } catch (e) {
-            console.error('No campaign found for lead');
-          }
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        setError(err.toString());
-      })
-      .finally(() => {
-        if (!silent) setLoading(false);
-      });
+    invalidate(
+      queryKeys.creators.detail(id),
+      queryKeys.partnerships.root,
+      queryKeys.activities.creator(id),
+      queryKeys.shipments.root,
+      queryKeys.content.root,
+    );
   };
+
+  // Reset editable notes when the creator identity changes.
+  useEffect(() => {
+    if (creator) setNotesValue(creator.notes || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [creator?.id]);
+
+  // Keep the conversation thread in sync (sorted ascending) with the creator.
+  useEffect(() => {
+    const msgs = creator?.conversation?.messages;
+    if (msgs) {
+      setMessages(
+        [...msgs].sort(
+          (a, b) => new Date(a.message_time).getTime() - new Date(b.message_time).getTime(),
+        ),
+      );
+    }
+  }, [creator]);
+
+  // Default the content form's campaign to this creator's first partnership.
+  useEffect(() => {
+    if (partnerships.length > 0) {
+      setContentForm((f) => ({
+        ...f,
+        campaign_id:
+          f.campaign_id || partnerships[0].Campaign?.id || partnerships[0].campaign_id || '',
+      }));
+    }
+  }, [partnerships]);
+
+  // Load audience analytics for this creator.
+  useEffect(() => {
+    loadAudienceData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const [syncingProfile, setSyncingProfile] = useState(false);
 
@@ -292,7 +314,8 @@ export default function CreatorDetail() {
       await loadData(true);
       showToast('Successfully synced Instagram profile!', 'success');
     } catch (err: any) {
-      const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || String(err);
+      const errMsg =
+        err.response?.data?.error || err.response?.data?.message || err.message || String(err);
       showToast('Sync failed: ' + errMsg, 'error');
     } finally {
       setSyncingProfile(false);
@@ -315,7 +338,7 @@ export default function CreatorDetail() {
           title: 'Reject Partnership',
           message: 'Are you sure you want to reject this partnership?',
           confirmText: 'Reject',
-          isDestructive: true
+          isDestructive: true,
         });
         if (isConfirmed) {
           await rejectPartnership(partnershipId);
@@ -339,15 +362,15 @@ export default function CreatorDetail() {
       setSubmitting(true);
       // Save the final email message body text directly to CRM as the revision notes
       await requestContentRevision(activeRevisionContentId, { notes: revisionBody });
-      
+
       await sendSingleOutreach(
         id!,
-        creatorContent.find(c => c.id === activeRevisionContentId)?.campaign_id || undefined,
+        creatorContent.find((c) => c.id === activeRevisionContentId)?.campaign_id || undefined,
         revisionSubject,
         revisionBody,
-        'initial'
+        'initial',
       );
-      
+
       setShowRevisionModal(false);
       await loadData(true);
       setShowRevisionModal(false);
@@ -362,12 +385,12 @@ export default function CreatorDetail() {
   const handleContentAction = async (contentId: string, action: string) => {
     try {
       setContentActionLoading(true);
-      const currentItem = creatorContent.find(c => c.id === contentId);
+      const currentItem = creatorContent.find((c) => c.id === contentId);
       if (action === 'submit') {
-        setPromptTitle("Submit Content Draft");
-        setPromptLabel("Draft URL");
-        setPromptPlaceholder("https://instagram.com/p/mock_draft_url");
-        setPromptValue(currentItem?.draft_url || "https://instagram.com/p/mock_draft_url");
+        setPromptTitle('Submit Content Draft');
+        setPromptLabel('Draft URL');
+        setPromptPlaceholder('https://instagram.com/p/mock_draft_url');
+        setPromptValue(currentItem?.draft_url || 'https://instagram.com/p/mock_draft_url');
         setActivePromptContentId(contentId);
         setCurrentPromptAction('submit');
         setShowPromptModal(true);
@@ -377,20 +400,20 @@ export default function CreatorDetail() {
         await approveContent(contentId);
       } else if (action === 'revise') {
         const creatorName = creator?.full_name || `@${creator?.handle}` || 'Creator';
-        const defaultNotes = "Please revise the lighting/audio.";
+        const defaultNotes = 'Please revise the lighting/audio.';
         const subject = `Revision Requested: ${currentItem?.Campaign?.name || 'Campaign'} Content Deliverable`;
         const body = `Hi ${creatorName},\n\nWe have reviewed your content draft and would like to request some revisions.\n\nRevision Notes:\n${defaultNotes}\n\nPlease update the draft and share the new link with us.\n\nBest regards,\nCampaign Management Team`;
-        
+
         setActiveRevisionContentId(contentId);
         setRevisionSubject(subject);
         setRevisionBody(body);
         setShowRevisionModal(true);
         return;
       } else if (action === 'publish') {
-        setPromptTitle("Publish Content Deliverable");
-        setPromptLabel("Live Published URL");
-        setPromptPlaceholder("https://instagram.com/p/mock_published_url");
-        setPromptValue(currentItem?.published_url || "https://instagram.com/p/mock_published_url");
+        setPromptTitle('Publish Content Deliverable');
+        setPromptLabel('Live Published URL');
+        setPromptPlaceholder('https://instagram.com/p/mock_published_url');
+        setPromptValue(currentItem?.published_url || 'https://instagram.com/p/mock_published_url');
         setActivePromptContentId(contentId);
         setCurrentPromptAction('publish');
         setShowPromptModal(true);
@@ -428,13 +451,15 @@ export default function CreatorDetail() {
 
   const handleOpenEmailRequirements = () => {
     if (creatorContent.length === 0) return;
-    
+
     const creatorName = creator?.full_name || `@${creator?.handle}` || 'Creator';
-    const campaignNames = Array.from(new Set(creatorContent.map(c => c.Campaign?.name))).join(', ');
-    
+    const campaignNames = Array.from(new Set(creatorContent.map((c) => c.Campaign?.name))).join(
+      ', ',
+    );
+
     const subject = `Campaign Deliverables and Requirements - ${campaignNames}`;
     let body = `Hi ${creatorName},\n\nHere is the summary of your content deliverables and requirements for the upcoming campaign:\n\n`;
-    
+
     creatorContent.forEach((c, index) => {
       body += `Requirement #${index + 1}:\n`;
       body += `- Campaign: ${c.Campaign?.name || '---'}\n`;
@@ -444,9 +469,9 @@ export default function CreatorDetail() {
       if (c.notes) body += `- Guidelines: ${c.notes}\n`;
       body += `\n`;
     });
-    
+
     body += `Please review these requirements and share your drafts once ready.\n\nBest regards,\nCampaign Management Team`;
-    
+
     setContentEmailSubject(subject);
     setContentEmailBody(body);
     setShowContentEmailModal(true);
@@ -461,7 +486,7 @@ export default function CreatorDetail() {
         creatorContent[0]?.campaign_id || undefined,
         contentEmailSubject,
         contentEmailBody,
-        'initial'
+        'initial',
       );
       setShowContentEmailModal(false);
       showToast('Deliverable requirements email sent to creator successfully!', 'success');
@@ -481,7 +506,7 @@ export default function CreatorDetail() {
       due_date: c.due_date || '',
       notes: c.notes || '',
       draft_url: c.draft_url || '',
-      published_url: c.published_url || ''
+      published_url: c.published_url || '',
     });
     setShowEditContentModal(true);
   };
@@ -496,7 +521,7 @@ export default function CreatorDetail() {
         due_date: editContentForm.due_date || null,
         notes: editContentForm.notes,
         draft_url: editContentForm.draft_url || null,
-        published_url: editContentForm.published_url || null
+        published_url: editContentForm.published_url || null,
       });
       setShowEditContentModal(false);
       await loadData(true);
@@ -510,12 +535,16 @@ export default function CreatorDetail() {
   const handleAddContentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contentForm.campaign_id) {
-      showToast("Please select a Campaign", 'error');
+      showToast('Please select a Campaign', 'error');
       return;
     }
     try {
       setSubmitting(true);
-      const selectedPart = partnerships.find(p => String(p.campaign_id) === String(contentForm.campaign_id) || String(p.Campaign?.id) === String(contentForm.campaign_id));
+      const selectedPart = partnerships.find(
+        (p) =>
+          String(p.campaign_id) === String(contentForm.campaign_id) ||
+          String(p.Campaign?.id) === String(contentForm.campaign_id),
+      );
       await createContent({
         creator_id: id,
         campaign_id: contentForm.campaign_id,
@@ -523,12 +552,12 @@ export default function CreatorDetail() {
         platform: contentForm.platform,
         content_type: contentForm.content_type,
         due_date: contentForm.due_date,
-        notes: contentForm.notes
+        notes: contentForm.notes,
       });
       setShowAddContentModal(false);
-      setContentForm(prev => ({
+      setContentForm((prev) => ({
         ...prev,
-        notes: ''
+        notes: '',
       }));
       await loadData(true);
     } catch (err: any) {
@@ -546,7 +575,7 @@ export default function CreatorDetail() {
       affiliate_enabled: p.affiliate_enabled || false,
       affiliate_percentage: p.affiliate_percentage || 0,
       affiliate_code: p.affiliate_code || '',
-      affiliate_link: p.affiliate_link || ''
+      affiliate_link: p.affiliate_link || '',
     });
     setShowOfferModal(true);
   };
@@ -559,7 +588,10 @@ export default function CreatorDetail() {
       setShowDiscussionModal(false);
       await loadData(true);
     } catch (err: any) {
-      showToast(`Failed to send discussion email: ${err.response?.data?.message || err.message || err}`, 'error');
+      showToast(
+        `Failed to send discussion email: ${err.response?.data?.message || err.message || err}`,
+        'error',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -574,9 +606,11 @@ export default function CreatorDetail() {
         offer_type: offerForm.offer_type,
         flat_fee: Number(offerForm.flat_fee) || undefined,
         affiliate_enabled: offerForm.affiliate_enabled,
-        affiliate_percentage: offerForm.affiliate_enabled ? Number(offerForm.affiliate_percentage) : undefined,
+        affiliate_percentage: offerForm.affiliate_enabled
+          ? Number(offerForm.affiliate_percentage)
+          : undefined,
         affiliate_code: offerForm.affiliate_enabled ? offerForm.affiliate_code : undefined,
-        affiliate_link: offerForm.affiliate_enabled ? offerForm.affiliate_link : undefined
+        affiliate_link: offerForm.affiliate_enabled ? offerForm.affiliate_link : undefined,
       });
       setShowOfferModal(false);
       await loadData(true);
@@ -597,7 +631,7 @@ export default function CreatorDetail() {
       start_date: p.start_date || '',
       end_date: p.end_date || '',
       activation_notes: p.activation_notes || '',
-      internal_notes: p.internal_notes || ''
+      internal_notes: p.internal_notes || '',
     });
     setShowEditModal(true);
   };
@@ -615,7 +649,7 @@ export default function CreatorDetail() {
         start_date: editForm.start_date || null,
         end_date: editForm.end_date || null,
         activation_notes: editForm.activation_notes || null,
-        internal_notes: editForm.internal_notes || null
+        internal_notes: editForm.internal_notes || null,
       });
       setShowEditModal(false);
       await loadData(true);
@@ -627,7 +661,6 @@ export default function CreatorDetail() {
   };
 
   useEffect(() => {
-    loadData();
     // Scroll to conversation if requested
     const params = new URLSearchParams(location.search);
     if (params.get('scroll') === 'conversation') {
@@ -646,18 +679,14 @@ export default function CreatorDetail() {
       return;
     }
 
-    const previousCreator = { ...creator };
+    const previousCreator = queryClient.getQueryData<Creator>(queryKeys.creators.detail(id!));
 
-    // Optimistically update the UI state immediately
-    setCreator(prev => {
-      if (!prev) return null;
-      if (action === 'revoke') {
-        return { ...prev, review_status: 'hold', lifecycle_status: 'new' };
-      } else if (action === 'reject') {
-        return { ...prev, review_status: 'rejected' };
-      } else if (action === 'shortlist') {
-        return { ...prev, review_status: 'shortlisted' };
-      }
+    // Optimistically update the creator cache immediately
+    queryClient.setQueryData<Creator>(queryKeys.creators.detail(id!), (prev) => {
+      if (!prev) return prev;
+      if (action === 'revoke') return { ...prev, review_status: 'hold', lifecycle_status: 'new' };
+      if (action === 'reject') return { ...prev, review_status: 'rejected' };
+      if (action === 'shortlist') return { ...prev, review_status: 'shortlisted' };
       return prev;
     });
 
@@ -665,8 +694,9 @@ export default function CreatorDetail() {
       await reviewLead(creator.id, action);
       loadData(true);
     } catch (err) {
-      setCreator(previousCreator); // Revert state on error
-      alert('Action failed: ' + err);
+      if (previousCreator)
+        queryClient.setQueryData(queryKeys.creators.detail(id!), previousCreator); // Revert
+      toast.error('Action failed: ' + err);
     }
   };
 
@@ -698,7 +728,7 @@ export default function CreatorDetail() {
       await loadData(true);
       showToast('Media kit PDF uploaded and parsed successfully!', 'success');
     } catch (err: any) {
-      console.error(err);
+      logger.error(err);
       showToast(err?.error || err?.message || 'Failed to parse media kit PDF.', 'error');
     } finally {
       setUploadingMediaKit(false);
@@ -718,8 +748,8 @@ export default function CreatorDetail() {
       else window.open(url, '_blank');
     } catch (err: any) {
       previewWindow?.close();
-      console.error(err);
-      alert(err?.error || err?.message || 'Could not open the media kit.');
+      logger.error(err);
+      toast.error(err?.error || err?.message || 'Could not open the media kit.');
     } finally {
       setMediaKitAction(null);
     }
@@ -738,8 +768,8 @@ export default function CreatorDetail() {
       a.click();
       a.remove();
     } catch (err: any) {
-      console.error(err);
-      alert(err?.error || err?.message || 'Could not download the media kit.');
+      logger.error(err);
+      toast.error(err?.error || err?.message || 'Could not download the media kit.');
     } finally {
       setMediaKitAction(null);
     }
@@ -748,7 +778,7 @@ export default function CreatorDetail() {
   const getInstagramHandle = () => {
     if (!creator) return '';
 
-    const igProfile = creator.profiles?.find(p => p.platform.toLowerCase() === 'instagram');
+    const igProfile = creator.profiles?.find((p) => p.platform.toLowerCase() === 'instagram');
     const directHandle = igProfile?.handle || creator.handle;
     if (directHandle) return directHandle.replace(/^@/, '').trim();
 
@@ -771,14 +801,14 @@ export default function CreatorDetail() {
       const preview = await previewOutreach(creator.id, creator.campaign_id || undefined);
       bodyText = preview?.body || '';
     } catch (err) {
-      console.error('Failed to load outreach preview for DM:', err);
+      logger.error('Failed to load outreach preview for DM:', err);
     }
 
     if (bodyText) {
       try {
         await navigator.clipboard.writeText(bodyText);
       } catch (clipErr) {
-        console.error('Clipboard copy failed:', clipErr);
+        logger.error('Clipboard copy failed:', clipErr);
       }
     }
 
@@ -794,15 +824,25 @@ export default function CreatorDetail() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const handleConfirmSendOutreach = async (customSubject?: string, customBody?: string, messageType?: string) => {
+  const handleConfirmSendOutreach = async (
+    customSubject?: string,
+    customBody?: string,
+    messageType?: string,
+  ) => {
     if (!creator) return;
     setSendingEmail(true);
     try {
-      await sendSingleOutreach(creator.id, creator.campaign_id || undefined, customSubject, customBody, messageType);
-      alert('Outreach email sent successfully!');
+      await sendSingleOutreach(
+        creator.id,
+        creator.campaign_id || undefined,
+        customSubject,
+        customBody,
+        messageType,
+      );
+      toast.success('Outreach email sent successfully!');
       loadData();
     } catch (err) {
-      alert('Failed to send outreach: ' + err);
+      toast.error('Failed to send outreach: ' + err);
       throw err;
     } finally {
       setSendingEmail(false);
@@ -830,9 +870,11 @@ export default function CreatorDetail() {
     setRegeneratingSummary(true);
     try {
       const res = await regenerateCreatorSummary(creator.id);
-      setCreator(prev => prev ? { ...prev, summary: res.summary } : prev);
+      queryClient.setQueryData<Creator>(queryKeys.creators.detail(id!), (prev) =>
+        prev ? { ...prev, summary: res.summary } : prev,
+      );
     } catch (err: any) {
-      alert(err?.message || err || 'Failed to regenerate summary.');
+      toast.error(err?.message || err || 'Failed to regenerate summary.');
     } finally {
       setRegeneratingSummary(false);
     }
@@ -843,10 +885,12 @@ export default function CreatorDetail() {
     setSavingNotes(true);
     try {
       await updateCreatorNotes(creator.id, notesValue);
-      setCreator(prev => prev ? { ...prev, notes: notesValue } : prev);
+      queryClient.setQueryData<Creator>(queryKeys.creators.detail(id!), (prev) =>
+        prev ? { ...prev, notes: notesValue } : prev,
+      );
       setIsEditingNotes(false);
     } catch (err: any) {
-      alert(err?.message || err || 'Failed to save notes.');
+      toast.error(err?.message || err || 'Failed to save notes.');
     } finally {
       setSavingNotes(false);
     }
@@ -859,16 +903,18 @@ export default function CreatorDetail() {
 
   const handleFindSimilar = async () => {
     if (!creator || !creator.campaign_id) {
-      alert("This creator must be part of a campaign to find similar influencers.");
+      toast.error('This creator must be part of a campaign to find similar influencers.');
       return;
     }
-    
+
     setFindingSimilar(true);
     try {
       const res: any = await findSimilarCreators(creator.id, creator.campaign_id);
-      alert(`✅ Success: ${res.message || '10 similar influencers found and added to this campaign!'}`);
+      toast.success(
+        `✅ Success: ${res.message || '10 similar influencers found and added to this campaign!'}`,
+      );
     } catch (err: any) {
-      alert(err || "Failed to find similar influencers.");
+      toast.error(err || 'Failed to find similar influencers.');
     } finally {
       setFindingSimilar(false);
     }
@@ -882,12 +928,12 @@ export default function CreatorDetail() {
         creator_id: creator.id,
         campaign_id: creator.campaign_id,
         affiliate_code: affiliateFormData.code,
-        affiliate_link: affiliateFormData.link
+        affiliate_link: affiliateFormData.link,
       });
       setIsAffiliateModalOpen(false);
       loadData();
     } catch (err) {
-      alert('Failed to link affiliate info: ' + err);
+      toast.error('Failed to link affiliate info: ' + err);
     } finally {
       setActionLoading(false);
     }
@@ -904,8 +950,12 @@ export default function CreatorDetail() {
   if (error || !creator) {
     return (
       <div className="p-12 text-center">
-        <div className="text-error-500 font-normal text-lg mb-4">{error || 'Creator not found.'}</div>
-        <Link to="/creators" className="text-primary-600 hover:underline">Return to Directory</Link>
+        <div className="text-error-500 font-normal text-lg mb-4">
+          {error || 'Creator not found.'}
+        </div>
+        <Link to="/creators" className="text-primary-600 hover:underline">
+          Return to Directory
+        </Link>
       </div>
     );
   }
@@ -913,15 +963,23 @@ export default function CreatorDetail() {
   // Parse scoring_notes safely (handle both snake_case and camelCase)
   let scoringNotes = creator.scoring_notes || (creator as any).scoringNotes;
   if (typeof scoringNotes === 'string') {
-    try { scoringNotes = JSON.parse(scoringNotes); } catch { scoringNotes = {}; }
+    try {
+      scoringNotes = JSON.parse(scoringNotes);
+    } catch {
+      scoringNotes = {};
+    }
   }
   const breakdown = (scoringNotes as any)?.initial_breakdown || {};
-  
+
   // Available platforms to check
   const platforms = [
-    { key: 'instagram', label: 'Instagram', icon: <Instagram size={14} className="text-pink-600"/> },
-    { key: 'youtube', label: 'YouTube', icon: <Youtube size={14} className="text-red-600"/> },
-    { key: 'tiktok', label: 'TikTok', icon: <Activity size={14} className="text-black"/> }
+    {
+      key: 'instagram',
+      label: 'Instagram',
+      icon: <Instagram size={14} className="text-pink-600" />,
+    },
+    { key: 'youtube', label: 'YouTube', icon: <Youtube size={14} className="text-red-600" /> },
+    { key: 'tiktok', label: 'TikTok', icon: <Activity size={14} className="text-black" /> },
   ];
   const fromCampaignId = (location.state as any)?.fromCampaignId;
   const fromMyCreators = (location.state as any)?.fromMyCreators;
@@ -1014,103 +1072,135 @@ export default function CreatorDetail() {
 
         {/* Creator Insights Section (Summary, Bio, Email, Location) */}
         <div className="px-8 py-6 bg-primary-50/30 border-b border-gray-100">
-           <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                  <Sparkles size={12} className="text-primary-600" /> SUMMARY
-                </h4>
-                {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') && (
-                  <button
-                    type="button"
-                    onClick={handleRegenerateSummary}
-                    disabled={regeneratingSummary}
-                    className="no-print text-[10px] font-normal text-gray-400 hover:text-primary-600 uppercase tracking-widest flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Regenerate summary using the latest enriched data"
-                  >
-                    <RefreshCw size={11} className={regeneratingSummary ? 'animate-spin' : ''} />
-                    {regeneratingSummary ? 'Regenerating...' : 'Regenerate'}
-                  </button>
-                )}
-              </div>
-              <p className="text-sm text-gray-700 leading-relaxed italic border-l-2 border-primary-200 pl-4 whitespace-pre-wrap">
-                {regeneratingSummary
-                  ? 'Re-analyzing creator with latest data…'
-                  : (creator.notes || "AI is analyzing this creator's profile and generating a professional summary...")}
-              </p>
-           </div>
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                <Sparkles size={12} className="text-primary-600" /> SUMMARY
+              </h4>
+              {hasRole(currentUser?.role, ROLE_GROUPS.MANAGE_CREATORS) && (
+                <button
+                  type="button"
+                  onClick={handleRegenerateSummary}
+                  disabled={regeneratingSummary}
+                  className="no-print text-[10px] font-normal text-gray-400 hover:text-primary-600 uppercase tracking-widest flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Regenerate summary using the latest enriched data"
+                >
+                  <RefreshCw size={11} className={regeneratingSummary ? 'animate-spin' : ''} />
+                  {regeneratingSummary ? 'Regenerating...' : 'Regenerate'}
+                </button>
+              )}
+            </div>
+            <p className="text-sm text-gray-700 leading-relaxed italic border-l-2 border-primary-200 pl-4 whitespace-pre-wrap">
+              {regeneratingSummary
+                ? 'Re-analyzing creator with latest data…'
+                : creator.notes ||
+                  "AI is analyzing this creator's profile and generating a professional summary..."}
+            </p>
+          </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-             <div className="flex gap-3">
-                <div className="mt-1 text-primary-600"><FileText size={18} /></div>
-                <div>
-                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">About / Bio</h4>
-                  <p className="text-sm text-gray-700 leading-relaxed italic">
-                    {creator.bio || "No bio available for this creator."}
-                  </p>
-                </div>
-             </div>
-             <div className="flex gap-3">
-                <div className="mt-1 text-primary-600"><Mail size={18} /></div>
-                <div className="flex-1">
-                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">Direct Contact</h4>
-                  <div className={`p-3 rounded-lg text-sm font-normal ${
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="flex gap-3">
+              <div className="mt-1 text-primary-600">
+                <FileText size={18} />
+              </div>
+              <div>
+                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">
+                  About / Bio
+                </h4>
+                <p className="text-sm text-gray-700 leading-relaxed italic">
+                  {creator.bio || 'No bio available for this creator.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="mt-1 text-primary-600">
+                <Mail size={18} />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">
+                  Direct Contact
+                </h4>
+                <div
+                  className={`p-3 rounded-lg text-sm font-normal ${
                     creator.email
                       ? 'text-gray-800 bg-transparent'
                       : 'text-amber-700 bg-amber-50 border border-amber-200'
-                  }`}>
-                    {creator.email || "📧 Email hidden or not found"}
-                  </div>
-                  {creator.has_email && <span className="text-[10px] text-green-600 font-normal flex items-center gap-1 mt-1"><Check size={10} /> Verified Email</span>}
+                  }`}
+                >
+                  {creator.email || '📧 Email hidden or not found'}
                 </div>
-             </div>
-             <div className="flex gap-3">
-                <div className="mt-1 text-primary-600"><MapPin size={18} /></div>
-                <div>
-                  <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">Target Location</h4>
-                  <p className="text-sm font-normal text-gray-800 capitalize">
-                    {creator.city ? `${creator.city}${creator.state ? `, ${creator.state}` : ''}${creator.country ? `, ${creator.country}` : ''}` : 'Location unknown'}
-                  </p>
-                  <span className="text-[10px] text-gray-500 font-medium">Primarily active in this region</span>
-                </div>
-             </div>
-           </div>
+                {creator.has_email && (
+                  <span className="text-[10px] text-green-600 font-normal flex items-center gap-1 mt-1">
+                    <Check size={10} /> Verified Email
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="mt-1 text-primary-600">
+                <MapPin size={18} />
+              </div>
+              <div>
+                <h4 className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-1">
+                  Target Location
+                </h4>
+                <p className="text-sm font-normal text-gray-800 capitalize">
+                  {creator.city
+                    ? `${creator.city}${creator.state ? `, ${creator.state}` : ''}${creator.country ? `, ${creator.country}` : ''}`
+                    : 'Location unknown'}
+                </p>
+                <span className="text-[10px] text-gray-500 font-medium">
+                  Primarily active in this region
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-8">
-          
           {/* Platform Wise Scores */}
           <div className="lg:col-span-2 space-y-4">
             <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2">
               <UserCheck size={18} className="text-primary-600" /> Platform-wise Score Breakdown
             </h3>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {platforms.map(platform => {
+              {platforms.map((platform) => {
                 const pData = breakdown[platform.key];
                 // Display the platform card if data exists OR if the creator has this platform true (even if data is 0)
                 const hasPlatform = creator[`has_${platform.key}` as keyof Creator];
-                
+
                 if (!pData && !hasPlatform) return null;
 
                 const score = pData?.score || 0;
-                const profile = creator.profiles?.find(p => p.platform.toLowerCase() === platform.key);
-                
+                const profile = creator.profiles?.find(
+                  (p) => p.platform.toLowerCase() === platform.key,
+                );
+
                 const isExpanded = expandedPlatforms[platform.key];
-                
+
                 return (
-                  <div key={platform.key} className="bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm">
+                  <div
+                    key={platform.key}
+                    className="bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm"
+                  >
                     <div className="flex justify-between items-center mb-4">
                       <div className="flex items-center gap-2 font-normal text-gray-800 text-sm uppercase tracking-wide">
                         {platform.icon} {platform.label}
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className={`text-xl font-normal ${
-                          score >= 70 ? 'text-green-600' :
-                          score >= 40 ? 'text-primary-600' : 'text-gray-500'
-                        }`}>
+                        <div
+                          className={`text-xl font-normal ${
+                            score >= 70
+                              ? 'text-green-600'
+                              : score >= 40
+                                ? 'text-primary-600'
+                                : 'text-gray-500'
+                          }`}
+                        >
                           {score} <span className="text-xs text-gray-400 font-medium">/ 100</span>
                         </div>
-                        <button 
+                        <button
                           onClick={() => togglePlatform(platform.key)}
                           className="p-1 hover:bg-gray-200 rounded-full transition-colors text-gray-400"
                         >
@@ -1123,36 +1213,56 @@ export default function CreatorDetail() {
                     {profile && (
                       <div className="flex gap-4 mb-4 pb-4 border-b border-gray-200/50">
                         <div className="flex-1">
-                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Followers</p>
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">
+                            Followers
+                          </p>
                           <p className="text-sm font-normal text-gray-900 flex items-center gap-1 mb-3">
                             <Users size={12} className="text-gray-400" />
                             {profile.followers?.toLocaleString() || 'N/A'}
                           </p>
-                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Avg Likes</p>
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">
+                            Avg Likes
+                          </p>
                           <p className="text-sm font-normal text-gray-900 flex items-center gap-1 mb-3">
                             {profile.avg_likes?.toLocaleString() || 'N/A'}
                           </p>
-                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Posts / Media</p>
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">
+                            Posts / Media
+                          </p>
                           <p className="text-sm font-normal text-gray-900 flex items-center gap-1">
                             {profile.media_count?.toLocaleString() || 'N/A'}
                           </p>
                         </div>
                         <div className="flex-1">
-                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Engagement</p>
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">
+                            Engagement
+                          </p>
                           <div className="flex items-center gap-2 mb-3">
                             <span className="text-sm font-normal text-gray-900">
-                              {profile.engagement_rate ? `${Number(profile.engagement_rate).toFixed(2)}%` : 'N/A'}
+                              {profile.engagement_rate
+                                ? `${Number(profile.engagement_rate).toFixed(2)}%`
+                                : 'N/A'}
                             </span>
-                            {profile.engagement_rate && (() => {
-                              const rating = getErRating(profile.followers || 0, Number(profile.engagement_rate));
-                              return rating && (
-                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${rating.colorClass}`}>
-                                  {rating.label}
-                                </span>
-                              );
-                            })()}
+                            {profile.engagement_rate &&
+                              (() => {
+                                const rating = getErRating(
+                                  profile.followers || 0,
+                                  Number(profile.engagement_rate),
+                                );
+                                return (
+                                  rating && (
+                                    <span
+                                      className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${rating.colorClass}`}
+                                    >
+                                      {rating.label}
+                                    </span>
+                                  )
+                                );
+                              })()}
                           </div>
-                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Avg Comments</p>
+                          <p className="text-[10px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">
+                            Avg Comments
+                          </p>
                           <p className="text-sm font-normal text-gray-900">
                             {profile.avg_comments?.toLocaleString() || 'N/A'}
                           </p>
@@ -1166,14 +1276,20 @@ export default function CreatorDetail() {
                         {pData?.breakdown ? (
                           <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">
                             {Object.entries(pData.breakdown).map(([key, val]) => (
-                               <div key={key} className="flex justify-between items-center text-xs">
-                                 <span className="text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
-                                 <span className="font-normal text-gray-700">+{val as number} points</span>
-                               </div>
+                              <div key={key} className="flex justify-between items-center text-xs">
+                                <span className="text-gray-500 capitalize">
+                                  {key.replace(/_/g, ' ')}
+                                </span>
+                                <span className="font-normal text-gray-700">
+                                  +{val as number} points
+                                </span>
+                              </div>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-gray-400 italic mt-4 pt-4 border-t border-gray-100">No algorithm breakdown points available.</p>
+                          <p className="text-xs text-gray-400 italic mt-4 pt-4 border-t border-gray-100">
+                            No algorithm breakdown points available.
+                          </p>
                         )}
                       </div>
                     )}
@@ -1181,105 +1297,116 @@ export default function CreatorDetail() {
                 );
               })}
             </div>
-            
+
             {Object.keys(breakdown).length === 0 && (
               <div className="bg-gray-50 p-6 rounded-xl border border-dashed border-gray-300 text-center text-gray-500 text-sm">
-                 Detailed platform-wise algorithm breakdown was not collected for this lead. Total score: {creator.outreach_readiness_score || 0}/100.
+                Detailed platform-wise algorithm breakdown was not collected for this lead. Total
+                score: {creator.outreach_readiness_score || 0}/100.
               </div>
             )}
           </div>
-          
+
           <div className="space-y-6">
             <div>
-               <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-4">Match Breakdown</h3>
-               <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
-                 
-                 <div className="flex justify-between items-center mb-2">
-                   <span className="text-xs font-normal text-gray-900 uppercase tracking-widest">Total Match</span>
-                   <div className="flex items-center gap-2">
-                    <span className="text-xl font-normal text-primary-600">{Math.round(Number(creator.relevance_score) || 0)}%</span>
-                    <button 
+              <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-4">
+                Match Breakdown
+              </h3>
+              <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-normal text-gray-900 uppercase tracking-widest">
+                    Total Match
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-normal text-primary-600">
+                      {Math.round(Number(creator.relevance_score) || 0)}%
+                    </span>
+                    <button
                       onClick={() => setMatchExpanded(!matchExpanded)}
                       className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-400"
                     >
                       {matchExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </button>
                   </div>
-                 </div>
-                 
-                 {matchExpanded && (() => {
-                   const rb = (scoringNotes as any)?.relevance_breakdown;
-                   if (!rb) {
-                     return (
-                       <div className="pl-3 border-l-2 border-primary-100 animate-[fadeIn_0.2s_ease] text-xs text-gray-400 italic">
-                         Detailed breakdown unavailable for this lead.
-                       </div>
-                     );
-                   }
-                   const fmtPct = (p: number) => p > 0 ? `+${p.toFixed(1)}%` : '0%';
-                   return (
-                     <div className="space-y-3 pl-3 border-l-2 border-primary-100 animate-[fadeIn_0.2s_ease]">
-                       {/* City Match */}
-                       <div className="flex justify-between items-start gap-3">
-                         <div className="flex flex-col">
-                           <span className="text-sm text-gray-500 font-medium">City Match</span>
-                           {rb.city?.matched && rb.city?.source === 'bio' && (
-                             <span className="text-[10px] text-gray-400">matched in bio (partial)</span>
-                           )}
-                         </div>
-                         <span className="text-sm font-normal text-gray-900 whitespace-nowrap">
-                           {fmtPct(rb.city?.points || 0)}
-                         </span>
-                       </div>
+                </div>
 
-                       {/* Niche / Category Match */}
-                       <div className="flex justify-between items-start gap-3">
-                         <div className="flex flex-col min-w-0">
-                           <span className="text-sm text-gray-500 font-medium">Niche Match</span>
-                           {Array.isArray(rb.categories?.matched_categories) && rb.categories.matched_categories.length > 0 && (
-                             <span className="text-[10px] text-gray-400 truncate">
-                               {rb.categories.matched_categories.join(', ')}
-                             </span>
-                           )}
-                         </div>
-                         <span className="text-sm font-normal text-gray-900 whitespace-nowrap">
-                           {fmtPct(rb.categories?.points || 0)}
-                         </span>
-                       </div>
+                {matchExpanded &&
+                  (() => {
+                    const rb = (scoringNotes as any)?.relevance_breakdown;
+                    if (!rb) {
+                      return (
+                        <div className="pl-3 border-l-2 border-primary-100 animate-[fadeIn_0.2s_ease] text-xs text-gray-400 italic">
+                          Detailed breakdown unavailable for this lead.
+                        </div>
+                      );
+                    }
+                    const fmtPct = (p: number) => (p > 0 ? `+${p.toFixed(1)}%` : '0%');
+                    return (
+                      <div className="space-y-3 pl-3 border-l-2 border-primary-100 animate-[fadeIn_0.2s_ease]">
+                        {/* City Match */}
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="flex flex-col">
+                            <span className="text-sm text-gray-500 font-medium">City Match</span>
+                            {rb.city?.matched && rb.city?.source === 'bio' && (
+                              <span className="text-[10px] text-gray-400">
+                                matched in bio (partial)
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-sm font-normal text-gray-900 whitespace-nowrap">
+                            {fmtPct(rb.city?.points || 0)}
+                          </span>
+                        </div>
 
-                       {/* Keyword Match */}
-                       <div className="flex justify-between items-start gap-3">
-                         <div className="flex flex-col min-w-0">
-                           <span className="text-sm text-gray-500 font-medium">
-                             Keyword Match
-                             {rb.keywords?.total_keywords > 0 && (
-                               <span className="text-[10px] text-gray-400 font-normal ml-1">
-                                 ({(rb.keywords?.matched_keywords?.length || 0)}/{rb.keywords.total_keywords})
-                               </span>
-                             )}
-                           </span>
-                           {Array.isArray(rb.keywords?.matched_keywords) && rb.keywords.matched_keywords.length > 0 && (
-                             <span className="text-[10px] text-gray-400 truncate">
-                               {rb.keywords.matched_keywords.join(', ')}
-                             </span>
-                           )}
-                         </div>
-                         <span className="text-sm font-normal text-gray-900 whitespace-nowrap">
-                           {fmtPct(rb.keywords?.points || 0)}
-                         </span>
-                       </div>
-                     </div>
-                   );
-                 })()}
+                        {/* Niche / Category Match */}
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-sm text-gray-500 font-medium">Niche Match</span>
+                            {Array.isArray(rb.categories?.matched_categories) &&
+                              rb.categories.matched_categories.length > 0 && (
+                                <span className="text-[10px] text-gray-400 truncate">
+                                  {rb.categories.matched_categories.join(', ')}
+                                </span>
+                              )}
+                          </div>
+                          <span className="text-sm font-normal text-gray-900 whitespace-nowrap">
+                            {fmtPct(rb.categories?.points || 0)}
+                          </span>
+                        </div>
 
-                 <p className="text-[10px] text-gray-400 leading-tight mt-4 pt-4 border-t border-gray-100 italic">
-                   * Match % determines how well they fit your specific search filters defined in the campaign.
-                 </p>
-                 
-               </div>
+                        {/* Keyword Match */}
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-sm text-gray-500 font-medium">
+                              Keyword Match
+                              {rb.keywords?.total_keywords > 0 && (
+                                <span className="text-[10px] text-gray-400 font-normal ml-1">
+                                  ({rb.keywords?.matched_keywords?.length || 0}/
+                                  {rb.keywords.total_keywords})
+                                </span>
+                              )}
+                            </span>
+                            {Array.isArray(rb.keywords?.matched_keywords) &&
+                              rb.keywords.matched_keywords.length > 0 && (
+                                <span className="text-[10px] text-gray-400 truncate">
+                                  {rb.keywords.matched_keywords.join(', ')}
+                                </span>
+                              )}
+                          </div>
+                          <span className="text-sm font-normal text-gray-900 whitespace-nowrap">
+                            {fmtPct(rb.keywords?.points || 0)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                <p className="text-[10px] text-gray-400 leading-tight mt-4 pt-4 border-t border-gray-100 italic">
+                  * Match % determines how well they fit your specific search filters defined in the
+                  campaign.
+                </p>
+              </div>
             </div>
           </div>
-
         </div>
       </Card>
 
@@ -1333,7 +1460,9 @@ export default function CreatorDetail() {
           ) : (
             <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
               {creator?.notes || (
-                <span className="text-gray-400 italic">No notes added yet. Click 'Edit Notes' to add your notes.</span>
+                <span className="text-gray-400 italic">
+                  No notes added yet. Click 'Edit Notes' to add your notes.
+                </span>
               )}
             </p>
           )}
@@ -1357,7 +1486,12 @@ export default function CreatorDetail() {
                   title="Open the uploaded media kit PDF in a new tab"
                   className="no-print inline-flex items-center gap-1.5 text-xs font-normal text-gray-500 hover:text-gray-700 transition-colors uppercase tracking-widest font-outfit disabled:opacity-50"
                 >
-                  {mediaKitAction === 'view' ? <RefreshCw size={14} className="animate-spin" /> : <Eye size={14} />} View
+                  {mediaKitAction === 'view' ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <Eye size={14} />
+                  )}{' '}
+                  View
                 </button>
                 <button
                   type="button"
@@ -1366,7 +1500,12 @@ export default function CreatorDetail() {
                   title="Download the uploaded media kit PDF"
                   className="no-print inline-flex items-center gap-1.5 text-xs font-normal text-primary-600 hover:text-primary-700 transition-colors uppercase tracking-widest font-outfit disabled:opacity-50"
                 >
-                  {mediaKitAction === 'download' ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />} Download Profile
+                  {mediaKitAction === 'download' ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <Download size={14} />
+                  )}{' '}
+                  Download Profile
                 </button>
               </>
             )}
@@ -1382,12 +1521,12 @@ export default function CreatorDetail() {
                   Upload Demographics Data
                 </>
               )}
-              <input 
-                type="file" 
-                accept=".pdf" 
-                className="hidden" 
-                onChange={handleMediaKitUpload} 
-                disabled={uploadingMediaKit} 
+              <input
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                onChange={handleMediaKitUpload}
+                disabled={uploadingMediaKit}
               />
             </label>
           </div>
@@ -1410,24 +1549,37 @@ export default function CreatorDetail() {
                   </h4>
                   {(() => {
                     const demos = audienceData.profile.audience_demographics || [];
-                    const male = demos.find((d: any) => d.demographic_type === 'gender' && d.gender === 'male');
-                    const female = demos.find((d: any) => d.demographic_type === 'gender' && d.gender === 'female');
-                    
+                    const male = demos.find(
+                      (d: any) => d.demographic_type === 'gender' && d.gender === 'male',
+                    );
+                    const female = demos.find(
+                      (d: any) => d.demographic_type === 'gender' && d.gender === 'female',
+                    );
+
                     const malePct = male ? Number(male.percentage) * 100 : 0;
                     const femalePct = female ? Number(female.percentage) * 100 : 0;
-                    
+
                     if (malePct === 0 && femalePct === 0) {
                       return <p className="text-sm text-gray-500 italic">No gender data found</p>;
                     }
-                    
+
                     return (
                       <div className="space-y-4">
                         <div className="flex justify-between items-center text-sm font-normal text-gray-700">
-                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Male: {malePct.toFixed(1)}%</span>
-                          <span className="flex items-center gap-1.5">Female: {femalePct.toFixed(1)}% <span className="w-2.5 h-2.5 rounded-full bg-pink-500"></span></span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Male:{' '}
+                            {malePct.toFixed(1)}%
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            Female: {femalePct.toFixed(1)}%{' '}
+                            <span className="w-2.5 h-2.5 rounded-full bg-pink-500"></span>
+                          </span>
                         </div>
                         <div className="w-full h-3 rounded-full bg-pink-500 overflow-hidden flex">
-                          <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${malePct}%` }}></div>
+                          <div
+                            className="h-full bg-blue-500 transition-all duration-500"
+                            style={{ width: `${malePct}%` }}
+                          ></div>
                         </div>
                       </div>
                     );
@@ -1442,11 +1594,14 @@ export default function CreatorDetail() {
                   </h4>
                   {(() => {
                     const quality = audienceData.profile.audience_qualities?.[0];
-                    if (!quality) return <p className="text-sm text-gray-500 italic">No quality data found</p>;
-                    
-                    const fakePct = quality.fake_followers_percent ? Number(quality.fake_followers_percent) * 100 : 0;
+                    if (!quality)
+                      return <p className="text-sm text-gray-500 italic">No quality data found</p>;
+
+                    const fakePct = quality.fake_followers_percent
+                      ? Number(quality.fake_followers_percent) * 100
+                      : 0;
                     const realPct = quality.real_percent ? Number(quality.real_percent) * 100 : 0;
-                    
+
                     return (
                       <div className="grid grid-cols-2 gap-4">
                         <div className="text-center p-3 bg-white border border-gray-200/50 rounded-lg shadow-sm">
@@ -1454,7 +1609,9 @@ export default function CreatorDetail() {
                             Fake Followers
                             <InfoTip text="Everyone has fake followers. Up to 25% is perfectly normal." />
                           </p>
-                          <p className={`text-xl font-normal mt-1 ${fakePct > 25 ? 'text-red-600' : fakePct > 15 ? 'text-amber-600' : 'text-green-600'}`}>
+                          <p
+                            className={`text-xl font-normal mt-1 ${fakePct > 25 ? 'text-red-600' : fakePct > 15 ? 'text-amber-600' : 'text-green-600'}`}
+                          >
                             {fakePct.toFixed(1)}%
                           </p>
                         </div>
@@ -1484,11 +1641,15 @@ export default function CreatorDetail() {
                   <div className="space-y-3">
                     {(() => {
                       const demos = audienceData.profile.audience_demographics || [];
-                      const ages = demos.filter((d: any) => d.demographic_type === 'age')
-                        .sort((a: any, b: any) => (a.age_range || '').localeCompare(b.age_range || ''));
-                      
-                      if (ages.length === 0) return <p className="text-sm text-gray-500 italic">No age data found</p>;
-                      
+                      const ages = demos
+                        .filter((d: any) => d.demographic_type === 'age')
+                        .sort((a: any, b: any) =>
+                          (a.age_range || '').localeCompare(b.age_range || ''),
+                        );
+
+                      if (ages.length === 0)
+                        return <p className="text-sm text-gray-500 italic">No age data found</p>;
+
                       return ages.map((age: any) => {
                         const pct = Number(age.percentage) * 100;
                         return (
@@ -1498,7 +1659,10 @@ export default function CreatorDetail() {
                               <span className="font-semibold text-gray-700">{pct.toFixed(1)}%</span>
                             </div>
                             <div className="w-full h-1.5 rounded-full bg-gray-200 overflow-hidden">
-                              <div className="h-full bg-primary-600 rounded-full" style={{ width: `${pct}%` }}></div>
+                              <div
+                                className="h-full bg-primary-600 rounded-full"
+                                style={{ width: `${pct}%` }}
+                              ></div>
                             </div>
                           </div>
                         );
@@ -1516,13 +1680,16 @@ export default function CreatorDetail() {
                   <div className="space-y-3">
                     {(() => {
                       const quality = audienceData.profile.audience_qualities?.[0];
-                      if (!quality) return <p className="text-sm text-gray-500 italic">No reachability data found</p>;
-                      
+                      if (!quality)
+                        return (
+                          <p className="text-sm text-gray-500 italic">No reachability data found</p>
+                        );
+
                       const reachMetrics = [
                         { label: '< 500 followers', val: quality.reachability_0_500 },
                         { label: '500 - 1,000 followers', val: quality.reachability_500_1000 },
                         { label: '1,000 - 1,500 followers', val: quality.reachability_1000_1500 },
-                        { label: '> 1,500 followers', val: quality.reachability_1500_plus }
+                        { label: '> 1,500 followers', val: quality.reachability_1500_plus },
                       ];
 
                       return reachMetrics.map((r, idx) => {
@@ -1534,7 +1701,10 @@ export default function CreatorDetail() {
                               <span className="font-semibold text-gray-700">{pct.toFixed(1)}%</span>
                             </div>
                             <div className="w-full h-1.5 rounded-full bg-gray-200 overflow-hidden">
-                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }}></div>
+                              <div
+                                className="h-full bg-indigo-500 rounded-full"
+                                style={{ width: `${pct}%` }}
+                              ></div>
                             </div>
                           </div>
                         );
@@ -1552,7 +1722,9 @@ export default function CreatorDetail() {
                 </h4>
                 {(() => {
                   const locs = audienceData.profile.audience_locations || [];
-                  const countries = locs.filter((l: any) => l.location_type === 'country').slice(0, 5);
+                  const countries = locs
+                    .filter((l: any) => l.location_type === 'country')
+                    .slice(0, 5);
                   const cities = locs.filter((l: any) => l.location_type === 'city').slice(0, 5);
 
                   if (countries.length === 0 && cities.length === 0) {
@@ -1563,14 +1735,21 @@ export default function CreatorDetail() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       {/* Top Countries */}
                       <div>
-                        <h5 className="text-xs font-semibold text-gray-700 uppercase mb-3">Countries</h5>
+                        <h5 className="text-xs font-semibold text-gray-700 uppercase mb-3">
+                          Countries
+                        </h5>
                         <div className="space-y-2">
                           {countries.map((c: any) => {
                             const pct = Number(c.percentage) * 100;
                             return (
-                              <div key={c.id} className="flex justify-between items-center text-xs border-b border-gray-200/50 pb-1.5">
+                              <div
+                                key={c.id}
+                                className="flex justify-between items-center text-xs border-b border-gray-200/50 pb-1.5"
+                              >
                                 <span className="text-gray-600 font-normal">{c.name}</span>
-                                <span className="font-semibold text-gray-900">{pct.toFixed(2)}%</span>
+                                <span className="font-semibold text-gray-900">
+                                  {pct.toFixed(2)}%
+                                </span>
                               </div>
                             );
                           })}
@@ -1579,14 +1758,21 @@ export default function CreatorDetail() {
 
                       {/* Top Cities */}
                       <div>
-                        <h5 className="text-xs font-semibold text-gray-700 uppercase mb-3">Cities</h5>
+                        <h5 className="text-xs font-semibold text-gray-700 uppercase mb-3">
+                          Cities
+                        </h5>
                         <div className="space-y-2">
                           {cities.map((c: any) => {
                             const pct = Number(c.percentage) * 100;
                             return (
-                              <div key={c.id} className="flex justify-between items-center text-xs border-b border-gray-200/50 pb-1.5">
+                              <div
+                                key={c.id}
+                                className="flex justify-between items-center text-xs border-b border-gray-200/50 pb-1.5"
+                              >
                                 <span className="text-gray-600 font-normal">{c.name}</span>
-                                <span className="font-semibold text-gray-900">{pct.toFixed(2)}%</span>
+                                <span className="font-semibold text-gray-900">
+                                  {pct.toFixed(2)}%
+                                </span>
                               </div>
                             );
                           })}
@@ -1600,9 +1786,12 @@ export default function CreatorDetail() {
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
               <Activity size={32} className="text-gray-300 mb-3" />
-              <p className="text-sm font-semibold text-gray-700 uppercase">No Demographics Data Uploaded</p>
+              <p className="text-sm font-semibold text-gray-700 uppercase">
+                No Demographics Data Uploaded
+              </p>
               <p className="text-xs text-gray-400 max-w-sm mt-1 mb-4">
-                Upload a media kit PDF report (e.g. Modash Report) to automatically parse locations, age ranges, gender distribution, and audience quality using Gemini AI.
+                Upload a media kit PDF report (e.g. Modash Report) to automatically parse locations,
+                age ranges, gender distribution, and audience quality using Gemini AI.
               </p>
               <label className="cursor-pointer inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-normal rounded-lg uppercase tracking-wider font-outfit shadow-md transition-colors disabled:opacity-50">
                 {uploadingMediaKit ? (
@@ -1616,12 +1805,12 @@ export default function CreatorDetail() {
                     Upload & Parse PDF
                   </>
                 )}
-                <input 
-                  type="file" 
-                  accept=".pdf" 
-                  className="hidden" 
-                  onChange={handleMediaKitUpload} 
-                  disabled={uploadingMediaKit} 
+                <input
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={handleMediaKitUpload}
+                  disabled={uploadingMediaKit}
                 />
               </label>
             </div>
@@ -1640,146 +1829,183 @@ export default function CreatorDetail() {
         setShowOfferModal={setShowOfferModal}
       />
 
-      {creator.lifecycle_status && ['engaged', 'qualified', 'offered', 'accepted', 'activated', 'converted', 'completed'].includes(creator.lifecycle_status) && (
-        <>
-          <div className="no-print grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-            {/* Meeting Option */}
-            <Card className="p-6 flex flex-col">
-              <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-1 flex items-center gap-2">
-                <Clock size={16} className="text-primary-600" /> Meeting Options
-              </h3>
-              <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-4">
-                Schedule a call with {creator.full_name?.split(' ')[0]}
-              </p>
-              <div className="flex-1 flex flex-col justify-between gap-3">
-                <div className="flex-1 flex items-center justify-center bg-primary-50/40 rounded-xl border border-primary-100/60 py-6 flex-col gap-2">
-                  <div className="w-12 h-12 rounded-full bg-white shadow-sm border border-primary-100 flex items-center justify-center">
-                    <Calendar size={22} className="text-primary-500" />
-                  </div>
-                  <p className="text-[9px] text-primary-400 uppercase tracking-widest font-normal">No meeting scheduled</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => alert('Meeting Scheduler Integration Coming Soon')}
-                  className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 shadow-sm text-[10px] uppercase tracking-widest rounded-xl py-2.5 transition-colors font-normal"
-                >
-                  <Calendar size={14} className="text-primary-600" />
-                  <span>Schedule Meeting</span>
-                </button>
-              </div>
-            </Card>
-
-            {/* Affiliate Activation */}
-            <Card className="p-6 flex flex-col">
-              <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-1 flex items-center gap-2">
-                <LinkIcon size={16} className="text-primary-600" /> Affiliate Activation
-              </h3>
-              <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-4">
-                Manage tracking code &amp; affiliate link
-              </p>
-              <div className="flex-1 flex flex-col justify-between gap-3">
-                {(creator as any).affiliate_code || (creator as any).affiliate_link ? (
-                  <>
-                    <div className="flex-1 flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
-                      <div>
-                        <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">Tracking Code</p>
-                        <p className="text-sm font-normal text-gray-900 font-outfit uppercase">{(creator as any).affiliate_code || '---'}</p>
-                      </div>
-                      <button className="text-primary-500 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors">
-                        <Copy size={14} />
-                      </button>
-                    </div>
-                    {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') ? (
-                      <Button
-                        variant="outline"
-                        className="w-full text-[10px] uppercase tracking-widest"
-                        onClick={() => {
-                          setAffiliateFormData({
-                            code: (creator as any).affiliate_code || '',
-                            link: (creator as any).affiliate_link || ''
-                          });
-                          setIsAffiliateModalOpen(true);
-                        }}
-                      >
-                        Manage Assets
-                      </Button>
-                    ) : (
-                      <p className="text-[9px] text-gray-400 italic text-center mt-2">Read-only access for this section</p>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 rounded-xl border border-dashed border-gray-200 py-5 gap-1">
-                      <LinkIcon size={24} className="text-gray-300" />
-                      <p className="text-[10px] text-gray-400 uppercase tracking-widest">No assets linked</p>
-                    </div>
-                    {['super_admin', 'admin', 'operator', 'client_admin', 'client_marketing'].includes(currentUser?.role || '') ? (
-                      <Button
-                        className="w-full bg-primary-600 hover:bg-primary-700 shadow-md text-[10px] uppercase tracking-widest"
-                        onClick={() => setIsAffiliateModalOpen(true)}
-                      >
-                        Link Assets
-                      </Button>
-                    ) : (
-                      <p className="text-[9px] text-gray-400 italic text-center mt-2">Read-only access for this section</p>
-                    )}
-                  </>
-                )}
-              </div>
-            </Card>
-          </div>
-
-          {/* ROI Performance Metrics at the bottom */}
-          <Card className="no-print p-8 bg-gradient-to-br from-white to-gray-50 border-none shadow-xl">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2">
-                  <TrendingUp size={18} className="text-primary-600" /> Affiliate ROI Performance
+      {creator.lifecycle_status &&
+        [
+          'engaged',
+          'qualified',
+          'offered',
+          'accepted',
+          'activated',
+          'converted',
+          'completed',
+        ].includes(creator.lifecycle_status) && (
+          <>
+            <div className="no-print grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+              {/* Meeting Option */}
+              <Card className="p-6 flex flex-col">
+                <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-1 flex items-center gap-2">
+                  <Clock size={16} className="text-primary-600" /> Meeting Options
                 </h3>
-                <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Real-time tracking for {creator.full_name}</p>
-              </div>
-              <div className={`px-3 py-1 rounded-full text-[10px] font-normal uppercase tracking-widest border ${
-                (creator as any).affiliate_status === 'paid' ? 'bg-green-50 text-green-600 border-green-100' :
-                (creator as any).affiliate_status === 'approved' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                'bg-amber-50 text-amber-600 border-amber-100'
-              }`}>
-                {(creator as any).affiliate_status || 'Pending'}
-              </div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-4">
+                  Schedule a call with {creator.full_name?.split(' ')[0]}
+                </p>
+                <div className="flex-1 flex flex-col justify-between gap-3">
+                  <div className="flex-1 flex items-center justify-center bg-primary-50/40 rounded-xl border border-primary-100/60 py-6 flex-col gap-2">
+                    <div className="w-12 h-12 rounded-full bg-white shadow-sm border border-primary-100 flex items-center justify-center">
+                      <Calendar size={22} className="text-primary-500" />
+                    </div>
+                    <p className="text-[9px] text-primary-400 uppercase tracking-widest font-normal">
+                      No meeting scheduled
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toast.info('Meeting Scheduler Integration Coming Soon')}
+                    className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 shadow-sm text-[10px] uppercase tracking-widest rounded-xl py-2.5 transition-colors font-normal"
+                  >
+                    <Calendar size={14} className="text-primary-600" />
+                    <span>Schedule Meeting</span>
+                  </button>
+                </div>
+              </Card>
+
+              {/* Affiliate Activation */}
+              <Card className="p-6 flex flex-col">
+                <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest mb-1 flex items-center gap-2">
+                  <LinkIcon size={16} className="text-primary-600" /> Affiliate Activation
+                </h3>
+                <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-4">
+                  Manage tracking code &amp; affiliate link
+                </p>
+                <div className="flex-1 flex flex-col justify-between gap-3">
+                  {(creator as any).affiliate_code || (creator as any).affiliate_link ? (
+                    <>
+                      <div className="flex-1 flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <div>
+                          <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest mb-0.5">
+                            Tracking Code
+                          </p>
+                          <p className="text-sm font-normal text-gray-900 font-outfit uppercase">
+                            {(creator as any).affiliate_code || '---'}
+                          </p>
+                        </div>
+                        <button className="text-primary-500 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors">
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                      {hasRole(currentUser?.role, ROLE_GROUPS.MANAGE_CREATORS) ? (
+                        <Button
+                          variant="outline"
+                          className="w-full text-[10px] uppercase tracking-widest"
+                          onClick={() => {
+                            setAffiliateFormData({
+                              code: (creator as any).affiliate_code || '',
+                              link: (creator as any).affiliate_link || '',
+                            });
+                            setIsAffiliateModalOpen(true);
+                          }}
+                        >
+                          Manage Assets
+                        </Button>
+                      ) : (
+                        <p className="text-[9px] text-gray-400 italic text-center mt-2">
+                          Read-only access for this section
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 rounded-xl border border-dashed border-gray-200 py-5 gap-1">
+                        <LinkIcon size={24} className="text-gray-300" />
+                        <p className="text-[10px] text-gray-400 uppercase tracking-widest">
+                          No assets linked
+                        </p>
+                      </div>
+                      {hasRole(currentUser?.role, ROLE_GROUPS.MANAGE_CREATORS) ? (
+                        <Button
+                          className="w-full bg-primary-600 hover:bg-primary-700 shadow-md text-[10px] uppercase tracking-widest"
+                          onClick={() => setIsAffiliateModalOpen(true)}
+                        >
+                          Link Assets
+                        </Button>
+                      ) : (
+                        <p className="text-[9px] text-gray-400 italic text-center mt-2">
+                          Read-only access for this section
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </Card>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                  <MousePointer2 size={10} /> Total Clicks
-                </p>
-                <p className="text-2xl font-normal text-gray-900 font-outfit">{(creator as any).AffiliateTracking?.clicks || 0}</p>
+            {/* ROI Performance Metrics at the bottom */}
+            <Card className="no-print p-8 bg-gradient-to-br from-white to-gray-50 border-none shadow-xl">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-sm font-normal text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                    <TrendingUp size={18} className="text-primary-600" /> Affiliate ROI Performance
+                  </h3>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">
+                    Real-time tracking for {creator.full_name}
+                  </p>
+                </div>
+                <div
+                  className={`px-3 py-1 rounded-full text-[10px] font-normal uppercase tracking-widest border ${
+                    (creator as any).affiliate_status === 'paid'
+                      ? 'bg-green-50 text-green-600 border-green-100'
+                      : (creator as any).affiliate_status === 'approved'
+                        ? 'bg-blue-50 text-blue-600 border-blue-100'
+                        : 'bg-amber-50 text-amber-600 border-amber-100'
+                  }`}
+                >
+                  {(creator as any).affiliate_status || 'Pending'}
+                </div>
               </div>
-              <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                  <ShoppingCart size={10} /> Conversions
-                </p>
-                <p className="text-2xl font-normal text-gray-900 font-outfit">{(creator as any).AffiliateTracking?.conversions || 0}</p>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                    <MousePointer2 size={10} /> Total Clicks
+                  </p>
+                  <p className="text-2xl font-normal text-gray-900 font-outfit">
+                    {(creator as any).AffiliateTracking?.clicks || 0}
+                  </p>
+                </div>
+                <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                    <ShoppingCart size={10} /> Conversions
+                  </p>
+                  <p className="text-2xl font-normal text-gray-900 font-outfit">
+                    {(creator as any).AffiliateTracking?.conversions || 0}
+                  </p>
+                </div>
+                <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                    <DollarSign size={10} /> Gross Revenue
+                  </p>
+                  <p className="text-2xl font-normal text-emerald-600 font-outfit">
+                    $
+                    {Number(
+                      (creator as any).AffiliateTracking?.revenue_generated || 0,
+                    ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                    <ArrowUpRight size={10} /> Net Payable
+                  </p>
+                  <p className="text-2xl font-normal text-primary-600 font-outfit">
+                    $
+                    {Number(
+                      (creator as any).AffiliateTracking?.commission_owed || 0,
+                    ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                  <DollarSign size={10} /> Gross Revenue
-                </p>
-                <p className="text-2xl font-normal text-emerald-600 font-outfit">
-                  ${Number((creator as any).AffiliateTracking?.revenue_generated || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-              </div>
-              <div className="space-y-1 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                  <ArrowUpRight size={10} /> Net Payable
-                </p>
-                <p className="text-2xl font-normal text-primary-600 font-outfit">
-                  ${Number((creator as any).AffiliateTracking?.commission_owed || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-              </div>
-            </div>
-          </Card>
-        </>
-      )}
+            </Card>
+          </>
+        )}
 
       {/* V3 Creator CRM Partnerships & Activities Section */}
       <Card className="no-print">
@@ -1795,14 +2021,13 @@ export default function CreatorDetail() {
                   : 'border-transparent text-gray-400 hover:text-gray-600'
               }`}
             >
-              {tab === 'partnerships' 
-                ? `Campaign Partnerships (${partnerships.length})` 
+              {tab === 'partnerships'
+                ? `Campaign Partnerships (${partnerships.length})`
                 : tab === 'shipments'
                   ? `Shipments (${creatorShipments.length})`
                   : tab === 'content'
                     ? `Content (${creatorContent.length})`
-                    : `Activity Timeline (${activities.length})`
-              }
+                    : `Activity Timeline (${activities.length})`}
             </button>
           ))}
         </div>
@@ -1820,10 +2045,10 @@ export default function CreatorDetail() {
 
         {activeTab === 'shipments' && (
           <div className="p-6 space-y-4">
-            <CreatorShipmentsSection 
-              creatorShipments={creatorShipments} 
-              creatorId={id || ''} 
-              loadData={loadData} 
+            <CreatorShipmentsSection
+              creatorShipments={creatorShipments}
+              creatorId={id || ''}
+              loadData={loadData}
             />
           </div>
         )}
@@ -1854,7 +2079,10 @@ export default function CreatorDetail() {
                     <li key={act.id}>
                       <div className="relative pb-8">
                         {actIdx !== activities.length - 1 ? (
-                          <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true" />
+                          <span
+                            className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"
+                            aria-hidden="true"
+                          />
                         ) : null}
                         <div className="relative flex space-x-3">
                           <div>
@@ -1879,7 +2107,10 @@ export default function CreatorDetail() {
                               )}
                             </div>
                             <div className="text-right text-[10px] whitespace-nowrap text-gray-400 font-mono">
-                              {format(new Date(act.created_at || act.createdAt), 'MMM d, yyyy HH:mm')}
+                              {format(
+                                new Date((act.created_at || act.createdAt)!),
+                                'MMM d, yyyy HH:mm',
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1893,8 +2124,6 @@ export default function CreatorDetail() {
         )}
       </Card>
 
-      
-
       {/* Affiliate Modal */}
       {isAffiliateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-md p-4">
@@ -1903,45 +2132,69 @@ export default function CreatorDetail() {
               <h2 className="text-xl font-normal uppercase tracking-tight flex items-center gap-2 text-gray-900 font-outfit">
                 <LinkIcon className="text-primary-600" size={24} /> Link Affiliate Assets
               </h2>
-              <button onClick={() => setIsAffiliateModalOpen(false)} className="text-gray-400 hover:text-gray-900 p-1 transition-colors">
+              <button
+                onClick={() => setIsAffiliateModalOpen(false)}
+                className="text-gray-400 hover:text-gray-900 p-1 transition-colors"
+              >
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="p-8 space-y-6">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Affiliate Tracking Code</label>
+                <label
+                  htmlFor="creatordetail-2001"
+                  className="text-[10px] font-normal text-gray-400 uppercase tracking-widest"
+                >
+                  Affiliate Tracking Code
+                </label>
                 <div className="relative">
                   <Tag className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
                   <input
+                    id="creatordetail-2001"
                     placeholder="e.g. SAVE20"
                     className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm font-outfit uppercase"
                     value={affiliateFormData.code}
-                    onChange={(e) => setAffiliateFormData({ ...affiliateFormData, code: e.target.value })}
+                    onChange={(e) =>
+                      setAffiliateFormData({ ...affiliateFormData, code: e.target.value })
+                    }
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">Tracking Link (URL)</label>
+                <label
+                  htmlFor="creatordetail-2002"
+                  className="text-[10px] font-normal text-gray-400 uppercase tracking-widest"
+                >
+                  Tracking Link (URL)
+                </label>
                 <div className="relative">
                   <LinkIcon className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
                   <input
+                    id="creatordetail-2002"
                     placeholder="https://..."
                     className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-normal text-gray-900 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all shadow-sm"
                     value={affiliateFormData.link}
-                    onChange={(e) => setAffiliateFormData({ ...affiliateFormData, link: e.target.value })}
+                    onChange={(e) =>
+                      setAffiliateFormData({ ...affiliateFormData, link: e.target.value })
+                    }
                   />
                 </div>
               </div>
 
               <div className="flex gap-4 pt-4 border-t border-gray-50">
-                <Button type="button" variant="ghost" className="flex-1 font-normal uppercase text-[10px] tracking-widest" onClick={() => setIsAffiliateModalOpen(false)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="flex-1 font-normal uppercase text-[10px] tracking-widest"
+                  onClick={() => setIsAffiliateModalOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleLinkAffiliate}
-                  className="flex-[2] bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 font-normal uppercase text-[10px] tracking-widest h-11" 
+                  className="flex-[2] bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/30 font-normal uppercase text-[10px] tracking-widest h-11"
                   disabled={actionLoading}
                 >
                   {actionLoading ? <LoadingState mini /> : 'Save Affiliate Assets'}
@@ -1951,7 +2204,7 @@ export default function CreatorDetail() {
           </Card>
         </div>
       )}
-      
+
       <DiscussionModal
         isOpen={showDiscussionModal}
         onClose={() => setShowDiscussionModal(false)}
@@ -1961,522 +2214,81 @@ export default function CreatorDetail() {
       />
 
       {/* 📝 Send Offer Modal 📝 */}
-      <Modal isOpen={showOfferModal} onClose={() => setShowOfferModal(false)} title="Draft & Send Campaign Offer">
-        <form onSubmit={submitOffer} className="space-y-4 font-outfit">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Offer Compensation Type</label>
-            <select
-              value={offerForm.offer_type}
-              onChange={e => setOfferForm(prev => ({ ...prev, offer_type: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-            >
-              <option value="free_product">Free Product</option>
-              <option value="affiliate_commission">Affiliate Commission Only</option>
-              <option value="flat_fee">Flat Fee</option>
-              <option value="hybrid">Hybrid (Flat Fee + Affiliate)</option>
-            </select>
-          </div>
-
-          {(offerForm.offer_type === 'flat_fee' || offerForm.offer_type === 'hybrid') && (
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Flat Fee Amount (USD)</label>
-              <input
-                type="number"
-                value={offerForm.flat_fee}
-                onChange={e => setOfferForm(prev => ({ ...prev, flat_fee: Number(e.target.value) }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-                min="0"
-              />
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 py-2">
-            <input
-              type="checkbox"
-              id="affiliate_enabled_creator"
-              checked={offerForm.affiliate_enabled}
-              onChange={e => setOfferForm(prev => ({ ...prev, affiliate_enabled: e.target.checked }))}
-              className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 border-gray-300"
-            />
-            <label htmlFor="affiliate_enabled_creator" className="text-sm text-gray-700 select-none">Enable Affiliate Parameters</label>
-          </div>
-
-          {offerForm.affiliate_enabled && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border border-dashed border-gray-100 rounded-xl p-4 bg-gray-50/50">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Percentage (%)</label>
-                <input
-                  type="number"
-                  value={offerForm.affiliate_percentage}
-                  onChange={e => setOfferForm(prev => ({ ...prev, affiliate_percentage: Number(e.target.value) }))}
-                  className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm"
-                  min="0"
-                  max="100"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Promo Code</label>
-                <input
-                  type="text"
-                  value={offerForm.affiliate_code}
-                  onChange={e => setOfferForm(prev => ({ ...prev, affiliate_code: e.target.value }))}
-                  className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm uppercase font-mono"
-                  placeholder="CODE20"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Tracking URL</label>
-                <input
-                  type="text"
-                  value={offerForm.affiliate_link}
-                  onChange={e => setOfferForm(prev => ({ ...prev, affiliate_link: e.target.value }))}
-                  className="w-full bg-white border border-gray-200 rounded-lg p-2 text-sm"
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowOfferModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
-              {submitting ? 'Sending Offer...' : 'Send Offer Proposal'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      <PartnershipOfferModal
+        isOpen={showOfferModal}
+        onClose={() => setShowOfferModal(false)}
+        offerForm={offerForm}
+        setOfferForm={setOfferForm}
+        onSubmit={submitOffer}
+        submitting={submitting}
+      />
 
       {/* ─── Edit Partnership Modal ─── */}
-      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Update Partnership Profile">
-        <form onSubmit={submitEdit} className="space-y-4 font-outfit">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Creator Tier Size</label>
-              <select
-                value={editForm.creator_tier}
-                onChange={e => setEditForm(prev => ({ ...prev, creator_tier: e.target.value }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              >
-                <option value="unknown">Unknown</option>
-                <option value="nano">Nano (&lt;10k)</option>
-                <option value="micro">Micro (10k-50k)</option>
-                <option value="mid_tier">Mid Tier (50k-100k)</option>
-                <option value="macro">Macro (100k-500k)</option>
-                <option value="celebrity">Celebrity (500k+)</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Contract Signature Link</label>
-              <input
-                type="text"
-                value={editForm.contract_url}
-                onChange={e => setEditForm(prev => ({ ...prev, contract_url: e.target.value }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-                placeholder="https://docusign.com/..."
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-6 py-2">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="contract_required_creator"
-                checked={editForm.contract_required}
-                onChange={e => setEditForm(prev => ({ ...prev, contract_required: e.target.checked }))}
-                className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 border-gray-300"
-              />
-              <label htmlFor="contract_required_creator" className="text-sm text-gray-700 select-none">Contract Required</label>
-            </div>
-            
-            {editForm.contract_required && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="contract_signed_creator"
-                  checked={editForm.contract_signed}
-                  onChange={e => setEditForm(prev => ({ ...prev, contract_signed: e.target.checked }))}
-                  className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4 border-gray-300"
-                />
-                <label htmlFor="contract_signed_creator" className="text-sm text-gray-700 select-none">Contract Signed</label>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Campaign Start Date</label>
-              <input
-                type="date"
-                value={editForm.start_date}
-                onChange={e => setEditForm(prev => ({ ...prev, start_date: e.target.value }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Campaign End Date</label>
-              <input
-                type="date"
-                value={editForm.end_date}
-                onChange={e => setEditForm(prev => ({ ...prev, end_date: e.target.value }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Activation Notes</label>
-            <textarea
-              value={editForm.activation_notes}
-              onChange={e => setEditForm(prev => ({ ...prev, activation_notes: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[60px]"
-              placeholder="Fulfillment parameters, specific agreements..."
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Internal CRM Notes</label>
-            <textarea
-              value={editForm.internal_notes}
-              onChange={e => setEditForm(prev => ({ ...prev, internal_notes: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[60px]"
-              placeholder="Private details, scoring fits, follow up details..."
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowEditModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
-              {submitting ? 'Saving...' : 'Save Parameters'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      <PartnershipEditModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        editForm={editForm}
+        setEditForm={setEditForm}
+        onSubmit={submitEdit}
+        submitting={submitting}
+      />
 
       {/* ─── Action Prompt Modal (Submit Draft, Publish) ─── */}
-      <Modal isOpen={showPromptModal} onClose={() => setShowPromptModal(false)} title={promptTitle}>
-        <form onSubmit={handlePromptSubmit} className="space-y-4 font-outfit">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">{promptLabel}</label>
-            <input
-              type="text"
-              value={promptValue}
-              onChange={e => setPromptValue(e.target.value)}
-              placeholder={promptPlaceholder}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
-              required
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowPromptModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
-              Confirm Action
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      <PromptModal
+        isOpen={showPromptModal}
+        onClose={() => setShowPromptModal(false)}
+        title={promptTitle}
+        label={promptLabel}
+        placeholder={promptPlaceholder}
+        value={promptValue}
+        setValue={setPromptValue}
+        onSubmit={handlePromptSubmit}
+      />
 
       {/* ─── Request Revision Modal ─── */}
-      <Modal isOpen={showRevisionModal} onClose={() => setShowRevisionModal(false)} title="Request Content Revision">
-        <form onSubmit={handleRevisionSubmit} className="space-y-4 font-outfit">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Subject</label>
-            <input
-              type="text"
-              value={revisionSubject}
-              onChange={e => setRevisionSubject(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              required
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Message Body (Sent to Creator & Saved to CRM)</label>
-            <textarea
-              value={revisionBody}
-              onChange={e => setRevisionBody(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[200px]"
-              required
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowRevisionModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-normal text-xs uppercase tracking-widest">
-              {submitting ? 'Sending Request...' : 'Send Revision Request'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      <RevisionModal
+        isOpen={showRevisionModal}
+        onClose={() => setShowRevisionModal(false)}
+        subject={revisionSubject}
+        setSubject={setRevisionSubject}
+        body={revisionBody}
+        setBody={setRevisionBody}
+        onSubmit={handleRevisionSubmit}
+        submitting={submitting}
+      />
 
       {/* ─── Edit Content Deliverable Modal ─── */}
-      <Modal isOpen={showEditContentModal} onClose={() => setShowEditContentModal(false)} title="Edit Content Deliverable">
-        <form onSubmit={handleEditContentSubmit} className="space-y-4 font-outfit">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Platform</label>
-              <select
-                value={editContentForm.platform}
-                onChange={e => {
-                  const plat = e.target.value;
-                  let defType = 'other';
-                  if (plat === 'instagram') defType = 'instagram_reel';
-                  if (plat === 'youtube') defType = 'youtube_video';
-                  if (plat === 'tiktok') defType = 'tiktok_video';
-                  if (plat === 'blog') defType = 'blog_post';
-                  setEditContentForm(prev => ({ ...prev, platform: plat, content_type: defType }));
-                }}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              >
-                <option value="instagram">Instagram</option>
-                <option value="tiktok">TikTok</option>
-                <option value="youtube">YouTube</option>
-                <option value="blog">Blog</option>
-                <option value="website">Website</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Content Type</label>
-              <select
-                value={editContentForm.content_type}
-                onChange={e => setEditContentForm(prev => ({ ...prev, content_type: e.target.value }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              >
-                {editContentForm.platform === 'instagram' && (
-                  <>
-                    <option value="instagram_reel">Instagram Reel</option>
-                    <option value="instagram_story">Instagram Story</option>
-                    <option value="instagram_post">Instagram Post</option>
-                  </>
-                )}
-                {editContentForm.platform === 'youtube' && (
-                  <>
-                    <option value="youtube_video">YouTube Video</option>
-                    <option value="youtube_short">YouTube Short</option>
-                  </>
-                )}
-                {editContentForm.platform === 'tiktok' && (
-                  <option value="tiktok_video">TikTok Video</option>
-                )}
-                {editContentForm.platform === 'blog' && (
-                  <option value="blog_post">Blog Post</option>
-                )}
-                {!['instagram', 'youtube', 'tiktok', 'blog'].includes(editContentForm.platform) && (
-                  <option value="other">Other</option>
-                )}
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Due Date</label>
-            <input
-              type="date"
-              value={editContentForm.due_date}
-              onChange={e => setEditContentForm(prev => ({ ...prev, due_date: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Draft URL (Triggers Submitted State)</label>
-            <input
-              type="text"
-              value={editContentForm.draft_url}
-              onChange={e => setEditContentForm(prev => ({ ...prev, draft_url: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              placeholder="https://drive.google.com/..."
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Published URL (Triggers Live State)</label>
-            <input
-              type="text"
-              value={editContentForm.published_url}
-              onChange={e => setEditContentForm(prev => ({ ...prev, published_url: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              placeholder="https://instagram.com/p/..."
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Notes & Requirements</label>
-            <textarea
-              value={editContentForm.notes}
-              onChange={e => setEditContentForm(prev => ({ ...prev, notes: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[80px]"
-              placeholder="e.g. guidelines..."
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowEditContentModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
-              {submitting ? 'Saving...' : 'Save Deliverable'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      <EditContentModal
+        isOpen={showEditContentModal}
+        onClose={() => setShowEditContentModal(false)}
+        form={editContentForm}
+        setForm={setEditContentForm}
+        onSubmit={handleEditContentSubmit}
+        submitting={submitting}
+      />
 
       {/* ─── Content Email Composer Modal ─── */}
-      <Modal isOpen={showContentEmailModal} onClose={() => setShowContentEmailModal(false)} title="Send Deliverables to Creator">
-        <form onSubmit={handleSendContentEmail} className="space-y-4 font-outfit">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Subject</label>
-            <input
-              type="text"
-              value={contentEmailSubject}
-              onChange={e => setContentEmailSubject(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              required
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Email Message Body</label>
-            <textarea
-              value={contentEmailBody}
-              onChange={e => setContentEmailBody(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[220px]"
-              required
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowContentEmailModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
-              {submitting ? 'Sending...' : 'Send Email'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      <ContentEmailModal
+        isOpen={showContentEmailModal}
+        onClose={() => setShowContentEmailModal(false)}
+        subject={contentEmailSubject}
+        setSubject={setContentEmailSubject}
+        body={contentEmailBody}
+        setBody={setContentEmailBody}
+        onSubmit={handleSendContentEmail}
+        submitting={submitting}
+      />
 
       {/* ─── Add Content Deliverable Modal ─── */}
-      <Modal isOpen={showAddContentModal} onClose={() => setShowAddContentModal(false)} title="Add Content Deliverable">
-        <form onSubmit={handleAddContentSubmit} className="space-y-4 font-outfit">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Select Campaign</label>
-            <select
-              value={contentForm.campaign_id}
-              onChange={e => setContentForm(prev => ({ ...prev, campaign_id: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              required
-            >
-              <option value="" disabled>Choose a Campaign...</option>
-              {partnerships.map(p => (
-                <option key={p.id} value={p.Campaign?.id || p.campaign_id}>
-                  {p.Campaign?.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Platform</label>
-              <select
-                value={contentForm.platform}
-                onChange={e => {
-                  const plat = e.target.value;
-                  let defType = 'other';
-                  if (plat === 'instagram') defType = 'instagram_reel';
-                  if (plat === 'youtube') defType = 'youtube_video';
-                  if (plat === 'tiktok') defType = 'tiktok_video';
-                  if (plat === 'blog') defType = 'blog_post';
-                  setContentForm(prev => ({ ...prev, platform: plat, content_type: defType }));
-                }}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              >
-                <option value="instagram">Instagram</option>
-                <option value="tiktok">TikTok</option>
-                <option value="youtube">YouTube</option>
-                <option value="blog">Blog</option>
-                <option value="website">Website</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Content Type</label>
-              <select
-                value={contentForm.content_type}
-                onChange={e => setContentForm(prev => ({ ...prev, content_type: e.target.value }))}
-                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              >
-                {contentForm.platform === 'instagram' && (
-                  <>
-                    <option value="instagram_reel">Instagram Reel</option>
-                    <option value="instagram_story">Instagram Story</option>
-                    <option value="instagram_post">Instagram Post</option>
-                  </>
-                )}
-                {contentForm.platform === 'youtube' && (
-                  <>
-                    <option value="youtube_video">YouTube Video</option>
-                    <option value="youtube_short">YouTube Short</option>
-                  </>
-                )}
-                {contentForm.platform === 'tiktok' && (
-                  <option value="tiktok_video">TikTok Video</option>
-                )}
-                {contentForm.platform === 'blog' && (
-                  <option value="blog_post">Blog Post</option>
-                )}
-                {!['instagram', 'youtube', 'tiktok', 'blog'].includes(contentForm.platform) && (
-                  <option value="other">Other</option>
-                )}
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Due Date</label>
-            <input
-              type="date"
-              value={contentForm.due_date}
-              onChange={e => setContentForm(prev => ({ ...prev, due_date: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm"
-              required
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Notes & Requirements</label>
-            <textarea
-              value={contentForm.notes}
-              onChange={e => setContentForm(prev => ({ ...prev, notes: e.target.value }))}
-              className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm min-h-[80px]"
-              placeholder="e.g. mention the product in first 5 seconds, use promo code..."
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <Button type="button" variant="outline" className="flex-1 font-normal text-xs uppercase tracking-widest" onClick={() => setShowAddContentModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting} className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs uppercase tracking-widest">
-              {submitting ? 'Creating...' : 'Create Requirement'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      <AddContentModal
+        isOpen={showAddContentModal}
+        onClose={() => setShowAddContentModal(false)}
+        form={contentForm}
+        setForm={setContentForm}
+        partnerships={partnerships}
+        onSubmit={handleAddContentSubmit}
+        submitting={submitting}
+      />
 
       <OutreachPreviewModal
         creatorId={creator?.id || ''}
@@ -2488,7 +2300,7 @@ export default function CreatorDetail() {
       />
 
       <ImageLightbox
-        src={lightboxOpen ? (creator.profile_pic || null) : null}
+        src={lightboxOpen ? creator.profile_pic || null : null}
         alt={creator.full_name || creator.handle || ''}
         onClose={() => setLightboxOpen(false)}
       />

@@ -12,26 +12,27 @@ const toNumber = (value: unknown): number => {
 };
 
 export const getFollowers = (c: Creator): number => {
-  const direct = toNumber(c.followers_count ?? (c as any).followers);
+  const direct = toNumber(c.followers_count ?? c.followers);
   if (direct > 0) return direct;
-  const fromProfiles = c.profiles?.map(p => toNumber(p.followers)) ?? [];
+  const fromProfiles = c.profiles?.map((p) => toNumber(p.followers)) ?? [];
   return fromProfiles.length ? Math.max(...fromProfiles) : 0;
 };
 
 export const getEngagement = (c: Creator): number => {
   const direct = toNumber(c.engagement_rate);
   if (direct > 0) return direct;
-  const fromProfiles = c.profiles?.map(p => toNumber(p.engagement_rate)) ?? [];
+  const fromProfiles = c.profiles?.map((p) => toNumber(p.engagement_rate)) ?? [];
   return fromProfiles.length ? Math.max(...fromProfiles) : 0;
 };
 
 // True if the creator has any real public profile data worth showing.
 export const hasPublicProfileSignal = (c: Creator): boolean => {
-  const hasProfileMetrics = c.profiles?.some(profile =>
-    toNumber(profile.followers) > 0 ||
-    toNumber(profile.avg_likes) > 0 ||
-    toNumber(profile.avg_comments) > 0 ||
-    toNumber(profile.engagement_rate) > 0
+  const hasProfileMetrics = c.profiles?.some(
+    (profile) =>
+      toNumber(profile.followers) > 0 ||
+      toNumber(profile.avg_likes) > 0 ||
+      toNumber(profile.avg_comments) > 0 ||
+      toNumber(profile.engagement_rate) > 0,
   );
 
   return Boolean(
@@ -40,7 +41,7 @@ export const hasPublicProfileSignal = (c: Creator): boolean => {
     toNumber(c.avg_likes) > 0 ||
     toNumber(c.avg_comments) > 0 ||
     getEngagement(c) > 0 ||
-    hasProfileMetrics
+    hasProfileMetrics,
   );
 };
 
@@ -59,9 +60,15 @@ export const isQualifiedCreator = (c: Creator): boolean =>
 export const matchesStatusFilter = (c: Creator, statusId: string): boolean => {
   switch (statusId) {
     case 'hold':
-      return (c.review_status === 'hold' || !c.review_status || c.review_status === 'pending') && c.lifecycle_status !== 'not_respond';
+      return (
+        (c.review_status === 'hold' || !c.review_status || c.review_status === 'pending') &&
+        c.lifecycle_status !== 'not_respond'
+      );
     case 'pending':
-      return (c.review_status === 'pending_review' || c.review_status === 'shortlisted') && c.lifecycle_status !== 'not_respond';
+      return (
+        (c.review_status === 'pending_review' || c.review_status === 'shortlisted') &&
+        c.lifecycle_status !== 'not_respond'
+      );
     case 'not_respond':
       return c.lifecycle_status === 'not_respond';
     case 'contacted':

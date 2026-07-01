@@ -1,13 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { useIsDesktop } from '../../hooks/useMediaQuery';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
+  const isDesktop = useIsDesktop();
+  const [sidebarOpen, setSidebarOpen] = useState(isDesktop);
+
+  // Open on desktop, collapse on mobile — re-evaluated whenever the viewport
+  // crosses the lg breakpoint, not just once at mount.
+  useEffect(() => {
+    setSidebarOpen(isDesktop);
+  }, [isDesktop]);
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden font-sans text-gray-900">
-
       {/* Sidebar — fixed, slides over content on mobile, pushes on desktop */}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -19,8 +26,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           ${sidebarOpen ? 'lg:pl-64' : 'pl-0'}
         `}
       >
-        <Topbar onMenuToggle={() => setSidebarOpen(prev => !prev)} sidebarOpen={sidebarOpen} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
+        <Topbar onMenuToggle={() => setSidebarOpen((prev) => !prev)} sidebarOpen={sidebarOpen} />
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 overflow-y-auto p-4 md:p-8 relative outline-none"
+        >
           {children}
         </main>
       </div>

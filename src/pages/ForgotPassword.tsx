@@ -67,21 +67,25 @@ export default function ForgotPassword() {
               )}
 
               <div>
-                <label className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest">
+                <label
+                  htmlFor="forgotpassword-1"
+                  className="block text-sm font-normal text-gray-700 mb-1 uppercase tracking-widest"
+                >
                   Email address
                 </label>
                 <input
+                  id="forgotpassword-1"
                   type="email"
                   required
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-all"
                   placeholder="you@example.com"
                 />
               </div>
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full py-3 rounded-xl disabled:opacity-70"
                 disabled={isSubmitting}
               >
@@ -89,7 +93,10 @@ export default function ForgotPassword() {
               </Button>
 
               <div className="text-center">
-                <Link to="/login" className="inline-flex items-center text-sm text-primary-600 hover:text-primary-500 transition-colors">
+                <Link
+                  to="/login"
+                  className="inline-flex items-center text-sm text-primary-600 hover:text-primary-500 transition-colors"
+                >
                   <ArrowLeft size={16} className="mr-1" /> Back to Login
                 </Link>
               </div>

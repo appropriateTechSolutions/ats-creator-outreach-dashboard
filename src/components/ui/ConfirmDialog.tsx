@@ -24,7 +24,7 @@ export function ConfirmDialog({
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   isDestructive = true,
-  isLoading = false
+  isLoading = false,
 }: ConfirmDialogProps) {
   return (
     <Modal
@@ -37,9 +37,9 @@ export function ConfirmDialog({
           <Button variant="ghost" onClick={onClose} disabled={isLoading}>
             {cancelText}
           </Button>
-          <Button 
-            variant={isDestructive ? 'danger' : 'primary'} 
-            onClick={onConfirm} 
+          <Button
+            variant={isDestructive ? 'danger' : 'primary'}
+            onClick={onConfirm}
             loading={isLoading}
           >
             {confirmText}
@@ -53,9 +53,7 @@ export function ConfirmDialog({
             <AlertTriangle className="text-red-600" size={20} />
           </div>
         )}
-        <div className="text-gray-600 text-sm">
-          {message}
-        </div>
+        <div className="text-gray-600 text-sm">{message}</div>
       </div>
     </Modal>
   );

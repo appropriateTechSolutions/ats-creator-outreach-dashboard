@@ -11,7 +11,9 @@ export const LoadingState: React.FC<LoadingStateProps> = ({ message, mini }) => 
   const radius = mini ? 10 : 40;
 
   return (
-    <div className={`flex flex-col items-center justify-center ${mini ? 'p-0' : 'p-16'} animate-in fade-in duration-500`}>
+    <div
+      className={`flex flex-col items-center justify-center ${mini ? 'p-0' : 'p-16'} animate-in fade-in duration-500`}
+    >
       <div className={`relative ${size}`}>
         {[...Array(8)].map((_, i) => (
           <div
@@ -25,8 +27,8 @@ export const LoadingState: React.FC<LoadingStateProps> = ({ message, mini }) => 
               transform: 'translate(-50%, -50%)',
               opacity: 0,
             }}
-            />
-          ))}
+          />
+        ))}
       </div>
     </div>
   );
