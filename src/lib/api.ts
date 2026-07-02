@@ -71,6 +71,28 @@ api.interceptors.response.use(
   },
 );
 
+/**
+ * Extracts a human-readable string from whatever a rejected API call throws.
+ * The response interceptor above rejects with either the backend envelope
+ * (`{ success, error }`) or a plain `Error` (network failures), so a caught
+ * value can be an object, an Error, or a string. Passing the raw object into
+ * `setError`/`showToast` — which feed React text nodes — renders it as a child
+ * and crashes with "Objects are not valid as a React child". Always funnel
+ * caught errors through this before displaying them.
+ */
+export function getErrorMessage(
+  err: unknown,
+  fallback = 'Something went wrong. Please try again.',
+): string {
+  if (typeof err === 'string') return err || fallback;
+  if (err && typeof err === 'object') {
+    const e = err as { error?: unknown; message?: unknown };
+    if (typeof e.error === 'string' && e.error) return e.error;
+    if (typeof e.message === 'string' && e.message) return e.message;
+  }
+  return fallback;
+}
+
 // ─── Auth ─────────────────────────────────────────────
 export const login = async (
   email: string,

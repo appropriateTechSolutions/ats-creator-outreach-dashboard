@@ -10,6 +10,23 @@ interface State {
   hasError: boolean;
 }
 
+// Matches the various browser-specific messages for a lazy chunk 404 (Vite
+// build reference gone after a redeploy). Chromium, Firefox and Safari all
+// phrase this differently, so match loosely.
+const CHUNK_LOAD_ERROR = /dynamically imported module|importing a module script failed/i;
+
+const CHUNK_RELOAD_KEY = 'ats_chunk_reload_attempted';
+
+/**
+ * Call once from App after mount. If the app is still running fine ~10s
+ * after load, the chunk error that triggered a reload (if any) is resolved,
+ * so allow a future chunk error in this tab to auto-reload again.
+ */
+export function clearChunkReloadGuard() {
+  const timer = setTimeout(() => sessionStorage.removeItem(CHUNK_RELOAD_KEY), 10_000);
+  return () => clearTimeout(timer);
+}
+
 /**
  * Scopes route-level failures to the content area instead of blanking the whole
  * app via the global ErrorBoundary. The common trigger is a failed dynamic
@@ -17,6 +34,13 @@ interface State {
  * invalidates old chunk hashes for tabs that were left open. The layout (sidebar
  * + topbar) stays mounted; the user gets a soft "Try again" (re-mounts the route)
  * and a reliable "Reload" (fetches fresh chunks).
+ *
+ * For that common case we skip the manual step entirely: reload once
+ * automatically. The sessionStorage guard stops a reload loop if the chunk is
+ * still missing after reloading (e.g. mid-deploy); the user then falls back to
+ * this UI. `clearChunkReloadGuard` (called from App on mount) clears the guard
+ * once the app has been running for a bit, so a later redeploy can still
+ * trigger an auto-reload in the same tab.
  */
 export class RouteErrorBoundary extends Component<Props, State> {
   public state: State = { hasError: false };
@@ -27,6 +51,11 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error) {
     logger.error('Route load error:', error);
+
+    if (CHUNK_LOAD_ERROR.test(error.message) && !sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+      sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+      window.location.reload();
+    }
   }
 
   private reset = () => this.setState({ hasError: false });

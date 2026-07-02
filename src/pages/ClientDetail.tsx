@@ -144,7 +144,7 @@ export default function ClientDetail() {
         setSuccess(false);
       }, 1500);
     } catch (err: any) {
-      setError(err || 'Failed to send invitation.');
+      setError(api.getErrorMessage(err, 'Failed to send invitation.'));
     } finally {
       setInviteLoading(false);
     }
@@ -495,7 +495,7 @@ export default function ClientDetail() {
                     </td>
                     <td className="px-8 py-5">
                       <span className="px-2.5 py-1 rounded bg-primary-50 text-primary-600 text-[10px] font-normal uppercase tracking-wider border border-primary-100">
-                        {user.role.replace('client_', '').replace('_', ' ')}
+                        {(user.role || '').replace('client_', '').replace('_', ' ') || '---'}
                       </span>
                     </td>
                     <td className="px-8 py-5 text-right">

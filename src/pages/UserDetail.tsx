@@ -44,7 +44,7 @@ export default function UserDetail() {
       await api.disableUser(id);
       await refetchUser();
     } catch (err: any) {
-      showToast(err || 'Failed to update user status.', 'error');
+      showToast(api.getErrorMessage(err, 'Failed to update user status.'), 'error');
     } finally {
       setStatusLoading(false);
     }
@@ -57,7 +57,7 @@ export default function UserDetail() {
       await api.resendInvite(id);
       showToast('Invitation resent successfully!', 'success');
     } catch (err: any) {
-      showToast(err || 'Failed to resend invitation.', 'error');
+      showToast(api.getErrorMessage(err, 'Failed to resend invitation.'), 'error');
     } finally {
       setInviteLoading(false);
     }
@@ -76,7 +76,7 @@ export default function UserDetail() {
       await api.deleteUser(id);
       navigate('/users');
     } catch (err: any) {
-      showToast(err || 'Failed to delete user.', 'error');
+      showToast(api.getErrorMessage(err, 'Failed to delete user.'), 'error');
     } finally {
       setDeleteLoading(false);
     }
@@ -257,7 +257,7 @@ export default function UserDetail() {
                 <div className="flex items-center gap-2">
                   <Shield size={14} className="text-amber-500" />
                   <span className="text-sm font-normal text-gray-900 uppercase tracking-widest">
-                    {userData.role.replace('_', ' ')}
+                    {(userData.role || '').replace('_', ' ') || '---'}
                   </span>
                 </div>
               </td>

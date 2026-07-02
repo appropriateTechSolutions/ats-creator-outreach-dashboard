@@ -32,6 +32,7 @@ import {
   markContentPublished,
   syncContentPerformance,
   syncCreator,
+  getErrorMessage,
 } from '../lib/api';
 import {
   useCreator,
@@ -729,7 +730,7 @@ export default function CreatorDetail() {
       showToast('Media kit PDF uploaded and parsed successfully!', 'success');
     } catch (err: any) {
       logger.error(err);
-      showToast(err?.error || err?.message || 'Failed to parse media kit PDF.', 'error');
+      showToast(getErrorMessage(err, 'Failed to parse media kit PDF.'), 'error');
     } finally {
       setUploadingMediaKit(false);
     }
@@ -874,7 +875,7 @@ export default function CreatorDetail() {
         prev ? { ...prev, summary: res.summary } : prev,
       );
     } catch (err: any) {
-      toast.error(err?.message || err || 'Failed to regenerate summary.');
+      toast.error(getErrorMessage(err, 'Failed to regenerate summary.'));
     } finally {
       setRegeneratingSummary(false);
     }
@@ -890,7 +891,7 @@ export default function CreatorDetail() {
       );
       setIsEditingNotes(false);
     } catch (err: any) {
-      toast.error(err?.message || err || 'Failed to save notes.');
+      toast.error(getErrorMessage(err, 'Failed to save notes.'));
     } finally {
       setSavingNotes(false);
     }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { forgotPassword } from '../lib/api';
+import { forgotPassword, getErrorMessage } from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Activity, ArrowLeft, CheckCircle } from 'lucide-react';
 
@@ -22,7 +22,7 @@ export default function ForgotPassword() {
       setSubmitted(true);
       setMessage('If an account exists, a reset link has been sent to your email.');
     } catch (err: any) {
-      setError(err?.message || err || 'Something went failed. Please try again.');
+      setError(getErrorMessage(err, 'Something went wrong. Please try again.'));
     } finally {
       setIsSubmitting(false);
     }

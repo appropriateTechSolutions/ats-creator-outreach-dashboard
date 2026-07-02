@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { inviteUser, getClients, resendInvite } from '../lib/api';
+import { inviteUser, getClients, resendInvite, getErrorMessage } from '../lib/api';
 import { useUsers } from '../hooks/queries';
 import { useInvalidate } from '../hooks/useInvalidate';
 import { queryKeys } from '../lib/queryKeys';
@@ -67,7 +67,7 @@ export default function Users() {
       await resendInvite(userId);
       showToast('Invitation resent successfully!', 'success');
     } catch (err: any) {
-      showToast(err || 'Failed to resend invitation.', 'error');
+      showToast(getErrorMessage(err, 'Failed to resend invitation.'), 'error');
     } finally {
       setActionLoading(null);
     }
@@ -89,7 +89,7 @@ export default function Users() {
         setSuccess(false);
       }, 1500);
     } catch (err: any) {
-      setError(err || 'Failed to send invitation.');
+      setError(getErrorMessage(err, 'Failed to send invitation.'));
     } finally {
       setInviteLoading(false);
     }
@@ -211,7 +211,7 @@ export default function Users() {
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-2 text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
                         <Shield className="w-3.5 h-3.5 text-primary-400" />
-                        {u.role.replace('_', ' ')}
+                        {(u.role || '').replace('_', ' ') || '---'}
                       </div>
                     </td>
                     <td className="px-8 py-6">
@@ -335,7 +335,7 @@ export default function Users() {
                     </span>
                     <span className="flex items-center gap-1 font-normal text-gray-900 uppercase tracking-tight font-outfit">
                       <Shield className="w-3.5 h-3.5 text-primary-400" />
-                      {u.role.replace('_', ' ')}
+                      {(u.role || '').replace('_', ' ') || '---'}
                     </span>
                   </div>
                   <div className="col-span-2">

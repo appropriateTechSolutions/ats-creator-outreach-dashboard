@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { verifyInvite, acceptInvite } from '../lib/api';
+import { verifyInvite, acceptInvite, getErrorMessage } from '../lib/api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -35,7 +35,7 @@ export default function AcceptInvite() {
         setLoading(false);
       })
       .catch((err) => {
-        setError(err || 'Failed to verify invitation.');
+        setError(getErrorMessage(err, 'Failed to verify invitation.'));
         setLoading(false);
       });
   }, [token]);
@@ -59,7 +59,7 @@ export default function AcceptInvite() {
       setSuccess(true);
       setTimeout(() => navigate('/login'), 3000);
     } catch (err: any) {
-      setError(err || 'Failed to accept invitation.');
+      setError(getErrorMessage(err, 'Failed to accept invitation.'));
     } finally {
       setSubmitting(false);
     }

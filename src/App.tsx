@@ -7,7 +7,7 @@ import ProtectedRoute from './components/layout/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
 import React, { Suspense } from 'react';
 import { LoadingState } from './components/ui/LoadingState';
-import { RouteErrorBoundary } from './components/ui/RouteErrorBoundary';
+import { RouteErrorBoundary, clearChunkReloadGuard } from './components/ui/RouteErrorBoundary';
 import { RouteFocusManager } from './components/a11y/RouteFocusManager';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -72,6 +72,8 @@ const ProtectedLayout = () => (
 );
 
 export default function App() {
+  React.useEffect(() => clearChunkReloadGuard(), []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>

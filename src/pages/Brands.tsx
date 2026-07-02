@@ -125,7 +125,7 @@ export default function Brands() {
       });
       invalidate(['brands']);
     } catch (err: any) {
-      toast.error(err?.message || err || 'Failed to create brand');
+      toast.error(api.getErrorMessage(err, 'Failed to create brand'));
     }
   };
 

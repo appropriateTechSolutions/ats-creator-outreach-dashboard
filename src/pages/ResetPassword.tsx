@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { resetPassword } from '../lib/api';
+import { resetPassword, getErrorMessage } from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Activity, CheckCircle, AlertCircle } from 'lucide-react';
 
@@ -40,7 +40,7 @@ export default function ResetPassword() {
         navigate('/login');
       }, 3000);
     } catch (err: any) {
-      setError(err?.message || err || 'Failed to reset password.');
+      setError(getErrorMessage(err, 'Failed to reset password.'));
     } finally {
       setIsSubmitting(false);
     }

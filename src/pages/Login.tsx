@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getErrorMessage } from '../lib/api';
 import { Button } from '../components/ui/Button';
 
 export default function Login() {
@@ -20,7 +21,7 @@ export default function Login() {
       await login(email, password);
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
-      setError(err?.message || err || 'Login failed. Please check your credentials.');
+      setError(getErrorMessage(err, 'Login failed. Please check your credentials.'));
     } finally {
       setIsSubmitting(false);
     }
