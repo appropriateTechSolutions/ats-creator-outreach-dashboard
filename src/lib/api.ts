@@ -17,7 +17,7 @@ import type {
   Meeting,
   OutreachLog,
   OutreachTemplate,
-  ConversationMessage,
+  ThreadMessage,
   ApiAck,
   InviteInfo,
   OutreachPreview,
@@ -370,7 +370,7 @@ export const getOutreachLogs = (): Promise<OutreachLog[]> => api.get('/outreach/
 // ─── Conversations ────────────────────────────────────
 export const getConversations = (): Promise<Creator[]> => api.get('/conversations');
 export const syncConversations = (): Promise<{ synced: number }> => api.post('/conversations/sync');
-export const getConversationThread = (id: string): Promise<ConversationMessage[]> =>
+export const getConversationThread = (id: string): Promise<ThreadMessage[]> =>
   api.get(`/conversations/${id}`);
 
 // ─── Affiliate Tracking ───────────────────────────────

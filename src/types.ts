@@ -131,6 +131,8 @@ export interface Creator {
   outreach_logs: OutreachLog[];
   OutreachLogs?: OutreachLog[];
   conversation: CreatorConversation | null;
+  /** GET /conversations only: one entry per campaign; `conversation` is the first. */
+  conversations?: CreatorConversation[];
   profiles: CreatorPlatformProfile[];
   // Optional fields populated from various API responses
   platform?: string | null;
@@ -236,6 +238,7 @@ export interface Affiliate {
 
 export interface CreatorConversation {
   id: string;
+  campaign_id?: string | null;
   latest_channel: string | null;
   latest_inbound_message: string | null;
   latest_inbound_at: string | null;
@@ -243,6 +246,20 @@ export interface CreatorConversation {
   interested: boolean | null;
   qualification_status: string;
   messages?: ConversationMessage[];
+  // GET /conversations only: the thread's campaign, whose turn it is, and its deal.
+  Campaign?: Pick<Campaign, 'id' | 'name' | 'client_id'>;
+  /** Our latest sent email (or stored outbound message) on this thread. */
+  last_outbound_at?: string | null;
+  /** The creator's latest inbound message is newer than our latest outbound one. */
+  waiting_on_us?: boolean;
+  /** The creator × campaign partnership, id and status only. */
+  partnership?: ConversationPartnership | null;
+}
+
+/** The partnership a listed conversation belongs to (GET /conversations: id and status). */
+export interface ConversationPartnership {
+  id: string;
+  status: PartnershipStatus;
 }
 
 export interface AffiliateTracking {
@@ -262,6 +279,20 @@ export interface ConversationMessage {
   message_text: string;
   message_time: string;
   provider_message_id: string | null;
+}
+
+/**
+ * One entry of GET /conversations/:id, oldest first: a stored message, or an email we
+ * sent through outreach merged in (`source: 'outreach_log'`, the only kind with a subject).
+ */
+export interface ThreadMessage {
+  id: string;
+  direction: 'inbound' | 'outbound';
+  channel: string;
+  message_text: string;
+  message_time: string;
+  subject: string | null;
+  source: 'message' | 'outreach_log';
 }
 
 export interface AuthUser {
