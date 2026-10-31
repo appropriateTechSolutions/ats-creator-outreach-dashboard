@@ -3,21 +3,39 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { ToastProvider } from '../contexts/ToastContext';
 import { buildThreads, filterThreads } from '../lib/inboxThreads';
-import type { Creator, ThreadMessage } from '../types';
+import { queryKeys } from '../lib/queryKeys';
+import type { Creator, Partnership, ThreadMessage } from '../types';
 import Conversations from './Conversations';
 
 const state = vi.hoisted(() => ({
   creators: [] as unknown[],
   messages: {} as Record<string, unknown[]>,
+  // Full partnership records by id, as GET /partnerships/:id returns them.
+  partnerships: {} as Record<string, unknown>,
   requestedThreads: new Set<string>(),
+  requestedPartnerships: new Set<string>(),
+  invalidate: vi.fn(),
 }));
 
+const api = vi.hoisted(() => ({ syncConversations: vi.fn() }));
+
 vi.mock('../hooks/queries', () => ({
-  useConversations: () => ({ data: state.creators, isLoading: false, refetch: vi.fn() }),
+  useConversations: () => ({ data: state.creators, isLoading: false }),
   useConversationThread: (id?: string) => {
     if (id) state.requestedThreads.add(id);
     return { data: id ? (state.messages[id] ?? []) : [], isLoading: false };
   },
+  // Not loaded (data undefined) until the test registers the record.
+  usePartnership: (id?: string) => {
+    if (id) state.requestedPartnerships.add(id);
+    return { data: id ? state.partnerships[id] : undefined };
+  },
+}));
+vi.mock('../hooks/useInvalidate', () => ({ useInvalidate: () => state.invalidate }));
+// Keep the real getErrorMessage; replace only what would hit the network.
+vi.mock('../lib/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/api')>()),
+  ...api,
 }));
 
 interface Spec {
@@ -113,6 +131,22 @@ const CALEB: Spec = {
 // API order is deliberately not the display order.
 const ALL = () => [creator(MARCUS), creator(MAYA), creator(AMARA), creator(CALEB)];
 
+// Shaped like GET /partnerships/:id: the full record, with its shipments and deliverables.
+function fullPartnership(spec: Spec, over: Record<string, unknown> = {}): Partnership {
+  return {
+    id: spec.partnership!.id,
+    creator_id: spec.creatorId,
+    campaign_id: spec.campaignId,
+    status: spec.partnership!.status,
+    shipment_included: false,
+    created_at: '2026-10-01T00:00:00.000Z',
+    updated_at: '2026-10-01T00:00:00.000Z',
+    content: [],
+    shipments: [],
+    ...over,
+  } as unknown as Partnership;
+}
+
 function message(over: Partial<ThreadMessage> & Pick<ThreadMessage, 'id'>): ThreadMessage {
   return {
     direction: 'inbound',
@@ -152,7 +186,13 @@ const searchBox = () => screen.getByRole('searchbox', { name: 'Search conversati
 beforeEach(() => {
   state.creators = ALL();
   state.messages = {};
+  state.partnerships = Object.fromEntries(
+    [AMARA, MARCUS, MAYA, CALEB].map((spec) => [spec.partnership!.id, fullPartnership(spec)]),
+  );
   state.requestedThreads = new Set();
+  state.requestedPartnerships = new Set();
+  state.invalidate.mockReset();
+  api.syncConversations.mockReset();
 });
 
 describe('Conversations page', () => {
@@ -338,11 +378,94 @@ describe('Conversations page', () => {
       .getAllByRole('link')
       .filter((link) => link.getAttribute('href')?.startsWith('/partnerships/'));
     expect(partnershipLinks).toHaveLength(0);
-    // Still one step for the creator, from the same engine.
+    // Still one step for the creator, from the same engine, with nothing to load for it.
     expect(screen.getByRole('link', { name: 'Draft offer' })).toHaveAttribute(
       'href',
       '/creators/cr-marcus',
     );
+    expect(state.requestedPartnerships.size).toBe(0);
+  });
+
+  it('header next step uses the full partnership record', () => {
+    // The list only says "accepted". The full record knows the offer ships product and a
+    // shipment is already pending, so the partnership page leads with "Update shipment"
+    // (from the list alone this would read "Activate partnership").
+    const accepted: Spec = { ...MARCUS, partnership: { id: 'p-accepted', status: 'accepted' } };
+    state.creators = [creator(accepted)];
+    state.partnerships = {
+      'p-accepted': fullPartnership(accepted, {
+        shipment_included: true,
+        shipments: [
+          {
+            id: 'ship-1',
+            partnership_id: 'p-accepted',
+            campaign_id: accepted.campaignId,
+            status: 'pending',
+            created_at: '2026-10-02T00:00:00.000Z',
+          },
+        ],
+      }),
+    };
+    renderInbox('/conversations?thread=conv-marcus');
+
+    expect(screen.getByRole('link', { name: 'Update shipment' })).toHaveAttribute(
+      'href',
+      '/creators/cr-marcus',
+    );
+    expect(screen.queryByText('Activate partnership')).not.toBeInTheDocument();
+    // Only the open thread's partnership is loaded.
+    expect(state.requestedPartnerships).toEqual(new Set(['p-accepted']));
+  });
+
+  it("header next step uses the partnership's deliverables", () => {
+    // Live, with a draft waiting for review: the list's status alone would say "Complete".
+    const live: Spec = { ...MARCUS, partnership: { id: 'p-live', status: 'live' } };
+    state.creators = [creator(live)];
+    state.partnerships = {
+      'p-live': fullPartnership(live, {
+        content: [
+          {
+            id: 'content-1',
+            partnership_id: 'p-live',
+            campaign_id: live.campaignId,
+            status: 'submitted',
+            due_date: '2026-11-12',
+          },
+        ],
+      }),
+    };
+    renderInbox('/conversations?thread=conv-marcus');
+
+    expect(screen.getByRole('link', { name: 'Review draft' })).toHaveAttribute(
+      'href',
+      '/creators/cr-marcus',
+    );
+    expect(screen.queryByText('Complete partnership')).not.toBeInTheDocument();
+  });
+
+  it('shows the status badge but no next step while the partnership loads', () => {
+    state.partnerships = {};
+    renderInbox('/conversations?thread=conv-marcus');
+
+    expect(screen.getByRole('link', { name: 'Offer sent' })).toHaveAttribute(
+      'href',
+      '/partnerships/p-marcus',
+    );
+    expect(screen.queryByText(/Next step/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Awaiting signature' })).not.toBeInTheDocument();
+  });
+
+  it('header status follows the full partnership record', () => {
+    // The list was fetched before the offer was accepted.
+    state.partnerships['p-marcus'] = fullPartnership(MARCUS, { status: 'accepted' });
+    renderInbox('/conversations?thread=conv-marcus');
+
+    expect(screen.getByRole('link', { name: 'Offer accepted' })).toHaveAttribute(
+      'href',
+      '/partnerships/p-marcus',
+    );
+    expect(screen.queryByRole('link', { name: 'Offer sent' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Activate partnership' })).toBeInTheDocument();
   });
 
   it('shows an outreach email we sent on our side with its subject line', () => {
@@ -374,6 +497,53 @@ describe('Conversations page', () => {
       .parentElement as HTMLElement;
     expect(reply.parentElement).toHaveClass('justify-start');
     expect(reply).toHaveTextContent('Marcus Bell');
+  });
+});
+
+describe('Sync Inbox', () => {
+  const sync = () => fireEvent.click(screen.getByRole('button', { name: 'Sync Inbox' }));
+
+  it.each([
+    [{ newMessages: 3, errors: [] }, 'Sync complete! Pulled 3 new messages.'],
+    [{ newMessages: 1, errors: [] }, 'Sync complete! Pulled 1 new message.'],
+    [{ newMessages: 0, errors: [] }, 'Sync complete! Pulled 0 new messages.'],
+    // An older response shape: `synced` still counts when `newMessages` is absent.
+    [{ synced: 2 }, 'Sync complete! Pulled 2 new messages.'],
+    [{ newMessages: 4, synced: 9 }, 'Sync complete! Pulled 4 new messages.'],
+  ])('reports the pulled count from %j', async (result, toast) => {
+    api.syncConversations.mockResolvedValue(result);
+    renderInbox('/conversations?thread=conv-marcus');
+
+    sync();
+
+    expect(await screen.findByText(toast)).toBeInTheDocument();
+  });
+
+  it('refreshes the conversations, the open thread and its partnership after a sync', async () => {
+    api.syncConversations.mockResolvedValue({ newMessages: 2, errors: [] });
+    renderInbox('/conversations?thread=conv-marcus');
+    expect(state.invalidate).not.toHaveBeenCalled();
+
+    sync();
+
+    await waitFor(() => expect(state.invalidate).toHaveBeenCalledTimes(1));
+    // ['conversations'] is a prefix of every thread's key, so it covers the open thread.
+    const keys = state.invalidate.mock.calls[0];
+    expect(keys).toEqual([queryKeys.conversations.all, queryKeys.partnerships.root]);
+    expect(queryKeys.conversations.thread('conv-marcus').slice(0, 1)).toEqual(keys[0]);
+  });
+
+  it("shows the backend's reason when the sync fails, and refreshes nothing", async () => {
+    api.syncConversations.mockRejectedValue({
+      success: false,
+      error: 'Mail account is not configured',
+    });
+    renderInbox('/conversations?thread=conv-marcus');
+
+    sync();
+
+    expect(await screen.findByText('Mail account is not configured')).toBeInTheDocument();
+    expect(state.invalidate).not.toHaveBeenCalled();
   });
 });
 

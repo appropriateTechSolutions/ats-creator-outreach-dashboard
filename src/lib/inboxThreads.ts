@@ -1,5 +1,10 @@
 import { cleanMessageText } from './formatters';
-import { getNextAction, getPartnershipNextAction, type NextAction } from './nextAction';
+import {
+  getNextAction,
+  getPartnershipNextAction,
+  pickPartnershipShipment,
+  type NextAction,
+} from './nextAction';
 import type { Creator, CreatorConversation, Partnership } from '../types';
 
 // ─── The Inbox's threads ───────────────────────────────────────────────
@@ -104,24 +109,28 @@ export function filterThreads(
 }
 
 /**
- * The next step shown in a thread's header, from the same engine as the Creators list
- * and the profile. With a partnership it leads with the partnership's own step, not the
- * creator-level review/outreach gates.
+ * The next step shown in a thread's header, from the same engine and the same inputs as
+ * the partnership page.
  *
- * The list carries only the partnership's id and status, so steps that also depend on its
- * shipment or deliverables (accepted → shipment; the content stages) are the engine's
- * answer without them — the partnership page, which has them, can name a different step.
+ * A thread with a partnership needs that partnership's full record: the list only has its
+ * id and status, but the step also depends on `shipment_included`, the shipment and the
+ * deliverables (accepted, the content stages). Until the record is passed in there is no
+ * step to show, so this returns null rather than a guess. A thread without a partnership
+ * needs nothing more than the creator. With a partnership the step leads with the
+ * partnership's own, not the creator-level review/outreach gates.
  */
-export function getThreadNextAction(thread: InboxThread): NextAction {
+export function getThreadNextAction(
+  thread: InboxThread,
+  partnership?: Partnership | null,
+): NextAction | null {
   // The row's `conversation` is its first one; the engine should see this thread's.
   const creator = { ...thread.creator, conversation: thread.conversation } as Creator;
-  const ref = thread.conversation.partnership;
-  if (!ref) return getNextAction({ creator });
-  const partnership = {
-    id: ref.id,
-    status: ref.status,
-    creator_id: thread.creator.id,
-    campaign_id: thread.conversation.campaign_id ?? thread.campaign?.id ?? '',
-  } as Partnership;
-  return getPartnershipNextAction({ creator, partnership });
+  if (!thread.conversation.partnership) return getNextAction({ creator });
+  if (!partnership) return null;
+  return getPartnershipNextAction({
+    creator,
+    partnership,
+    shipment: pickPartnershipShipment(partnership, partnership.shipments),
+    contents: partnership.content ?? [],
+  });
 }

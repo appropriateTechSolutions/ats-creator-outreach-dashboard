@@ -369,7 +369,9 @@ export const getOutreachLogs = (): Promise<OutreachLog[]> => api.get('/outreach/
 
 // ─── Conversations ────────────────────────────────────
 export const getConversations = (): Promise<Creator[]> => api.get('/conversations');
-export const syncConversations = (): Promise<{ synced: number }> => api.post('/conversations/sync');
+/** The backend reports `newMessages`; `synced` is an older name for the same count. */
+export const syncConversations = (): Promise<{ newMessages?: number; synced?: number }> =>
+  api.post('/conversations/sync');
 export const getConversationThread = (id: string): Promise<ThreadMessage[]> =>
   api.get(`/conversations/${id}`);
 

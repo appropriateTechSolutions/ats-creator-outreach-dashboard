@@ -12,8 +12,10 @@ import { CreatorAvatar } from '../components/creators/CreatorIdentity';
 import { getErrorMessage, syncConversations } from '../lib/api';
 import { cleanMessageText } from '../lib/formatters';
 import { buildThreads, filterThreads, getThreadNextAction } from '../lib/inboxThreads';
-import { useConversations, useConversationThread } from '../hooks/queries';
+import { queryKeys } from '../lib/queryKeys';
+import { useConversations, useConversationThread, usePartnership } from '../hooks/queries';
 import { useDebounce } from '../hooks/useDebounce';
+import { useInvalidate } from '../hooks/useInvalidate';
 
 type ThreadFilter = 'all' | 'waiting';
 
@@ -44,7 +46,8 @@ function FilterChip({
 
 export default function Conversations() {
   const { showToast } = useToast();
-  const { data: rawConvos = [], isLoading: loading, refetch: refetchConvos } = useConversations();
+  const { data: rawConvos = [], isLoading: loading } = useConversations();
+  const invalidate = useInvalidate();
   // The open thread lives in the URL (`?thread=<conversation id>`), so other pages can link
   // straight to it and a reload keeps your place.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -89,17 +92,28 @@ export default function Conversations() {
   const { data: messages = [], isLoading: loadingMessages } = useConversationThread(
     activeThread?.id,
   );
+  // The list only has the partnership's id and status. The next step also depends on its
+  // shipment and deliverables, so it comes from the full record, exactly as on the
+  // partnership page; until that loads the header shows the status and no step.
+  const listedPartnership = activeThread?.conversation.partnership ?? null;
+  const { data: fullPartnership } = usePartnership(listedPartnership?.id);
   const nextStep = useMemo(
-    () => (activeThread ? getThreadNextAction(activeThread) : null),
-    [activeThread],
+    () => (activeThread ? getThreadNextAction(activeThread, fullPartnership) : null),
+    [activeThread, fullPartnership],
   );
 
   const handleSync = async () => {
     setSyncing(true);
     try {
       const res = await syncConversations();
-      showToast(`Sync complete! Pulled ${res.synced || 0} new messages.`, 'success');
-      refetchConvos();
+      const pulled = res.newMessages ?? res.synced ?? 0;
+      showToast(
+        `Sync complete! Pulled ${pulled} new ${pulled === 1 ? 'message' : 'messages'}.`,
+        'success',
+      );
+      // New replies change the list and the open thread, and move partnerships along
+      // (['conversations'] is a prefix of every thread's key).
+      invalidate(queryKeys.conversations.all, queryKeys.partnerships.root);
     } catch (err) {
       showToast(getErrorMessage(err, 'Failed to sync inbox emails.'), 'error');
     } finally {
@@ -107,7 +121,6 @@ export default function Conversations() {
     }
   };
 
-  const partnership = activeThread?.conversation.partnership ?? null;
   const qualification = activeThread?.conversation.qualification_status;
 
   return (
@@ -290,9 +303,9 @@ export default function Conversations() {
                   </div>
                 </div>
                 <div className="flex flex-col sm:items-end gap-1 flex-shrink-0">
-                  {partnership ? (
-                    <Link to={`/partnerships/${partnership.id}`} title="Open partnership">
-                      <StatusBadge status={partnership.status} />
+                  {listedPartnership ? (
+                    <Link to={`/partnerships/${listedPartnership.id}`} title="Open partnership">
+                      <StatusBadge status={fullPartnership?.status ?? listedPartnership.status} />
                     </Link>
                   ) : (
                     qualification && <StatusBadge status={qualification} />
