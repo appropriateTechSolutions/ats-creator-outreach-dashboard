@@ -32,12 +32,16 @@ const HEADINGS = ['Work', 'Pipeline', 'Insights', 'Admin'];
 
 function renderSidebar(
   user: AuthUser | null,
-  { isOpen = true, navGroups }: { isOpen?: boolean; navGroups?: NavGroup[] } = {},
+  {
+    isOpen = true,
+    navGroups,
+    path = '/dashboard',
+  }: { isOpen?: boolean; navGroups?: NavGroup[]; path?: string } = {},
 ) {
   auth.user = user;
   return render(
     <MemoryRouter
-      initialEntries={['/dashboard']}
+      initialEntries={[path]}
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <Sidebar isOpen={isOpen} onClose={vi.fn()} onToggle={vi.fn()} navGroups={navGroups} />
@@ -110,6 +114,44 @@ describe('Sidebar', () => {
     renderSidebar(superAdmin);
     expect(screen.queryByRole('link', { name: /analytics/i })).not.toBeInTheDocument();
     expect(linkNames(screen.getByRole('group', { name: 'Pipeline' }))).toContain('Content');
+  });
+
+  it('labels the nav landmark "Main"', () => {
+    renderSidebar(superAdmin);
+    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+  });
+
+  describe('active item', () => {
+    const activeLinks = () =>
+      screen
+        .getAllByRole('link')
+        .filter((a) => a.getAttribute('aria-current') === 'page')
+        .map((a) => a.textContent);
+
+    // Analytics is routable but has no nav item, so Content (where its link lives)
+    // stays lit rather than leaving the sidebar with nothing highlighted.
+    it.each(['/analytics', '/analytics/creator-campaign/creator-1/campaign-1'])(
+      'keeps Content active on %s',
+      (path) => {
+        renderSidebar(superAdmin, { path });
+        expect(activeLinks()).toEqual(['Content']);
+      },
+    );
+
+    it.each(['/content', '/content/deliverable-1'])('keeps Content active on %s', (path) => {
+      renderSidebar(superAdmin, { path });
+      expect(activeLinks()).toEqual(['Content']);
+    });
+
+    it('does not light Content up on other pages', () => {
+      renderSidebar(superAdmin, { path: '/partnerships/p-1' });
+      expect(activeLinks()).toEqual(['Partnerships']);
+    });
+
+    it('matches whole path segments only', () => {
+      renderSidebar(superAdmin, { path: '/analyticsfoo' });
+      expect(activeLinks()).toEqual([]);
+    });
   });
 
   it('hides Admin heading for a non-admin client user with no visible admin items', () => {

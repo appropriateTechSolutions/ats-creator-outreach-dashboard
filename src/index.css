@@ -82,6 +82,39 @@
   }
 }
 
+@layer components {
+  /* Pins a table's last column (Actions) to the right edge of its horizontal scroll
+     container, so row actions stay on screen at laptop widths instead of scrolling away.
+     Put it on the <th> and on every <td> of that column.
+
+     The cell is opaque, so columns scrolling underneath don't show through. A body cell
+     takes its row's background: rows with a pinned cell default to white, and any bg-*,
+     hover:bg-* or selected-row utility on the row wins over that default (keep those
+     opaque, or the pinned cell turns see-through in that state). The header cell takes the
+     header tint. A hairline on the left edge marks the seam.
+
+     From md up only: on a phone the pinned column would take most of the screen, so
+     there the column scrolls with the table, as it always did. */
+  @media (min-width: 768px) {
+    :where(tbody tr:has(> .col-sticky-end)) {
+      background-color: theme('colors.white');
+    }
+
+    .col-sticky-end {
+      position: sticky;
+      right: 0;
+      z-index: 1;
+      background-color: inherit;
+      box-shadow: inset 1px 0 0 0 theme('colors.gray.200');
+    }
+
+    /* gray-50 at 50% over white: the header row's own tint (bg-gray-50/50), made opaque. */
+    thead .col-sticky-end {
+      background-color: #fdfcfa;
+    }
+  }
+}
+
 @layer utilities {
   @keyframes loaderDots {
     0% {

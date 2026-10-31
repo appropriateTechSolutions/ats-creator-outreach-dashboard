@@ -102,6 +102,15 @@ describe('ReviewQueue', () => {
     expect(screen.getByText('Fall Flavor Drop, Holiday Gifting Guide 2026')).toBeInTheDocument();
   });
 
+  it('pins the Actions column and shows names as typed, not forced uppercase', async () => {
+    renderQueue();
+    const name = await screen.findByRole('link', { name: 'Jonah Fitzgerald' });
+
+    expect(name).not.toHaveClass('uppercase');
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toHaveClass('col-sticky-end');
+    expect((name.closest('tr') as HTMLElement).lastElementChild).toHaveClass('col-sticky-end');
+  });
+
   it('approves for the only campaign on the row and says who the email went to', async () => {
     renderQueue();
     await openApprove('Jonah Fitzgerald');

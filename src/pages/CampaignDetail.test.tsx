@@ -4,7 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ToastProvider } from '../contexts/ToastContext';
+import { ConfirmProvider } from '../contexts/ConfirmContext';
 import {
+  deleteCampaign,
   getCampaignActivities,
   getCampaignContentPerformance,
   getCampaignFunnel,
@@ -14,8 +16,10 @@ import {
 import type { Campaign, Creator } from '../types';
 import CampaignDetail from './CampaignDetail';
 
+// The signed-in role; tests that care about role gating change it.
+const auth = vi.hoisted(() => ({ role: 'super_admin' }));
 vi.mock('../contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'u1', role: 'super_admin' } }),
+  useAuth: () => ({ user: { id: 'u1', role: auth.role } }),
 }));
 vi.mock('../contexts/DiscoveryContext', () => ({
   useDiscovery: () => ({
@@ -63,6 +67,7 @@ vi.mock('../lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/api')>()),
   reviewLead: vi.fn(),
   previewOutreach: vi.fn(),
+  deleteCampaign: vi.fn(),
   getCampaignFunnel: vi.fn(),
   getCampaignContentPerformance: vi.fn(),
   getCampaignActivities: vi.fn(),
@@ -77,14 +82,17 @@ function renderPage() {
   render(
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        <MemoryRouter
-          initialEntries={['/campaigns/fall']}
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        >
-          <Routes>
-            <Route path="/campaigns/:id" element={<CampaignDetail />} />
-          </Routes>
-        </MemoryRouter>
+        <ConfirmProvider>
+          <MemoryRouter
+            initialEntries={['/campaigns/fall']}
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
+            <Routes>
+              <Route path="/campaigns/:id" element={<CampaignDetail />} />
+              <Route path="/campaigns" element={<h1>All campaigns</h1>} />
+            </Routes>
+          </MemoryRouter>
+        </ConfirmProvider>
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -105,6 +113,7 @@ async function openApprove() {
 describe('CampaignDetail approve', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    auth.role = 'super_admin';
     vi.mocked(getCampaignFunnel).mockResolvedValue({});
     vi.mocked(getCampaignContentPerformance).mockResolvedValue({} as never);
     vi.mocked(getCampaignActivities).mockResolvedValue([]);
@@ -115,6 +124,15 @@ describe('CampaignDetail approve', () => {
       from_email: 'outreach@quitequila.example',
     });
     vi.mocked(reviewLead).mockResolvedValue({ success: true });
+  });
+
+  it('pins the leads table Actions column and shows names as typed, not forced uppercase', async () => {
+    renderPage();
+    const name = await screen.findByRole('button', { name: 'Sofia Marchetti' });
+
+    expect(name).not.toHaveClass('uppercase');
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toHaveClass('col-sticky-end');
+    expect((name.closest('tr') as HTMLElement).lastElementChild).toHaveClass('col-sticky-end');
   });
 
   it('sends this campaign for a creator who is also in another one', async () => {
@@ -158,5 +176,107 @@ describe('CampaignDetail approve', () => {
     // Retry stays possible, and the failure is reported once.
     expect(sendButton()).toBeEnabled();
     expect(screen.getAllByText(NO_MAILBOX)).toHaveLength(1);
+  });
+});
+
+describe('CampaignDetail header actions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    auth.role = 'super_admin';
+    vi.mocked(getCampaignFunnel).mockResolvedValue({});
+    vi.mocked(getCampaignContentPerformance).mockResolvedValue({} as never);
+    vi.mocked(getCampaignActivities).mockResolvedValue([]);
+    vi.mocked(deleteCampaign).mockResolvedValue(undefined as never);
+  });
+
+  const openMoreMenu = async () =>
+    userEvent.click(await screen.findByRole('button', { name: 'More campaign actions' }));
+
+  it('has no floating Edit or Delete buttons over the page', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: 'Fall Flavor Drop' });
+
+    expect(document.querySelector('button.fixed')).toBeNull();
+    // Delete is not on the page until the More menu opens.
+    expect(screen.queryByRole('button', { name: 'Delete campaign' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Delete campaign' })).toBeNull();
+  });
+
+  it('shows the campaign name as typed, not forced uppercase', async () => {
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Fall Flavor Drop' })).not.toHaveClass(
+      'uppercase',
+    );
+  });
+
+  it('Edit sits with the header actions and opens the edit form', async () => {
+    renderPage();
+    const edit = await screen.findByRole('button', { name: 'Edit campaign' });
+    expect(edit.closest('.fixed')).toBeNull();
+    // Same group as the other header actions.
+    expect(edit.parentElement).toContainElement(
+      screen.getByRole('button', { name: /run ai discovery/i }),
+    );
+
+    await userEvent.click(edit);
+    expect(await screen.findByRole('dialog', { name: 'Edit Campaign Parameters' })).toBeVisible();
+  });
+
+  it('Delete lives in the More menu and asks first: cancelling deletes nothing', async () => {
+    renderPage();
+    await openMoreMenu();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete campaign' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Delete campaign?' });
+    expect(within(dialog).getByText('Fall Flavor Drop')).toBeVisible();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(deleteCampaign).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Fall Flavor Drop' })).toBeVisible();
+  });
+
+  it('deletes the campaign once confirmed, then returns to the campaign list', async () => {
+    renderPage();
+    await openMoreMenu();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete campaign' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete campaign?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete campaign' }));
+
+    await waitFor(() => expect(deleteCampaign).toHaveBeenCalledWith('fall'));
+    expect(await screen.findByRole('heading', { name: 'All campaigns' })).toBeVisible();
+  });
+
+  it('reports a failed delete with the backend message and stays on the campaign', async () => {
+    vi.mocked(deleteCampaign).mockRejectedValue({
+      success: false,
+      error: 'Campaign has partnerships',
+    });
+    renderPage();
+    await openMoreMenu();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete campaign' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete campaign?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete campaign' }));
+
+    expect(await screen.findByText('Campaign has partnerships')).toBeVisible();
+    expect(screen.queryByText('[object Object]')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Fall Flavor Drop' })).toBeVisible();
+  });
+
+  it.each([
+    ['super_admin', { edit: true, more: true }],
+    ['client_admin', { edit: true, more: true }],
+    ['operator', { edit: true, more: false }],
+    ['client_marketing', { edit: true, more: false }],
+    ['client_viewer', { edit: false, more: false }],
+  ])('keeps role gating for %s', async (role, expected) => {
+    auth.role = role;
+    renderPage();
+    await screen.findByRole('heading', { name: 'Fall Flavor Drop' });
+
+    expect(screen.queryByRole('button', { name: 'Edit campaign' }) !== null).toBe(expected.edit);
+    expect(screen.queryByRole('button', { name: 'More campaign actions' }) !== null).toBe(
+      expected.more,
+    );
   });
 });

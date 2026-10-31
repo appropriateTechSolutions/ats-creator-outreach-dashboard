@@ -2,7 +2,7 @@ import { logger } from '../../lib/logger';
 import { dismissOverlay } from '../../lib/a11y';
 import { hasRole, ROLE_GROUPS, APP_NAME } from '../../lib/constants';
 import { Fragment, useState, useEffect, useRef, type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import { Link, matchPath, useLocation } from 'react-router-dom';
 import {
   BarChart3,
   Target,
@@ -33,6 +33,11 @@ export interface NavItem {
   icon: ReactNode;
   internalOnly?: boolean;
   adminOnly?: boolean;
+  /**
+   * Other paths (prefixes, matched on whole segments) that keep this item active. For
+   * pages that are routable but have no nav item of their own.
+   */
+  alsoActiveFor?: string[];
 }
 
 export interface NavGroup {
@@ -64,7 +69,13 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: 'Partnerships', path: '/partnerships', icon: <Handshake size={20} /> },
       { name: 'Shipments', path: '/shipments', icon: <Package size={20} /> },
-      { name: 'Content', path: '/content', icon: <ImageIcon size={20} /> },
+      {
+        name: 'Content',
+        path: '/content',
+        icon: <ImageIcon size={20} />,
+        // "Deliverables by creator" lives at /analytics and is reached from Content.
+        alsoActiveFor: ['/analytics'],
+      },
       { name: 'Meetings', path: '/meetings', icon: <Calendar size={20} /> },
     ],
   },
@@ -111,6 +122,13 @@ function getVisibleNavGroups(groups: NavGroup[], user: AuthUser | null): NavGrou
     .filter((group) => group.items.length > 0);
 }
 
+/** True on the item's own path (and anything beneath it) or any of its `alsoActiveFor` paths. */
+function isNavItemActive(item: NavItem, pathname: string): boolean {
+  return [item.path, ...(item.alsoActiveFor ?? [])].some(
+    (path) => matchPath({ path, end: false }, pathname) !== null,
+  );
+}
+
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -122,6 +140,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose, onToggle, navGroups = NAV_GROUPS }: SidebarProps) {
   const { user, logout } = useAuth();
+  const { pathname } = useLocation();
   const isDesktop = useIsDesktop();
   // Desktop + closed = collapsed icon rail (not fully hidden as on mobile).
   const collapsed = isDesktop && !isOpen;
@@ -204,7 +223,7 @@ export function Sidebar({ isOpen, onClose, onToggle, navGroups = NAV_GROUPS }: S
 
         {/* Nav Items */}
         <div className={`py-2 flex-1 overflow-y-auto ${collapsed ? 'px-2' : 'px-4'}`}>
-          <nav>
+          <nav aria-label="Main">
             {visibleGroups.map((group, index) => (
               <Fragment key={group.heading ?? 'lead'}>
                 {/* The rail has no room for headings, so a hairline separates the groups. */}
@@ -223,17 +242,19 @@ export function Sidebar({ isOpen, onClose, onToggle, navGroups = NAV_GROUPS }: S
                     </div>
                   )}
                   <div className="space-y-1">
-                    {group.items.map((item) => (
-                      <NavLink
-                        key={item.name}
-                        to={item.path}
-                        title={collapsed ? item.name : undefined}
-                        aria-label={collapsed ? item.name : undefined}
-                        onClick={() => {
-                          if (!isDesktop) onClose();
-                        }}
-                        className={({ isActive }) =>
-                          `flex items-center rounded-xl transition-all duration-200 text-sm font-medium ${
+                    {group.items.map((item) => {
+                      const isActive = isNavItemActive(item, pathname);
+                      return (
+                        <Link
+                          key={item.name}
+                          to={item.path}
+                          title={collapsed ? item.name : undefined}
+                          aria-label={collapsed ? item.name : undefined}
+                          aria-current={isActive ? 'page' : undefined}
+                          onClick={() => {
+                            if (!isDesktop) onClose();
+                          }}
+                          className={`flex items-center rounded-xl transition-all duration-200 text-sm font-medium ${
                             collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-3 py-2.5'
                           } ${
                             isActive
@@ -241,19 +262,15 @@ export function Sidebar({ isOpen, onClose, onToggle, navGroups = NAV_GROUPS }: S
                                   collapsed ? '' : 'translate-x-1'
                                 }`
                               : 'text-gray-500 hover:bg-gray-100/70 hover:text-gray-900 border border-transparent'
-                          }`
-                        }
-                      >
-                        {({ isActive }) => (
-                          <>
-                            <div className={isActive ? 'text-primary-200' : 'text-gray-400'}>
-                              {item.icon}
-                            </div>
-                            {!collapsed && item.name}
-                          </>
-                        )}
-                      </NavLink>
-                    ))}
+                          }`}
+                        >
+                          <div className={isActive ? 'text-primary-200' : 'text-gray-400'}>
+                            {item.icon}
+                          </div>
+                          {!collapsed && item.name}
+                        </Link>
+                      );
+                    })}
                   </div>
                 </div>
               </Fragment>

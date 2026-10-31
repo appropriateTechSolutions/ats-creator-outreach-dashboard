@@ -42,6 +42,7 @@ import {
 } from '../lib/creatorFilters';
 import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
+import { groupBy } from '../lib/groupBy';
 import { CreatorAvatar, CreatorSocialLinks } from '../components/creators/CreatorIdentity';
 import { CreatorsFilterGrid, MobileFiltersSheet } from '../components/creators/CreatorsFilters';
 import { Modal } from '../components/ui/Modal';
@@ -57,18 +58,6 @@ type RowWorkflow = {
   shipment: Shipment | null;
   contents: CreatorContent[];
 };
-
-function groupBy<T>(rows: T[], keyOf: (row: T) => string | null | undefined): Map<string, T[]> {
-  const groups = new Map<string, T[]>();
-  for (const row of rows) {
-    const key = keyOf(row);
-    if (!key) continue;
-    const group = groups.get(key);
-    if (group) group.push(row);
-    else groups.set(key, [row]);
-  }
-  return groups;
-}
 
 const FILTERS_STORAGE_KEY = 'creators-filters-v1';
 
@@ -571,7 +560,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                     <Th className="text-center">Engagement</Th>
                     <Th>Status</Th>
                     <Th className="text-center w-40">Next Action</Th>
-                    <Th className="text-right">Actions</Th>
+                    <Th className="text-right col-sticky-end">Actions</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -584,11 +573,15 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                             <Link
                               to={`/creators/${c.id}`}
                               state={{ fromMyCreators: onlyEngaged }}
-                              className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]"
+                              className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[180px]"
                             >
                               {c.full_name || `@${c.handle}`}
                             </Link>
-                            <CreatorSocialLinks creator={c} showHandles />
+                            <CreatorSocialLinks
+                              creator={c}
+                              showHandles
+                              className="flex flex-wrap gap-x-2 gap-y-1 mt-1.5"
+                            />
                           </div>
                         </div>
                       </Td>
@@ -650,7 +643,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                           onAction={(type, payload) => handleWorkflowAction(c, type, payload)}
                         />
                       </Td>
-                      <Td className="text-right">
+                      <Td className="text-right col-sticky-end">
                         {hasRole(user?.role, ROLE_GROUPS.MANAGE_CREATORS) && (
                           <div className="flex justify-end gap-2">
                             {c.review_status === 'rejected' && (
@@ -746,7 +739,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                           <Link
                             to={`/creators/${c.id}`}
                             state={{ fromMyCreators: onlyEngaged }}
-                            className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit block"
+                            className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm font-outfit block"
                           >
                             {c.full_name || `@${c.handle}`}
                           </Link>

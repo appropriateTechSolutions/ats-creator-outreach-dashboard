@@ -169,25 +169,25 @@ export default function AffiliatePerformance() {
             <table className="w-full text-left">
               <thead>
                 <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-                  <th className="px-8 py-5">Creator & Asset</th>
-                  <th className="px-8 py-5 text-center">Traffic</th>
-                  <th className="px-8 py-5 text-center">Conversions</th>
-                  <th className="px-8 py-5 text-right">Revenue</th>
-                  <th className="px-8 py-5 text-right">Commission</th>
-                  <th className="px-8 py-5 text-center">Payout Status</th>
-                  <th className="px-8 py-5 text-right">Actions</th>
+                  <th className="px-6 py-5">Creator & Asset</th>
+                  <th className="px-6 py-5 text-center">Traffic</th>
+                  <th className="px-6 py-5 text-center">Conversions</th>
+                  <th className="px-6 py-5 text-right">Revenue</th>
+                  <th className="px-6 py-5 text-right">Commission</th>
+                  <th className="px-6 py-5 text-center">Payout Status</th>
+                  <th className="px-6 py-5 text-right col-sticky-end">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredData.map((item) => (
-                  <tr key={item.id} className="hover:bg-primary-50/30 transition-all group">
-                    <td className="px-8 py-6">
+                  <tr key={item.id} className="hover:bg-gray-50 transition-all group">
+                    <td className="px-6 py-6">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center font-normal text-sm font-outfit">
                           {item.Creator?.full_name?.charAt(0) || 'C'}
                         </div>
                         <div>
-                          <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit group-hover:text-primary-600 transition-colors">
+                          <div className="text-sm font-normal text-gray-900 font-outfit group-hover:text-primary-600 transition-colors">
                             {item.Creator?.full_name || 'Unknown Creator'}
                           </div>
                           <div className="flex items-center gap-2 mt-1">
@@ -208,7 +208,7 @@ export default function AffiliatePerformance() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-6 text-center">
+                    <td className="px-6 py-6 text-center">
                       <div className="text-sm font-normal text-gray-900 font-outfit">
                         {item.clicks || 0}
                       </div>
@@ -216,7 +216,7 @@ export default function AffiliatePerformance() {
                         Clicks
                       </div>
                     </td>
-                    <td className="px-8 py-6 text-center">
+                    <td className="px-6 py-6 text-center">
                       <div className="text-sm font-normal text-gray-900 font-outfit">
                         {item.conversions || 0}
                       </div>
@@ -224,7 +224,7 @@ export default function AffiliatePerformance() {
                         Sales
                       </div>
                     </td>
-                    <td className="px-8 py-6 text-right">
+                    <td className="px-6 py-6 text-right">
                       <div className="text-sm font-normal text-emerald-600 font-outfit">
                         $
                         {Number(item.revenue_generated || 0).toLocaleString(undefined, {
@@ -235,7 +235,7 @@ export default function AffiliatePerformance() {
                         Gross Sales
                       </div>
                     </td>
-                    <td className="px-8 py-6 text-right">
+                    <td className="px-6 py-6 text-right">
                       <div className="text-sm font-normal text-primary-600 font-outfit">
                         $
                         {Number(item.commission_owed || 0).toLocaleString(undefined, {
@@ -246,7 +246,7 @@ export default function AffiliatePerformance() {
                         Net Payable
                       </div>
                     </td>
-                    <td className="px-8 py-6 text-center">
+                    <td className="px-6 py-6 text-center">
                       <div className="flex justify-center">
                         <span
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-normal uppercase tracking-widest border ${
@@ -266,7 +266,11 @@ export default function AffiliatePerformance() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-8 py-6 text-right">
+                    {/* Lifted while its menu is open: the menu is absolutely positioned and would
+                        otherwise sit under the pinned actions cells of the rows below. */}
+                    <td
+                      className={`px-6 py-6 text-right col-sticky-end ${openDropdownId === item.id ? 'z-20' : ''}`}
+                    >
                       {hasRole(currentUser?.role, ROLE_GROUPS.MANAGE_USERS) ? (
                         // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- stops row navigation while using the dropdown; not a control
                         <div

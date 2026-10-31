@@ -1,5 +1,5 @@
 import { CreatorAvatar } from '../components/creators/CreatorIdentity';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useConfirm } from '../contexts/ConfirmContext';
@@ -27,20 +27,62 @@ import {
 } from '../lib/partnershipFilters';
 import { getStatusLabel } from '../lib/statusLabels';
 import { formatMoney } from '../lib/formatters';
-import { usePartnerships, useCampaigns } from '../hooks/queries';
+import {
+  usePartnerships,
+  useCampaigns,
+  useShipments,
+  useContents,
+  useAllCreators,
+} from '../hooks/queries';
 import { useInvalidate } from '../hooks/useInvalidate';
 import { queryKeys } from '../lib/queryKeys';
+import {
+  getPartnershipNextAction,
+  pickPartnershipContents,
+  pickPartnershipShipment,
+  type NextAction,
+} from '../lib/nextAction';
+import { groupBy } from '../lib/groupBy';
+import type { Creator, CreatorContent, Partnership, Shipment } from '../types';
 import { Search, Coins, Edit3, Calendar, Handshake, SlidersHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
+
+// Next-step keys a row can act on (the rest are waiting or creator-level steps).
+const ROW_ACTIONS: ReadonlySet<string> = new Set([
+  'draft_offer',
+  'add_shipment',
+  'view_shipments',
+  'activate',
+  'complete',
+  'review_content',
+  'add_draft_url',
+  'add_live_url',
+]);
 
 export default function Partnerships() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { confirm } = useConfirm();
-  const { data: partnerships = [], isLoading: loading } = usePartnerships();
+  const { data: partnerships = [], isLoading: partnershipsLoading } = usePartnerships();
+  const { data: shipments = [], isLoading: shipmentsLoading } = useShipments();
+  const { data: contents = [], isLoading: contentsLoading } = useContents();
+  // Creators load in the background: the full record only settles whether an engaged
+  // creator has replied ("Awaiting reply" vs "Draft offer"), never a click that could
+  // go wrong, so rows don't wait for it.
+  const { data: creators = [] } = useAllCreators();
   const { data: campaigns = [] } = useCampaigns();
+  // Each row's next step needs its shipment and deliverables, so wait for both lists:
+  // "Add shipment" must never flash up for a partnership that already has one.
+  const loading = partnershipsLoading || shipmentsLoading || contentsLoading;
   const invalidate = useInvalidate();
-  const refresh = () => invalidate(queryKeys.partnerships.root, queryKeys.creators.all);
+  // Shipments and deliverables change a row's next step, so they refresh with it.
+  const refresh = () =>
+    invalidate(
+      queryKeys.partnerships.root,
+      queryKeys.creators.all,
+      queryKeys.shipments.root,
+      queryKeys.content.root,
+    );
   const [search, setSearch] = useState('');
 
   // Filters
@@ -96,6 +138,46 @@ export default function Partnerships() {
       showToast(getErrorMessage(err, 'Action failed.'), 'error');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // The same inputs the partnership page feeds the engine: the full creator record
+  // over the list's trimmed one, that partnership's shipment and its deliverables.
+  const nextActionOf = useMemo(() => {
+    const creatorsById = new Map(creators.map((c) => [c.id, c]));
+    const shipmentsByCreator = groupBy(shipments, (s) => s.creator_id);
+    const contentsByCreator = groupBy(contents, (c) => c.creator_id);
+    return (p: Partnership): NextAction =>
+      getPartnershipNextAction({
+        creator: { ...(p.Creator ?? {}), ...(creatorsById.get(p.creator_id) ?? {}) } as Creator,
+        partnership: p,
+        shipment: pickPartnershipShipment(p, shipmentsByCreator.get(p.creator_id)),
+        contents: pickPartnershipContents(p, contentsByCreator.get(p.creator_id)),
+      });
+  }, [creators, shipments, contents]);
+
+  const runNextAction = (p: Partnership, step: NextAction) => {
+    switch (step.key) {
+      case 'draft_offer':
+        openOfferModal(p);
+        break;
+      case 'add_shipment':
+        openShipmentModal(p);
+        break;
+      case 'view_shipments':
+        navigate(`/shipments/${(step.payload as Shipment).id}`);
+        break;
+      case 'activate':
+      case 'complete':
+        void handleAction(p.id, step.key);
+        break;
+      case 'review_content':
+      case 'add_draft_url':
+      case 'add_live_url':
+        navigate(`/content/${(step.payload as CreatorContent).id}`);
+        break;
+      default:
+        break;
     }
   };
 
@@ -363,173 +445,161 @@ export default function Partnerships() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[1200px]">
+            <table className="w-full text-left min-w-[960px]">
               <thead>
                 <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-                  <th className="px-8 py-5">Creator</th>
-                  <th className="px-8 py-5">Campaign</th>
-                  <th className="px-8 py-5 text-center">Status</th>
-                  <th className="px-8 py-5 text-center">Tier</th>
-                  <th className="px-8 py-5">Offer Parameters</th>
-                  <th className="px-8 py-5 text-center">Start Date</th>
-                  <th className="px-8 py-5 text-center">End Date</th>
-                  <th className="px-8 py-5 text-center">Actions</th>
+                  <th className="px-3 py-4">Creator</th>
+                  <th className="px-3 py-4">Campaign</th>
+                  <th className="px-3 py-4 text-center">Status</th>
+                  <th className="px-3 py-4 text-center">Tier</th>
+                  <th className="px-3 py-4">Offer Parameters</th>
+                  <th className="px-3 py-4 text-center">Start Date</th>
+                  <th className="px-3 py-4 text-center">End Date</th>
+                  <th className="px-3 py-4 text-center col-sticky-end">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.map((p) => (
-                  <tr
-                    key={p.id}
-                    onClick={() => navigate(`/partnerships/${p.id}`)}
-                    className="hover:bg-primary-50/10 transition-colors cursor-pointer"
-                  >
-                    <td className="px-8 py-5 align-middle">
-                      <div className="flex items-center gap-3">
-                        <CreatorAvatar
-                          creator={p.Creator}
-                          className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden"
-                        />
-                        <div className="min-w-0">
-                          <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
-                            {p.Creator?.full_name || `@${p.Creator?.handle}`}
-                          </div>
-                          <div className="flex gap-2 mt-1.5">
-                            <span className="text-[11px] text-gray-500 normal-case tracking-normal">
-                              @{p.Creator?.handle}
-                            </span>
+                {filtered.map((p) => {
+                  const step = nextActionOf(p);
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => navigate(`/partnerships/${p.id}`)}
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    >
+                      <td className="px-3 py-4 align-middle">
+                        <div className="flex items-center gap-3">
+                          <CreatorAvatar
+                            creator={p.Creator}
+                            className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden"
+                          />
+                          <div className="min-w-0">
+                            <div className="font-normal text-gray-900 text-sm font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[180px]">
+                              {p.Creator?.full_name || `@${p.Creator?.handle}`}
+                            </div>
+                            <div className="flex gap-2 mt-1.5">
+                              <span className="text-[11px] text-gray-500 normal-case tracking-normal">
+                                @{p.Creator?.handle}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-5 align-middle">
-                      <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight truncate max-w-[200px]">
-                        {p.Campaign?.name}
-                      </div>
-                    </td>
-                    <td className="px-8 py-5 text-center align-middle">
-                      <StatusBadge status={p.status} />
-                    </td>
-                    <td className="px-8 py-5 text-center align-middle">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-gray-100 text-gray-600 uppercase tracking-wider">
-                        {p.creator_tier?.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5 align-middle text-xs">
-                      {p.offer_type ? (
-                        <div className="space-y-1">
-                          <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight flex items-center gap-1">
-                            <Coins size={12} className="text-amber-500" />{' '}
-                            {p.offer_type.replace('_', ' ')}
-                          </div>
-                          {(p.flat_fee ?? 0) > 0 && (
-                            <div className="text-[11px] text-gray-500 tracking-normal">
-                              {formatMoney(p.flat_fee, p.currency)}
-                            </div>
-                          )}
-                          {p.affiliate_enabled && (
-                            <div className="text-primary-600 bg-primary-50/50 border border-primary-100/50 rounded px-1.5 py-0.5 inline-block text-[10px] uppercase font-mono mt-1">
-                              Code: {p.affiliate_code || '---'} ({p.affiliate_percentage || 0}%)
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 italic">No offer drafted</span>
-                      )}
-                    </td>
-                    <td className="px-8 py-5 text-center align-middle text-xs text-gray-650 font-mono">
-                      {p.start_date ? (
-                        format(new Date(p.start_date), 'MMM d, yyyy')
-                      ) : (
-                        <span className="text-gray-400 italic">---</span>
-                      )}
-                    </td>
-                    <td className="px-8 py-5 text-center align-middle text-xs text-gray-650 font-mono">
-                      {p.end_date ? (
-                        format(new Date(p.end_date), 'MMM d, yyyy')
-                      ) : (
-                        <span className="text-gray-400 italic">---</span>
-                      )}
-                    </td>
-                    <td className="px-8 py-5 align-middle" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-center gap-2">
-                        {p.status === 'engaged' && (
-                          <Button
-                            size="sm"
-                            className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5"
-                            onClick={() => handleAction(p.id, 'qualify')}
-                          >
-                            Qualify
-                          </Button>
-                        )}
-                        {p.status === 'qualified' && (
-                          <Button
-                            size="sm"
-                            className="bg-primary-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5"
-                            onClick={() => openOfferModal(p)}
-                          >
-                            Send Offer
-                          </Button>
-                        )}
-                        {p.status === 'offer_sent' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-gray-600 font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5 border-gray-200 bg-gray-50 hover:bg-gray-100"
-                            onClick={() => openOfferModal(p)}
-                          >
-                            Resend Offer
-                          </Button>
-                        )}
-                        {p.status === 'accepted' && (
-                          <Button
-                            size="sm"
-                            className="bg-blue-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5"
-                            onClick={() => openShipmentModal(p)}
-                          >
-                            Create Shipment
-                          </Button>
-                        )}
-                        {['product_shipped', 'product_delivered'].includes(p.status) && (
-                          <Button
-                            size="sm"
-                            className="bg-amber-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5"
-                            onClick={() => handleAction(p.id, 'activate')}
-                          >
-                            Activate
-                          </Button>
-                        )}
-                        {p.status === 'activated' && (
-                          <Button
-                            size="sm"
-                            className="bg-gray-800 text-white font-normal uppercase tracking-widest text-[9px] min-h-[32px] px-2.5"
-                            onClick={() => handleAction(p.id, 'complete')}
-                          >
-                            Complete
-                          </Button>
-                        )}
-                        <button
-                          onClick={() => openEditModal(p)}
-                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Edit parameters"
+                      </td>
+                      <td className="px-3 py-4 align-middle">
+                        <div
+                          className="font-normal text-gray-900 text-sm font-outfit leading-tight line-clamp-2 whitespace-normal break-words min-w-[150px] max-w-[200px]"
+                          title={p.Campaign?.name}
                         >
-                          <Edit3 size={16} />
-                        </button>
-                        {p.status !== 'rejected' && p.status !== 'completed' && (
-                          <button
-                            onClick={() => handleAction(p.id, 'reject')}
-                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Reject partnership"
-                          >
-                            &times;
-                          </button>
+                          {p.Campaign?.name}
+                        </div>
+                      </td>
+                      <td className="px-3 py-4 text-center align-middle">
+                        <StatusBadge status={p.status} />
+                      </td>
+                      <td className="px-3 py-4 text-center align-middle">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-gray-100 text-gray-600 uppercase tracking-wider whitespace-nowrap">
+                          {p.creator_tier?.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-3 py-4 align-middle text-xs">
+                        {p.offer_type ? (
+                          <div className="space-y-1">
+                            <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight flex items-center gap-1">
+                              <Coins size={12} className="text-amber-500" />{' '}
+                              {p.offer_type.replace('_', ' ')}
+                            </div>
+                            {(p.flat_fee ?? 0) > 0 && (
+                              <div className="text-[11px] text-gray-500 tracking-normal">
+                                {formatMoney(p.flat_fee, p.currency)}
+                              </div>
+                            )}
+                            {p.affiliate_enabled && (
+                              <div className="text-primary-600 bg-primary-50/50 border border-primary-100/50 rounded px-1.5 py-0.5 inline-block text-[10px] uppercase font-mono mt-1">
+                                Code: {p.affiliate_code || '---'} ({p.affiliate_percentage || 0}%)
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 italic">No offer drafted</span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-3 py-4 text-center align-middle text-xs text-gray-650 font-mono whitespace-nowrap">
+                        {p.start_date ? (
+                          format(new Date(p.start_date), 'MMM d, yyyy')
+                        ) : (
+                          <span className="text-gray-400 italic">---</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-4 text-center align-middle text-xs text-gray-650 font-mono whitespace-nowrap">
+                        {p.end_date ? (
+                          format(new Date(p.end_date), 'MMM d, yyyy')
+                        ) : (
+                          <span className="text-gray-400 italic">---</span>
+                        )}
+                      </td>
+                      <td
+                        className="px-3 py-4 align-middle col-sticky-end"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-end gap-2">
+                          {step.kind === 'action' && ROW_ACTIONS.has(step.key) && (
+                            <Button
+                              size="sm"
+                              className="!min-h-[32px] !px-3 !py-1 !text-xs whitespace-nowrap"
+                              onClick={() => runNextAction(p, step)}
+                            >
+                              {step.label}
+                            </Button>
+                          )}
+                          {step.kind === 'waiting' && (
+                            <span className="text-xs leading-tight text-right text-gray-500 max-w-[96px]">
+                              {step.label}
+                            </span>
+                          )}
+                          {p.status === 'engaged' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="!min-h-[32px] !px-3 !py-1 !text-xs whitespace-nowrap"
+                              onClick={() => handleAction(p.id, 'qualify')}
+                            >
+                              Qualify
+                            </Button>
+                          )}
+                          {p.status === 'offer_sent' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="!min-h-[32px] !px-3 !py-1 !text-xs whitespace-nowrap"
+                              onClick={() => openOfferModal(p)}
+                            >
+                              Resend offer
+                            </Button>
+                          )}
+                          <button
+                            onClick={() => openEditModal(p)}
+                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Edit parameters"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          {p.status !== 'rejected' && p.status !== 'completed' && (
+                            <button
+                              onClick={() => handleAction(p.id, 'reject')}
+                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Reject partnership"
+                            >
+                              &times;
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-12">
+                    <td colSpan={8} className="p-12">
                       <EmptyState
                         icon={Handshake}
                         title="No Partnerships"

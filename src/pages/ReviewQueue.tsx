@@ -264,7 +264,7 @@ export default function ReviewQueue() {
                   <Th className="text-center">Followers</Th>
                   <Th className="text-center">Engagement</Th>
                   <Th>Status</Th>
-                  <Th className="text-right">Actions</Th>
+                  <Th className="text-right col-sticky-end">Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -280,11 +280,15 @@ export default function ReviewQueue() {
                           <div className="min-w-0">
                             <RouterLink
                               to={`/creators/${c.id}`}
-                              className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]"
+                              className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[180px]"
                             >
                               {c.full_name || `@${c.handle}`}
                             </RouterLink>
-                            <CreatorSocialLinks creator={c} showHandles />
+                            <CreatorSocialLinks
+                              creator={c}
+                              showHandles
+                              className="flex flex-wrap gap-x-2 gap-y-1 mt-1.5"
+                            />
                             {campaignNames && (
                               <p
                                 className="mt-1.5 max-w-[220px] text-[11px] leading-snug text-gray-500 line-clamp-2 whitespace-normal break-words"
@@ -329,7 +333,7 @@ export default function ReviewQueue() {
                           }
                         />
                       </Td>
-                      <Td className="text-right">
+                      <Td className="text-right col-sticky-end">
                         <div className="flex justify-end gap-2">
                           {c.review_status === 'rejected' && (
                             <button
