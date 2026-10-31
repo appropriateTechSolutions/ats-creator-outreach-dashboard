@@ -1,10 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { reviewLead, sendSingleOutreach } from './api';
 import {
   campaignNamesFor,
   emailSentMessage,
   outreachCampaignId,
   sendFailureMessage,
+  sendCreatorOutreach,
 } from './outreach';
+
+vi.mock('./api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./api')>()),
+  reviewLead: vi.fn(),
+  sendSingleOutreach: vi.fn(),
+}));
 
 // The response interceptor rejects with the backend envelope itself.
 const envelope = (error: string, code?: string) => ({ success: false, code, error });
@@ -25,13 +33,22 @@ describe('sendFailureMessage', () => {
 
   it.each([
     'No mail credentials configured. Details: User SMTP Host missing, .env EMAIL_USER missing',
-    '.env EMAIL_PASS missing',
-    'EMAIL_USER is not set',
-    'SMTP connection refused',
-    'smtp timeout',
+    'no mail credentials configured',
   ])('explains a missing mailbox in plain words: %s', (reason) => {
     const error = `Creator approved, but the email was not sent: ${reason}`;
     expect(sendFailureMessage(envelope(error, 'OUTREACH_SEND_FAILED'))).toBe(NO_MAILBOX);
+  });
+
+  // Only the backend's "No mail credentials" wording (utils/mailConfig.js) means the
+  // mailbox is missing; a real SMTP failure keeps its own reason.
+  it.each([
+    'Invalid login: 535 5.7.8 Username and Password not accepted',
+    'SMTP connection refused',
+    'smtp timeout',
+    '.env EMAIL_PASS missing',
+  ])('shows a real SMTP failure as-is: %s', (reason) => {
+    const error = `Creator approved, but the email was not sent: ${reason}`;
+    expect(sendFailureMessage(envelope(error, 'OUTREACH_SEND_FAILED'))).toBe(error);
   });
 
   it('does not say the creator was approved for errors that are not send failures', () => {
@@ -121,5 +138,62 @@ describe('campaignNamesFor', () => {
     ]);
     expect(campaignNamesFor({ campaign_id: null, campaign_ids: [] }, campaigns)).toEqual([]);
     expect(campaignNamesFor({ campaign_id: 'fall', campaign_ids: ['fall'] }, [])).toEqual([]);
+  });
+});
+
+describe('sendCreatorOutreach', () => {
+  beforeEach(() => {
+    vi.mocked(reviewLead)
+      .mockReset()
+      .mockResolvedValue({ success: true } as never);
+    vi.mocked(sendSingleOutreach)
+      .mockReset()
+      .mockResolvedValue({ success: true } as never);
+  });
+
+  // Send-single would email the creator but leave them pending_review; approve
+  // first so the profile and drawer "Approve & send" really approve.
+  it.each(['pending_review', 'hold', 'shortlisted', 'new', null] as const)(
+    'approves an unreviewed (%s) creator through the review endpoint, for this campaign',
+    async (review_status) => {
+      await sendCreatorOutreach({ id: 'maya', review_status }, 'fall', {
+        subject: 'Hi',
+        body: 'Body',
+        messageType: 'initial',
+        to: 'collabs@maya.example',
+      });
+      expect(reviewLead).toHaveBeenCalledWith(
+        'maya',
+        'approve',
+        'Hi',
+        'Body',
+        'initial',
+        'collabs@maya.example',
+        'fall',
+      );
+      expect(sendSingleOutreach).not.toHaveBeenCalled();
+    },
+  );
+
+  it('sends directly to an approved creator', async () => {
+    await sendCreatorOutreach({ id: 'maya', review_status: 'approved' }, 'fall', {
+      subject: 'Hi',
+      body: 'Body',
+      messageType: 'followup_1',
+    });
+    expect(sendSingleOutreach).toHaveBeenCalledWith('maya', 'fall', 'Hi', 'Body', 'followup_1');
+    expect(reviewLead).not.toHaveBeenCalled();
+  });
+
+  it('passes the backend rejection through for the caller to explain', async () => {
+    const failure = {
+      success: false,
+      code: 'OUTREACH_SEND_FAILED',
+      error: 'Creator approved, but the email was not sent: No mail credentials configured.',
+    };
+    vi.mocked(reviewLead).mockRejectedValue(failure);
+    await expect(
+      sendCreatorOutreach({ id: 'maya', review_status: 'pending_review' }, 'fall', {}),
+    ).rejects.toBe(failure);
   });
 });

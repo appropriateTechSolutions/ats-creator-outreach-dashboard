@@ -85,6 +85,28 @@ export const formatMoney = (
   }
 };
 
+/**
+ * The confirmation shown before an operator marks an offer accepted on the
+ * creator's behalf (it commits the brand to the fee). One copy for the partnership
+ * page and the creator profile's Partnerships tab.
+ */
+export const markAcceptedConfirmation = (partnership: {
+  flat_fee?: number | string | null;
+  currency?: string | null;
+}) => {
+  const fee = Number(partnership.flat_fee);
+  const commits =
+    partnership.flat_fee != null && Number.isFinite(fee) && fee > 0
+      ? `This commits ${formatMoney(partnership.flat_fee, partnership.currency)}.`
+      : 'This commits the product-only offer.';
+  return {
+    title: 'Mark accepted for creator?',
+    message: `Only do this if the creator agreed outside the offer link. ${commits}`,
+    confirmText: 'Mark accepted',
+    isDestructive: false,
+  };
+};
+
 /** The creator's handle for a given platform, stripped of a leading "@". */
 export const getPlatformHandle = (creator: Creator, platform: string): string => {
   const profileHandle = creator.profiles?.find(

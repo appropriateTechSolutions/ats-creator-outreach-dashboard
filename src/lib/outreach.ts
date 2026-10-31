@@ -1,4 +1,5 @@
-import { getErrorMessage } from './api';
+import { getErrorMessage, reviewLead, sendSingleOutreach } from './api';
+import { isUnreviewed } from './nextAction';
 import type { Campaign, Creator } from '../types';
 
 // ─── Outreach sends: what the user is told, and which campaign an email is for ───
@@ -6,8 +7,13 @@ import type { Campaign, Creator } from '../types';
 /** The campaign links a creator row carries (list rows have both, detail rows only `campaign_id`). */
 type CampaignLinks = Pick<Creator, 'campaign_id'> & Partial<Pick<Creator, 'campaign_ids'>>;
 
-/** Backend wording for "no mailbox could be found for this sender". */
-const MISSING_MAILBOX = /no mail credentials|smtp|email_user|email_pass/i;
+/**
+ * Backend wording for "no mailbox could be found for this sender"
+ * (utils/mailConfig.js: "No mail credentials configured. Details: …"). Matched on
+ * that phrase only, so a real SMTP failure (bad login, refused connection) keeps
+ * its own reason.
+ */
+const MISSING_MAILBOX = /no mail credentials/i;
 
 const MISSING_MAILBOX_MESSAGE =
   "Creator approved, but the email wasn't sent: no sending mailbox is configured for your account. Ask an admin to add your SMTP settings.";
@@ -27,6 +33,35 @@ export function sendFailureMessage(err: unknown): string {
   return code === 'OUTREACH_SEND_FAILED' && MISSING_MAILBOX.test(message)
     ? MISSING_MAILBOX_MESSAGE
     : message;
+}
+
+/**
+ * Send an outreach email from a single-creator surface (profile, campaign drawer).
+ * A creator nobody has approved yet goes through the review endpoint's approve —
+ * the same call the Creators list and Review Queue make — so "Approve & send"
+ * really approves; send-single alone would email them and leave them unreviewed.
+ * An approved creator (follow-ups, resends) is sent to directly. Rejections are
+ * passed through untouched for `sendFailureMessage`; on an approve, a failed send
+ * (502 OUTREACH_SEND_FAILED) still approved the creator, so callers reload either way.
+ */
+export async function sendCreatorOutreach(
+  creator: Pick<Creator, 'id' | 'review_status'>,
+  campaignId: string | undefined,
+  email: { subject?: string; body?: string; messageType?: string; to?: string },
+): Promise<void> {
+  if (isUnreviewed(creator.review_status)) {
+    await reviewLead(
+      creator.id,
+      'approve',
+      email.subject,
+      email.body,
+      email.messageType,
+      email.to,
+      campaignId,
+    );
+    return;
+  }
+  await sendSingleOutreach(creator.id, campaignId, email.subject, email.body, email.messageType);
 }
 
 /** Confirmation once an email has really gone out. Names the recipient only when known. */

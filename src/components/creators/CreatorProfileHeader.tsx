@@ -24,6 +24,7 @@ import { InfoTip } from '../ui/InfoTip';
 import { Button } from '../ui/Button';
 import {
   canReachOut,
+  getPartnershipNextAction,
   isWaitingForFollowUp,
   type NextAction,
   type NextActionKey,
@@ -114,6 +115,16 @@ export function CreatorProfileHeader({
     creator.review_status === 'shortlisted' || creator.review_status === 'pending_review';
   const partnershipOpen =
     !!partnership && !['completed', 'rejected', 'inactive'].includes(partnership.status);
+  // The card names the partnership's own step — what its page and the inbox show —
+  // even while the creator-level step above is still "Review creator".
+  const partnershipStep = partnership
+    ? getPartnershipNextAction({
+        creator,
+        partnership,
+        shipment: partnershipShipment,
+        contents: partnershipContents,
+      })
+    : null;
   // Nothing to show for `none`; a review step has no controls for a creator marked
   // not responsive (as before), so its block goes too rather than a bare caption.
   const showNextStep =
@@ -192,7 +203,7 @@ export function CreatorProfileHeader({
             )}
           </div>
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight truncate leading-tight">
+            <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit tracking-tight truncate leading-tight">
               {creator.full_name || 'No full name provided'}
             </h1>
             <div className="mt-1">
@@ -446,7 +457,7 @@ export function CreatorProfileHeader({
             </div>
             <div>
               <dt className={CAPTION}>Next step</dt>
-              <dd className="mt-1 text-sm text-gray-900">{nextAction.label}</dd>
+              <dd className="mt-1 text-sm text-gray-900">{partnershipStep?.label}</dd>
             </div>
             <div>
               <dt className={CAPTION}>Shipment</dt>

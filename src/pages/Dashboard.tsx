@@ -366,9 +366,10 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* 4. Total Sent */}
+                {/* 4. Total Sent — every email sent, so it opens the outreach log
+                    (the Creators "contacted" filter only holds creators still awaiting a reply). */}
                 <div
-                  {...clickable(() => handleQueueClick('contacted'))}
+                  {...clickable(() => navigate('/outreach'))}
                   className="cursor-pointer transition-all border p-3 rounded-xl flex flex-col justify-between bg-purple-50/20 border-purple-100/50 hover:bg-purple-50/50 hover:scale-[1.01]"
                 >
                   <p className="text-[9px] font-normal text-purple-500 uppercase tracking-widest mb-1 text-left">

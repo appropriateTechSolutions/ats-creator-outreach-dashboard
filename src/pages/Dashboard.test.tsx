@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { Campaign, Creator, DashboardStats } from '../types';
 import Dashboard from './Dashboard';
 
@@ -125,6 +125,24 @@ describe('Dashboard', () => {
     expect(kpi('Sent').getByText('36')).toBeInTheDocument();
     expect(within(queueTile('Total Sent')).getByText('36')).toBeInTheDocument();
     expect(within(queueTile('Total Sent')).queryByText('2')).not.toBeInTheDocument();
+  });
+
+  it('opens the outreach log from the Total Sent tile, where all sent emails are listed', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={['/']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/outreach" element={<p>Outreach log</p>} />
+          <Route path="/creators" element={<p>Creators list</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await userEvent.click(queueTile('Total Sent'));
+    expect(await screen.findByText('Outreach log')).toBeInTheDocument();
+    expect(screen.queryByText('Creators list')).not.toBeInTheDocument();
   });
 
   it('takes the creator total and the New stage from the backend', () => {

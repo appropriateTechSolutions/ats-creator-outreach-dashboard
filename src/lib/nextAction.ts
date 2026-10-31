@@ -41,6 +41,11 @@ export interface NextAction {
 // backend no longer writes (its default is `pending_review`).
 const NEEDS_REVIEW: ReadonlySet<string> = new Set(['hold', 'shortlisted', 'pending_review', 'new']);
 
+/** No approve/reject decision yet (a missing status counts: the payload may omit it). */
+export function isUnreviewed(reviewStatus: string | null | undefined): boolean {
+  return !reviewStatus || NEEDS_REVIEW.has(reviewStatus);
+}
+
 // Lifecycle stages before any outreach went out (creators.lifecycle_status enum).
 const NOT_CONTACTED: ReadonlySet<string> = new Set(['new', 'enriched', 'shortlisted']);
 
@@ -119,7 +124,8 @@ function wait(key: NextActionKey, label: string): NextAction {
   return { key, label, kind: 'waiting' };
 }
 
-function followUp(creator: Creator): NextAction {
+/** The follow-up step for a contacted creator ("Send follow-up #2", "Send final follow-up"). */
+export function followUpAction(creator: Pick<Creator, 'latest_outreach'>): NextAction {
   const number = (creator.latest_outreach?.follow_up_count ?? 0) + 1;
   const isFinal = number >= MAX_FOLLOW_UPS;
   return act('follow_up', isFinal ? 'Send final follow-up' : `Send follow-up #${number}`, {
@@ -199,13 +205,17 @@ export function getNextAction(input: {
   const lifecycle = creator.lifecycle_status ?? '';
   const status = partnership?.status;
 
-  if (!review || NEEDS_REVIEW.has(review)) return act('review', 'Review creator');
+  // The review gate only holds before first contact: send-single can email an
+  // unapproved creator (review stays pending_review, lifecycle becomes contacted),
+  // and that creator's next step is the reply / follow-up, not another review.
+  if (isUnreviewed(review) && (!lifecycle || NOT_CONTACTED.has(lifecycle)))
+    return act('review', 'Review creator');
 
   if (review === 'approved' && NOT_CONTACTED.has(lifecycle))
     return act('outreach', 'Send outreach');
 
   if (!partnership && lifecycle === 'contacted') {
-    return followUpDue ? followUp(creator) : wait('awaiting_reply', 'Awaiting reply');
+    return followUpDue ? followUpAction(creator) : wait('awaiting_reply', 'Awaiting reply');
   }
 
   if (

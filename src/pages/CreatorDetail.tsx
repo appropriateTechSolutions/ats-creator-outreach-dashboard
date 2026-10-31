@@ -5,6 +5,7 @@ import { hasRole, ROLE_GROUPS } from '../lib/constants';
 import {
   getNextAction,
   isFollowUpDue,
+  isUnreviewed,
   pickCurrentPartnership,
   pickPartnershipContents,
   pickPartnershipShipment,
@@ -51,9 +52,9 @@ import {
 } from '../hooks/queries';
 import { useInvalidate } from '../hooks/useInvalidate';
 import { queryKeys } from '../lib/queryKeys';
-import { emailSentMessage, sendFailureMessage } from '../lib/outreach';
+import { emailSentMessage, sendCreatorOutreach, sendFailureMessage } from '../lib/outreach';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Creator } from '../types';
+import type { Creator, Partnership } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ScoreBadge } from '../components/ui/ScoreBadge';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -217,6 +218,8 @@ export default function CreatorDetail() {
   const [activePartnership, setActivePartnership] = useState<any | null>(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [showShipmentModal, setShowShipmentModal] = useState(false);
+  // The Partnerships tab adds a shipment to its own row; the header uses the current one.
+  const [shipmentPartnership, setShipmentPartnership] = useState<Partnership | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDiscussionModal, setShowDiscussionModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -394,7 +397,7 @@ export default function CreatorDetail() {
       }
       await loadData(true);
     } catch (err) {
-      showToast('Action failed: ' + err, 'error');
+      showToast(getErrorMessage(err, 'Action failed.'), 'error');
     } finally {
       setPartnershipsLoading(false);
     }
@@ -927,15 +930,27 @@ export default function CreatorDetail() {
     customSubject?: string,
     customBody?: string,
     messageType?: string,
+    customTo?: string,
   ) => {
     if (!creator) return;
+    // An unreviewed creator ("Approve & send outreach") is approved through the
+    // review endpoint, which honours the edited recipient; send-single always
+    // writes to the creator's own address.
+    const approving = isUnreviewed(creator.review_status);
     setSendingEmail(true);
     try {
-      await sendSingleOutreach(creator.id, emailCampaignId, customSubject, customBody, messageType);
-      // This endpoint always writes to the creator's own address.
-      toast.success(emailSentMessage(creator.email));
+      await sendCreatorOutreach(creator, emailCampaignId, {
+        subject: customSubject,
+        body: customBody,
+        messageType,
+        to: customTo,
+      });
+      toast.success(emailSentMessage((approving && customTo) || creator.email));
       loadData();
     } catch (err) {
+      // A failed send after an approve still approved the creator: reload so the
+      // header shows the real status.
+      loadData(true);
       toast.error(sendFailureMessage(err));
       throw err;
     } finally {
@@ -2124,11 +2139,17 @@ export default function CreatorDetail() {
 
         {activeTab === 'partnerships' && (
           <CreatorPartnershipsSection
+            creator={creator}
             partnerships={partnerships}
+            shipments={creatorShipments}
+            contents={creatorContent}
             partnershipsLoading={partnershipsLoading}
-            creatorId={id || ''}
             handlePartnershipAction={handlePartnershipAction}
             openOfferModal={openOfferModal}
+            openShipmentModal={(p) => {
+              setShipmentPartnership(p);
+              setShowShipmentModal(true);
+            }}
             openEditModal={openEditModal}
           />
         )}
@@ -2306,9 +2327,12 @@ export default function CreatorDetail() {
       {/* Header next step "Add shipment" */}
       <ShipmentModal
         isOpen={showShipmentModal}
-        onClose={() => setShowShipmentModal(false)}
+        onClose={() => {
+          setShowShipmentModal(false);
+          setShipmentPartnership(null);
+        }}
         creator={creator}
-        partnership={currentPartnership}
+        partnership={shipmentPartnership ?? currentPartnership}
         onSuccess={() => loadData(true)}
       />
 

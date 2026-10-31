@@ -2,7 +2,7 @@ import { logger } from '../lib/logger';
 import { clickable } from '../lib/a11y';
 import { toast } from '../lib/toast';
 import { cleanMessageText } from '../lib/formatters';
-import { emailSentMessage, sendFailureMessage } from '../lib/outreach';
+import { emailSentMessage, sendCreatorOutreach, sendFailureMessage } from '../lib/outreach';
 import { hasRole, ROLE_GROUPS } from '../lib/constants';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -20,7 +20,6 @@ import { InfoTip } from './ui/InfoTip';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getCreatorById,
-  sendSingleOutreach,
   linkAffiliate,
   findSimilarCreators,
   previewOutreach,
@@ -64,6 +63,8 @@ import {
 import type { Creator } from '../types';
 import {
   canReachOut,
+  followUpAction,
+  isUnreviewed,
   isFollowUpDue as followUpDue,
   isWaitingForFollowUp as waitingForFollowUp,
 } from '../lib/nextAction';
@@ -263,22 +264,30 @@ export function CreatorPreviewDrawer({
     customSubject?: string,
     customBody?: string,
     messageType?: string,
+    customTo?: string,
   ) => {
+    // An unreviewed lead is approved through the review endpoint (which honours the
+    // edited recipient) for this campaign; send-single always writes to the
+    // creator's own address.
+    const approving = isUnreviewed(activeCreator.review_status);
     setSendingEmail(true);
     try {
-      await sendSingleOutreach(
-        activeCreator.id,
-        campaignId,
-        customSubject,
-        customBody,
+      await sendCreatorOutreach(activeCreator, campaignId, {
+        subject: customSubject,
+        body: customBody,
         messageType,
-      );
-      // This endpoint always writes to the creator's own address.
-      toast.success(emailSentMessage(activeCreator.email));
+        to: customTo,
+      });
+      toast.success(emailSentMessage((approving && customTo) || activeCreator.email));
       setOutreachModalOpen(false);
       refreshFullCreator(); // Refresh conversation logs instantly!
       if (onActionComplete) onActionComplete();
     } catch (err) {
+      // A failed send after an approve still approved the lead: reload either way.
+      if (approving) {
+        refreshFullCreator();
+        if (onActionComplete) onActionComplete();
+      }
       toast.error(sendFailureMessage(err));
       throw err;
     } finally {
@@ -531,7 +540,11 @@ export function CreatorPreviewDrawer({
                     <Send size={14} />
                   )}
                   {isFollowUpDue()
-                    ? `Follow-up #${((activeCreator.latest_outreach || (activeCreator as any).latestOutreach)?.follow_up_count || 0) + 1}`
+                    ? followUpAction({
+                        ...activeCreator,
+                        latest_outreach:
+                          activeCreator.latest_outreach || (activeCreator as any).latestOutreach,
+                      }).label
                     : isWaitingForFollowUp()
                       ? 'Sent · Awaiting Reply'
                       : activeCreator.latest_outreach || (activeCreator as any).latestOutreach

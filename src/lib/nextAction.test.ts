@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canReachOut,
+  followUpAction,
   getNextAction,
   getPartnershipNextAction,
   isFollowUpDue,
@@ -196,6 +197,35 @@ describe('getNextAction', () => {
         String(review_status),
       ).toBe('review');
     }
+  });
+
+  // Send-single emails an unapproved creator and leaves review_status pending_review
+  // with lifecycle contacted; the email is out, so the review gate no longer applies.
+  it('pending_review + contacted → awaiting_reply', () => {
+    const action = getNextAction({
+      creator: makeCreator({ review_status: 'pending_review', lifecycle_status: 'contacted' }),
+      followUpDue: false,
+    });
+    expect(action).toEqual({ key: 'awaiting_reply', label: 'Awaiting reply', kind: 'waiting' });
+  });
+
+  it('pending_review + contacted + followUpDue → follow_up', () => {
+    const action = getNextAction({
+      creator: makeCreator({
+        review_status: 'pending_review',
+        lifecycle_status: 'contacted',
+        latest_outreach: makeOutreach({ follow_up_count: 0 }),
+      }),
+      followUpDue: true,
+    });
+    expect(action).toMatchObject({ key: 'follow_up', label: 'Send follow-up #1', kind: 'action' });
+  });
+
+  it('still reviews an unreviewed creator with no lifecycle yet', () => {
+    const action = getNextAction({
+      creator: makeCreator({ review_status: 'pending_review', lifecycle_status: null }),
+    });
+    expect(action.key).toBe('review');
   });
 
   it('waits for a reply while a contacted creator has no follow-up due', () => {
@@ -670,6 +700,17 @@ describe('partnership shipment and deliverables', () => {
       'c-legacy',
     ]);
     expect(pickPartnershipContents(null, [mine])).toEqual([]);
+  });
+});
+
+describe('followUpAction', () => {
+  it('numbers the follow-up and names the last one final', () => {
+    const label = (follow_up_count: number) =>
+      followUpAction({ latest_outreach: makeOutreach({ follow_up_count }) }).label;
+    expect(label(0)).toBe('Send follow-up #1');
+    expect(label(1)).toBe('Send follow-up #2');
+    expect(label(2)).toBe('Send final follow-up');
+    expect(followUpAction({ latest_outreach: null }).label).toBe('Send follow-up #1');
   });
 });
 

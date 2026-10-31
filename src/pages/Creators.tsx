@@ -7,7 +7,7 @@ import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Search, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { reviewLead } from '../lib/api';
+import { getErrorMessage, reviewLead } from '../lib/api';
 import {
   useAllCreators,
   useCampaigns,
@@ -301,7 +301,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
         await activatePartnership(partnership.id);
         refresh();
       } catch (err) {
-        toast.error('Failed to activate: ' + err);
+        toast.error(`Failed to activate: ${getErrorMessage(err)}`);
       }
     } else if (actionType === 'mark_delivered') {
       // Find the shipment and update it
@@ -335,7 +335,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
         await completePartnership(partnership.id);
         refresh();
       } catch (err) {
-        toast.error('Failed to complete: ' + err);
+        toast.error(`Failed to complete: ${getErrorMessage(err)}`);
       }
     }
   };

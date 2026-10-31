@@ -25,7 +25,7 @@ import {
   pickPartnershipShipment,
   type NextAction,
 } from '../lib/nextAction';
-import { cleanMessageText, formatMoney } from '../lib/formatters';
+import { cleanMessageText, formatMoney, markAcceptedConfirmation } from '../lib/formatters';
 import type { Creator, CreatorContent, Shipment } from '../types';
 import { Edit3, ExternalLink, ArrowLeft } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -152,18 +152,7 @@ export default function PartnershipDetail() {
   // Accepting on the creator's behalf commits the brand to the fee, so it is confirmed.
   const handleMarkAccepted = async () => {
     if (!partnership) return;
-    const fee = Number(partnership.flat_fee);
-    const commits =
-      partnership.flat_fee != null && Number.isFinite(fee) && fee > 0
-        ? `This commits ${formatMoney(partnership.flat_fee, partnership.currency)}.`
-        : 'This commits the product-only offer.';
-    const isConfirmed = await confirm({
-      title: 'Mark accepted for creator?',
-      message: `Only do this if the creator agreed outside the offer link. ${commits}`,
-      confirmText: 'Mark accepted',
-      isDestructive: false,
-    });
-    if (isConfirmed) await handleAction('accept');
+    if (await confirm(markAcceptedConfirmation(partnership))) await handleAction('accept');
   };
 
   const runNextAction = (step: NextAction) => {

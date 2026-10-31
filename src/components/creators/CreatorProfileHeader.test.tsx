@@ -124,6 +124,25 @@ describe('CreatorProfileHeader', () => {
     expect(within(card).getByText('2 of 2 due · next Nov 12, 2026')).toBeInTheDocument();
   });
 
+  it("shows the partnership's own next step in the card for a creator still under review", () => {
+    renderHeader({
+      creator: { ...maya, review_status: 'hold', lifecycle_status: 'new' },
+      nextAction: { key: 'review', label: 'Review creator', kind: 'action' },
+      partnership: { ...fall, status: 'offer_sent' } as Partnership,
+    });
+
+    const card = screen.getByRole('region', { name: 'Current partnership' });
+    expect(within(card).getByText('Awaiting signature')).toBeInTheDocument();
+    expect(within(card).queryByText('Review creator')).not.toBeInTheDocument();
+  });
+
+  it("shows the creator's name as written", () => {
+    renderHeader();
+    expect(screen.getByRole('heading', { level: 1, name: 'Maya Ortiz' })).not.toHaveClass(
+      'uppercase',
+    );
+  });
+
   it('offers the follow-up and a DM while a contacted creator has no partnership', async () => {
     const props = renderHeader({
       creator: { ...maya, lifecycle_status: 'contacted' },
