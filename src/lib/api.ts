@@ -12,6 +12,7 @@ import type {
   Shipment,
   Activity,
   DashboardStats,
+  AttentionSummary,
   CreatorPartnership,
   CreatorContent,
   Meeting,
@@ -258,6 +259,14 @@ export const getCreatorById = (creatorId: string): Promise<Creator> =>
 // ─── Statistics ───────────────────────────────────────
 export const getDashboardStats = (campaignId?: string): Promise<DashboardStats> =>
   api.get('/stats/dashboard', { params: { campaignId } });
+
+/**
+ * What needs a person now: replies waiting on us, unsigned offers, missing
+ * addresses, overdue deliverables and failed sends. Client users get their own
+ * client's items only; `campaignId` narrows it to one campaign.
+ */
+export const getAttention = (campaignId?: string): Promise<AttentionSummary> =>
+  api.get('/stats/attention', { params: { campaign_id: campaignId } });
 
 // ─── AI Discovery ─────────────────────────────────────
 export const triggerDiscovery = (

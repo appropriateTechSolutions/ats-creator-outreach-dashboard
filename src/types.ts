@@ -625,11 +625,19 @@ export interface DashboardStats {
     qualified: KpiMetric;
     converted: KpiMetric;
   };
+  /** Cumulative: each stage counts the creators who reached at least that stage. */
   funnel: {
+    new: number;
     contacted: number;
     replied: number;
     qualified: number;
     converted: number;
+  };
+  /** `sent` is the same figure as `kpis.contacted`: creators with a sent outreach email. */
+  outreachQueue: {
+    pending: number;
+    sent: number;
+    failed: number;
   };
   recentActivity: Array<{
     type: string;
@@ -637,6 +645,36 @@ export interface DashboardStats {
     timestamp: string;
     status?: string;
   }>;
+}
+
+// ─── Needs attention (GET /stats/attention) ────────────────────────────
+
+export type AttentionType =
+  'reply_waiting' | 'offer_unsigned' | 'address_needed' | 'deliverable_overdue' | 'send_failed';
+
+export interface AttentionItem {
+  type: AttentionType;
+  /**
+   * The record the item opens: the conversation (reply_waiting), partnership
+   * (offer_unsigned), shipment (address_needed) or content (deliverable_overdue);
+   * for send_failed the creator, so it repeats across that creator's campaigns.
+   */
+  entity_id: string;
+  creator_id: string;
+  creator_name: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  /** ISO time the item started waiting. */
+  since: string;
+  /** Display-ready summary, e.g. "Offer sent 9 days ago, not signed". */
+  detail: string;
+}
+
+export interface AttentionSummary {
+  /** Totals per type; the list holds the 50 longest-waiting, so these can be larger. */
+  counts: Record<AttentionType, number>;
+  /** Longest-waiting first. */
+  items: AttentionItem[];
 }
 
 // ─── Generic paginated envelope (server-side pagination, Phase 3) ──────

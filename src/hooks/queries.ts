@@ -47,6 +47,16 @@ export function useDashboardStats(campaignId?: string) {
   });
 }
 
+export function useAttention(campaignId?: string) {
+  return useQuery({
+    queryKey: queryKeys.stats.attention(campaignId),
+    queryFn: () => api.getAttention(campaignId),
+    // The list says what to do next, so coming back to the dashboard after acting
+    // on an item must not show it again for the rest of the 60s stale window.
+    refetchOnMount: 'always',
+  });
+}
+
 export function usePartnerships(params?: Parameters<typeof api.getPartnerships>[0]) {
   return useQuery({
     queryKey: queryKeys.partnerships.list(params),
