@@ -228,34 +228,206 @@ describe('getNextAction', () => {
 
   it('keeps the existing order for the middle of the pipeline', () => {
     const creator = makeCreator({ lifecycle_status: 'engaged' });
-    const cases: Array<[Partial<Partnership>, Shipment | null, NextActionKey, string]> = [
-      [{ status: 'replied' }, null, 'draft_offer', 'Draft offer'],
-      [{ status: 'in_discussion' }, null, 'draft_offer', 'Draft offer'],
-      [{ status: 'qualified' }, null, 'draft_offer', 'Draft offer'],
-      [{ status: 'negotiating' }, null, 'draft_offer', 'Reply'],
-      [{ status: 'accepted', shipment_included: true }, null, 'add_shipment', 'Add shipment'],
-      [{ status: 'accepted', shipment_included: false }, null, 'activate', 'Activate partnership'],
-      [
-        { status: 'product_shipped' },
-        makeShipment({ status: 'shipped' }),
-        'activate',
-        'Activate partnership',
-      ],
-      [
-        { status: 'product_delivered' },
-        makeShipment({ status: 'delivered' }),
-        'activate',
-        'Activate partnership',
-      ],
+    const cases: Array<[Partial<Partnership>, NextActionKey, string]> = [
+      [{ status: 'replied' }, 'draft_offer', 'Draft offer'],
+      [{ status: 'in_discussion' }, 'draft_offer', 'Draft offer'],
+      [{ status: 'qualified' }, 'draft_offer', 'Draft offer'],
+      [{ status: 'negotiating' }, 'draft_offer', 'Reply'],
     ];
-    for (const [partnership, shipment, key, label] of cases) {
-      const action = getNextAction({
-        creator,
-        partnership: makePartnership(partnership),
-        shipment,
-      });
+    for (const [partnership, key, label] of cases) {
+      const action = getNextAction({ creator, partnership: makePartnership(partnership) });
       expect(action, String(partnership.status)).toMatchObject({ key, label, kind: 'action' });
     }
+  });
+
+  it('meeting_scheduled → waiting "Meeting scheduled"', () => {
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'qualified' }),
+      partnership: makePartnership({ status: 'meeting_scheduled' }),
+    });
+    expect(action).toEqual({
+      key: 'awaiting_meeting',
+      label: 'Meeting scheduled',
+      kind: 'waiting',
+    });
+  });
+
+  it('engaged → draft offer once the creator has replied, else awaiting reply', () => {
+    const partnership = makePartnership({ status: 'engaged' });
+    const replies: Array<[string, Partial<Creator>]> = [
+      ['outreach log', { latest_outreach: makeOutreach({ response_received: true }) }],
+      [
+        'inbound message',
+        {
+          conversation: {
+            id: 'conv-1',
+            latest_channel: 'email',
+            latest_inbound_message: 'Count me in!',
+            latest_inbound_at: '2026-10-25T00:00:00Z',
+            detected_intent: 'interested',
+            interested: true,
+            qualification_status: 'in_progress',
+          },
+        },
+      ],
+      ['lifecycle', { lifecycle_status: 'replied' }],
+    ];
+    for (const [signal, overrides] of replies) {
+      const creator = makeCreator({ lifecycle_status: 'engaged', ...overrides });
+      expect(getNextAction({ creator, partnership }), signal).toMatchObject({
+        key: 'draft_offer',
+        label: 'Draft offer',
+        kind: 'action',
+      });
+    }
+    expect(
+      getNextAction({ creator: makeCreator({ lifecycle_status: 'engaged' }), partnership }),
+    ).toEqual({ key: 'awaiting_reply', label: 'Awaiting reply', kind: 'waiting' });
+  });
+
+  it('accepted → the shipment step when product ships, else activate', () => {
+    const creator = makeCreator({ lifecycle_status: 'engaged' });
+    expect(
+      getNextAction({
+        creator,
+        partnership: makePartnership({ status: 'accepted', shipment_included: true }),
+      }),
+    ).toMatchObject({ key: 'add_shipment', label: 'Add shipment' });
+    expect(
+      getNextAction({
+        creator,
+        partnership: makePartnership({ status: 'accepted', shipment_included: false }),
+      }),
+    ).toMatchObject({ key: 'activate', label: 'Activate partnership' });
+  });
+
+  it('product_shipped → waiting "Awaiting delivery"', () => {
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'engaged' }),
+      partnership: makePartnership({ status: 'product_shipped', shipment_included: true }),
+      shipment: makeShipment({ status: 'shipped' }),
+      contents: [makeContent({ status: 'pending' })],
+    });
+    expect(action).toEqual({
+      key: 'awaiting_delivery',
+      label: 'Awaiting delivery',
+      kind: 'waiting',
+    });
+  });
+
+  it('product_delivered → add_draft_url with pending content, else waiting "Awaiting content"', () => {
+    const creator = makeCreator({ lifecycle_status: 'engaged' });
+    const partnership = makePartnership({ status: 'product_delivered', shipment_included: true });
+    const shipment = makeShipment({ status: 'delivered' });
+    const pending = makeContent({ status: 'pending' });
+    expect(getNextAction({ creator, partnership, shipment, contents: [pending] })).toMatchObject({
+      key: 'add_draft_url',
+      payload: pending,
+    });
+    expect(getNextAction({ creator, partnership, shipment, contents: [] })).toEqual({
+      key: 'awaiting_content',
+      label: 'Awaiting content',
+      kind: 'waiting',
+    });
+  });
+
+  it('content_pending → add_draft_url for the earliest-due pending or revision item', () => {
+    const later = makeContent({ id: 'later', status: 'pending', due_date: '2026-11-18' });
+    const sooner = makeContent({
+      id: 'sooner',
+      status: 'revision_requested',
+      due_date: '2026-11-12',
+    });
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'converted' }),
+      partnership: makePartnership({ status: 'content_pending' }),
+      contents: [later, makeContent({ id: 'done', status: 'published' }), sooner],
+    });
+    expect(action).toMatchObject({ key: 'add_draft_url', label: 'Add draft URL', payload: sooner });
+  });
+
+  it('content_submitted → review_content', () => {
+    const submitted = makeContent({ id: 'draft', status: 'submitted' });
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'converted' }),
+      partnership: makePartnership({ status: 'content_submitted' }),
+      contents: [makeContent({ status: 'revision_requested' }), submitted],
+    });
+    expect(action).toMatchObject({
+      key: 'review_content',
+      label: 'Review draft',
+      payload: submitted,
+    });
+  });
+
+  it('content_approved → add_live_url', () => {
+    const approved = makeContent({ id: 'ok', status: 'approved' });
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'converted' }),
+      partnership: makePartnership({ status: 'content_approved' }),
+      contents: [makeContent({ status: 'submitted' }), approved],
+    });
+    expect(action).toMatchObject({ key: 'add_live_url', label: 'Add live URL', payload: approved });
+  });
+
+  it('live → complete when nothing is pending, otherwise the content action', () => {
+    const creator = makeCreator({ lifecycle_status: 'converted' });
+    const partnership = makePartnership({ status: 'live' });
+    expect(
+      getNextAction({
+        creator,
+        partnership,
+        contents: [makeContent({ status: 'published' }), makeContent({ status: 'rejected' })],
+      }),
+    ).toMatchObject({ key: 'complete', label: 'Complete partnership', kind: 'action' });
+    const approved = makeContent({ status: 'approved' });
+    expect(getNextAction({ creator, partnership, contents: [approved] })).toMatchObject({
+      key: 'add_live_url',
+      payload: approved,
+    });
+    const submitted = makeContent({ status: 'submitted' });
+    expect(getNextAction({ creator, partnership, contents: [approved, submitted] })).toMatchObject({
+      key: 'review_content',
+      payload: submitted,
+    });
+  });
+
+  it('activate is offered only for accepted', () => {
+    const statuses: Array<Partnership['status']> = [
+      'engaged',
+      'replied',
+      'in_discussion',
+      'meeting_scheduled',
+      'qualified',
+      'offer_sent',
+      'negotiating',
+      'accepted',
+      'activated',
+      'product_shipped',
+      'product_delivered',
+      'content_pending',
+      'content_submitted',
+      'content_approved',
+      'live',
+      'completed',
+      'rejected',
+      'inactive',
+    ];
+    const creator = makeCreator({
+      lifecycle_status: 'engaged',
+      latest_outreach: makeOutreach({ response_received: true }),
+    });
+    const offeringActivate = statuses.filter((status) =>
+      [true, false].some(
+        (shipment_included) =>
+          getNextAction({
+            creator,
+            partnership: makePartnership({ status, shipment_included }),
+            shipment: shipment_included ? makeShipment({ status: 'delivered' }) : null,
+          }).key === 'activate',
+      ),
+    );
+    expect(offeringActivate).toEqual(['accepted']);
   });
 
   it('works through deliverables on an activated partnership, then completes it', () => {
@@ -380,38 +552,76 @@ describe('canReachOut', () => {
 });
 
 describe('pickCurrentPartnership', () => {
-  it('picks the most advanced active partnership over a completed one', () => {
+  // An approved creator who is past first contact and has not replied anywhere.
+  const context = { creator: makeCreator({ lifecycle_status: 'engaged' }) };
+
+  it('prefers open partnerships with an action, most advanced first', () => {
     const completed = makePartnership({
       id: 'summer',
       status: 'completed',
       created_at: '2026-09-23T00:00:00Z',
+    });
+    const waiting = makePartnership({
+      id: 'zero',
+      status: 'offer_sent',
+      created_at: '2026-10-20T00:00:00Z',
+    });
+    const qualified = makePartnership({
+      id: 'holiday',
+      status: 'qualified',
+      created_at: '2026-10-22T00:00:00Z',
     });
     const accepted = makePartnership({
       id: 'fall',
       status: 'accepted',
       created_at: '2026-10-13T00:00:00Z',
     });
-    const engaged = makePartnership({
-      id: 'zero',
-      status: 'engaged',
-      created_at: '2026-10-20T00:00:00Z',
-    });
-    expect(pickCurrentPartnership([completed, engaged, accepted])?.id).toBe('fall');
+    expect(pickCurrentPartnership([completed, waiting, qualified, accepted], context)?.id).toBe(
+      'fall',
+    );
   });
 
-  it('falls back to the newest partnership when none is active', () => {
-    const older = makePartnership({
+  it('pick prefers an open partnership with pending work over a live one', () => {
+    // Anika Shah: a newer live deal with everything published, and an activated deal
+    // whose deliverables are still due.
+    const live = makePartnership({
+      id: 'live',
+      status: 'live',
+      created_at: '2026-10-05T00:00:00Z',
+    });
+    const activated = makePartnership({
+      id: 'activated',
+      status: 'activated',
+      created_at: '2026-10-02T00:00:00Z',
+    });
+    const contents = [
+      makeContent({ partnership_id: 'live', status: 'published' }),
+      makeContent({ partnership_id: 'activated', status: 'pending' }),
+    ];
+    expect(pickCurrentPartnership([live, activated], { ...context, contents })?.id).toBe(
+      'activated',
+    );
+  });
+
+  it('falls back to any open partnership, then the newest closed one', () => {
+    const completed = makePartnership({
       id: 'old',
       status: 'completed',
       created_at: '2026-09-01T00:00:00Z',
     });
-    const newer = makePartnership({
+    const rejected = makePartnership({
       id: 'new',
       status: 'rejected',
       created_at: '2026-10-01T00:00:00Z',
     });
-    expect(pickCurrentPartnership([older, newer])?.id).toBe('new');
-    expect(pickCurrentPartnership([])).toBeNull();
+    const offerSent = makePartnership({
+      id: 'open',
+      status: 'offer_sent',
+      created_at: '2026-08-01T00:00:00Z',
+    });
+    expect(pickCurrentPartnership([completed, offerSent, rejected], context)?.id).toBe('open');
+    expect(pickCurrentPartnership([completed, rejected], context)?.id).toBe('new');
+    expect(pickCurrentPartnership([], context)).toBeNull();
   });
 });
 

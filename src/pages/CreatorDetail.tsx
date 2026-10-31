@@ -186,7 +186,18 @@ export default function CreatorDetail() {
 
   // The partnership the profile leads with, and that partnership's own shipment and
   // deliverables — the same inputs the Creators list feeds getNextAction.
-  const currentPartnership = useMemo(() => pickCurrentPartnership(partnerships), [partnerships]);
+  const currentPartnership = useMemo(
+    () =>
+      creator
+        ? pickCurrentPartnership(partnerships, {
+            creator,
+            shipments: creatorShipments,
+            contents: creatorContent,
+            followUpDue: isFollowUpDue(creator.latest_outreach),
+          })
+        : null,
+    [creator, partnerships, creatorShipments, creatorContent],
+  );
   const currentShipment = useMemo(
     () => pickPartnershipShipment(currentPartnership, creatorShipments),
     [currentPartnership, creatorShipments],

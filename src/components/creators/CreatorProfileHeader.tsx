@@ -114,6 +114,11 @@ export function CreatorProfileHeader({
     creator.review_status === 'shortlisted' || creator.review_status === 'pending_review';
   const partnershipOpen =
     !!partnership && !['completed', 'rejected', 'inactive'].includes(partnership.status);
+  // Nothing to show for `none`; a review step has no controls for a creator marked
+  // not responsive (as before), so its block goes too rather than a bare caption.
+  const showNextStep =
+    nextAction.key !== 'none' &&
+    !(nextAction.key === 'review' && creator.lifecycle_status === 'not_respond');
 
   return (
     <>
@@ -289,48 +294,44 @@ export function CreatorProfileHeader({
           </div>
           {canManage && (
             <div className="no-print flex flex-col gap-2 w-full lg:w-64 mt-1">
-              {nextAction.key !== 'none' && <p className={CAPTION}>Next step</p>}
-              {nextAction.key === 'none' ? null : nextAction.key === 'review' ? (
+              {showNextStep && <p className={CAPTION}>Next step</p>}
+              {!showNextStep ? null : nextAction.key === 'review' ? (
                 <div className="flex flex-col gap-2">
                   <p className="text-sm text-gray-700">{nextAction.label}</p>
-                  {creator.lifecycle_status !== 'not_respond' && (
-                    <>
-                      <Button
-                        className="w-full"
-                        icon={<Check size={14} aria-hidden="true" />}
-                        onClick={() => handleReview('approve')}
-                      >
-                        Approve &amp; send outreach
-                      </Button>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className={SECONDARY}
-                          icon={
-                            <Star
-                              size={14}
-                              aria-hidden="true"
-                              fill={inShortlist ? 'currentColor' : 'none'}
-                            />
-                          }
-                          title={inShortlist ? 'Remove from shortlist' : 'Move to the review queue'}
-                          onClick={() => handleReview(inShortlist ? 'revoke' : 'shortlist')}
-                        >
-                          {inShortlist ? 'Shortlisted' : 'Shortlist'}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className={SECONDARY}
-                          icon={<X size={14} aria-hidden="true" />}
-                          onClick={() => handleReview('reject')}
-                        >
-                          Reject
-                        </Button>
-                      </div>
-                    </>
-                  )}
+                  <Button
+                    className="w-full"
+                    icon={<Check size={14} aria-hidden="true" />}
+                    onClick={() => handleReview('approve')}
+                  >
+                    Approve &amp; send outreach
+                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={SECONDARY}
+                      icon={
+                        <Star
+                          size={14}
+                          aria-hidden="true"
+                          fill={inShortlist ? 'currentColor' : 'none'}
+                        />
+                      }
+                      title={inShortlist ? 'Remove from shortlist' : 'Move to the review queue'}
+                      onClick={() => handleReview(inShortlist ? 'revoke' : 'shortlist')}
+                    >
+                      {inShortlist ? 'Shortlisted' : 'Shortlist'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={SECONDARY}
+                      icon={<X size={14} aria-hidden="true" />}
+                      onClick={() => handleReview('reject')}
+                    >
+                      Reject
+                    </Button>
+                  </div>
                 </div>
               ) : nextAction.kind === 'action' ? (
                 <Button

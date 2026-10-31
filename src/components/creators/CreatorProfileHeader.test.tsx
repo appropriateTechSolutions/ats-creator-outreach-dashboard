@@ -156,6 +156,17 @@ describe('CreatorProfileHeader', () => {
     expect(props.handleReview).toHaveBeenCalledWith('shortlist');
   });
 
+  it('hides the next step for a review step on a not-responsive creator', () => {
+    renderHeader({
+      creator: { ...maya, review_status: 'hold', lifecycle_status: 'not_respond' },
+      nextAction: { key: 'review', label: 'Review creator', kind: 'action' },
+    });
+
+    expect(screen.queryByText('Next step')).not.toBeInTheDocument();
+    expect(screen.queryByText('Review creator')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
+  });
+
   it('shows no next-step block when there is nothing to do', () => {
     renderHeader({
       creator: { ...maya, lifecycle_status: 'not_respond' },

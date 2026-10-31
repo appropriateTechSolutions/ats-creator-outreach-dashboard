@@ -431,19 +431,29 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
   // the creator's current partnership plus that partnership's own shipment and
   // deliverables — the same inputs the creator profile feeds getNextAction.
   const workflowByCreator = useMemo(() => {
+    const creatorsById = new Map((creatorsQ.data ?? []).map((c) => [c.id, c]));
     const shipmentsByCreator = groupBy(shipments, (s) => s.creator_id);
     const contentsByCreator = groupBy(contents, (cnt) => String(cnt.creator_id));
     const m = new Map<string, RowWorkflow>();
     for (const [creatorId, list] of groupBy(partnerships, (p) => p.creator_id || p.Creator?.id)) {
-      const partnership = pickCurrentPartnership(list);
+      const creator = creatorsById.get(creatorId);
+      if (!creator) continue; // no row renders for a creator outside the list
+      const creatorShipments = shipmentsByCreator.get(creatorId);
+      const creatorContents = contentsByCreator.get(creatorId);
+      const partnership = pickCurrentPartnership(list, {
+        creator,
+        shipments: creatorShipments,
+        contents: creatorContents,
+        followUpDue: isFollowUpDue(creator.latest_outreach),
+      });
       m.set(creatorId, {
         partnership,
-        shipment: pickPartnershipShipment(partnership, shipmentsByCreator.get(creatorId)),
-        contents: pickPartnershipContents(partnership, contentsByCreator.get(creatorId)),
+        shipment: pickPartnershipShipment(partnership, creatorShipments),
+        contents: pickPartnershipContents(partnership, creatorContents),
       });
     }
     return m;
-  }, [partnerships, shipments, contents]);
+  }, [creatorsQ.data, partnerships, shipments, contents]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
