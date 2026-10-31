@@ -2,6 +2,7 @@ import { logger } from '../lib/logger';
 import { clickable } from '../lib/a11y';
 import { toast } from '../lib/toast';
 import { cleanMessageText } from '../lib/formatters';
+import { emailSentMessage, sendFailureMessage } from '../lib/outreach';
 import { hasRole, ROLE_GROUPS } from '../lib/constants';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -272,12 +273,13 @@ export function CreatorPreviewDrawer({
         customBody,
         messageType,
       );
-      toast.success('Outreach email sent successfully!');
+      // This endpoint always writes to the creator's own address.
+      toast.success(emailSentMessage(activeCreator.email));
       setOutreachModalOpen(false);
       refreshFullCreator(); // Refresh conversation logs instantly!
       if (onActionComplete) onActionComplete();
     } catch (err) {
-      toast.error('Failed to send outreach: ' + err);
+      toast.error(sendFailureMessage(err));
       throw err;
     } finally {
       setSendingEmail(false);

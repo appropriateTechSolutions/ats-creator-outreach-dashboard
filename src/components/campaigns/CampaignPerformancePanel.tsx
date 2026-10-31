@@ -1,13 +1,29 @@
-import { formatFollowers } from '../../lib/formatters';
+import { formatFollowers, formatMoney } from '../../lib/formatters';
 import React from 'react';
 import { format } from 'date-fns';
 import { Sparkles, Loader2, Mail, Check, Star, Activity } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Link } from 'react-router-dom';
+import type { CampaignPerformance } from '../../types';
+
+// Unknown figures read as a dash, never as a made-up zero.
+const UNKNOWN = '—';
+
+/** One KPI tile; `hint` explains why a value is unknown. */
+function KpiCard({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
+  return (
+    <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+      <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">{label}</div>
+      <div className="text-xl font-normal text-gray-900 font-outfit mt-1">{value}</div>
+      {hint && <div className="mt-1 text-[11px] text-gray-500">{hint}</div>}
+    </div>
+  );
+}
 
 interface CampaignPerformancePanelProps {
   activeTab: string;
-  perfData: any;
+  /** Null until the aggregate has loaded. */
+  perfData: CampaignPerformance | null;
   funnelData: any;
   activities: any[];
   recalculating: boolean;
@@ -23,6 +39,14 @@ export function CampaignPerformancePanel({
   handleRecalculate,
 }: CampaignPerformancePanelProps) {
   if (activeTab === 'analytics') {
+    // Sales figures only exist where affiliate tracking does. Without it revenue,
+    // conversions and ROI are unknown — not zero — and the backend sends null.
+    const loaded = perfData != null;
+    const hasSales = perfData?.has_sales_data === true;
+    const noSalesHint = loaded && !hasSales ? 'No sales data yet' : undefined;
+    const roi = hasSales ? (perfData?.roi ?? null) : null;
+    const conversions = hasSales ? (perfData?.total_conversions ?? null) : null;
+
     return (
       <div className="p-6 space-y-8 bg-white rounded-b-[12px]">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-gray-100">
@@ -51,7 +75,7 @@ export function CampaignPerformancePanel({
         </div>
 
         {/* KPI Cards Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
             <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">
               Total Content
@@ -92,32 +116,22 @@ export function CampaignPerformancePanel({
               {perfData?.avg_engagement_rate || '0.00'}%
             </div>
           </div>
-          <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-            <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">
-              Total Spend
-            </div>
-            <div className="text-xl font-normal text-gray-900 font-outfit mt-1">
-              ${perfData?.total_cost || 0}
-            </div>
-          </div>
-          <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-            <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">
-              Total Revenue
-            </div>
-            <div className="text-xl font-normal text-gray-900 font-outfit mt-1">
-              ${perfData?.total_revenue || 0}
-            </div>
-          </div>
-          <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-            <div className="text-[10px] font-normal text-gray-500 uppercase tracking-widest">
-              ROI
-            </div>
-            <div className="text-xl font-normal text-gray-900 font-outfit mt-1">
-              {perfData?.roi !== null && perfData?.roi !== undefined
-                ? `${Number(perfData.roi).toFixed(2)}x`
-                : 'N/A'}
-            </div>
-          </div>
+          <KpiCard label="Creator fees" value={formatMoney(perfData?.total_cost)} />
+          <KpiCard
+            label="Total Revenue"
+            value={hasSales ? formatMoney(perfData?.total_revenue) : UNKNOWN}
+            hint={noSalesHint}
+          />
+          <KpiCard
+            label="Conversions"
+            value={conversions !== null ? conversions.toLocaleString('en-US') : UNKNOWN}
+            hint={noSalesHint}
+          />
+          <KpiCard
+            label="ROI"
+            value={roi !== null ? `${Number(roi).toFixed(2)}x` : UNKNOWN}
+            hint={noSalesHint ?? (loaded && roi === null ? 'No creator fees yet' : undefined)}
+          />
         </div>
 
         {/* Conversion Funnel Section */}

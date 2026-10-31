@@ -55,6 +55,38 @@ export interface OutreachLog {
   Creator?: Creator;
 }
 
+/** GET /outreach/preview — the composed email plus who it would come from. */
+export interface OutreachPreview {
+  subject: string;
+  body: string;
+  to: string | null;
+  /**
+   * The mailbox the email would be sent from: an address, `'apps-script'` for the
+   * shared Google relay, or null when no mailbox is configured (a send would fail).
+   */
+  from_email: string | null;
+}
+
+/** GET /analytics/campaigns/:id/content-performance — one campaign's aggregate. */
+export interface CampaignPerformance {
+  total_content: number;
+  published_content: number;
+  total_views: number;
+  total_likes: number;
+  total_comments: number;
+  total_engagement: number;
+  /** Percentage as a fixed-2 string, e.g. "5.35". */
+  avg_engagement_rate: string;
+  /** Agreed creator fees: flat fees of partnerships that reached "accepted". */
+  total_cost: number;
+  /** Null (not zero) when the campaign has no affiliate tracking at all. */
+  total_revenue: number | null;
+  total_conversions: number | null;
+  has_sales_data: boolean;
+  /** Null when there is no sales data or no creator fees to divide by. */
+  roi: number | null;
+}
+
 export interface Creator {
   id: string;
   handle: string;

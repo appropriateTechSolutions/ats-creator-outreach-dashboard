@@ -1,9 +1,14 @@
 import { logger } from '../../lib/logger';
-import { toast } from '../../lib/toast';
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
 import { previewOutreach } from '../../lib/api';
 import { LoadingState } from './LoadingState';
+
+// `from_email` is the literal 'apps-script' when mail goes out through the shared
+// Google relay rather than a personal mailbox; never show the sentinel itself.
+const SHARED_RELAY = 'apps-script';
+const SHARED_RELAY_LABEL = 'Shared Google mailbox (Apps Script)';
+const NO_MAILBOX_WARNING = "No sending mailbox is configured, so this email can't be sent.";
 
 interface OutreachPreviewModalProps {
   creatorId: string;
@@ -36,17 +41,24 @@ export function OutreachPreviewModal({
   const [subject, setSubject] = useState(initialSubject || '');
   const [body, setBody] = useState(initialBody || '');
   const [toEmail, setToEmail] = useState<string | null>(null);
+  // undefined = not known (still loading, preview failed, or not fetched); null = no mailbox.
+  const [fromEmail, setFromEmail] = useState<string | null | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (isOpen && creatorId && !skipFetch) {
       setLoading(true);
+      // Start clean: pages keep one modal mounted, so a failed load must not leave
+      // the previous creator's recipient or sender on screen.
+      setToEmail(null);
+      setFromEmail(undefined);
       previewOutreach(creatorId, campaignId, messageType)
         .then((data) => {
           setSubject(data.subject || '');
           setBody(data.body || '');
           setToEmail(data.to || null);
+          setFromEmail(data.from_email);
         })
         .catch((err) => {
           logger.error('Failed to load preview:', err);
@@ -61,10 +73,18 @@ export function OutreachPreviewModal({
     if (isOpen && skipFetch) {
       setSubject(initialSubject || '');
       setBody(initialBody || '');
+      // No preview in this mode, so the recipient defaults to the creator's own
+      // email on the backend and the sender is unknown; don't carry over the last
+      // creator's.
+      setToEmail(null);
+      setFromEmail(undefined);
     }
   }, [isOpen, skipFetch, initialSubject, initialBody]);
 
   if (!isOpen) return null;
+
+  // A send with no mailbox can only fail, so don't offer it.
+  const noMailbox = fromEmail === null;
 
   const handleSend = async () => {
     setSending(true);
@@ -72,8 +92,9 @@ export function OutreachPreviewModal({
       await onSend(subject, body, messageType, toEmail || undefined);
       onClose();
     } catch (error) {
+      // Stay open so the draft survives a retry. The caller knows what failed
+      // (approve vs. plain send) and has already told the user why.
       logger.error(error);
-      toast.error('Failed to send outreach');
     } finally {
       setSending(false);
     }
@@ -101,6 +122,21 @@ export function OutreachPreviewModal({
             </div>
           ) : (
             <>
+              {noMailbox && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+                >
+                  <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" aria-hidden="true" />
+                  <span>{NO_MAILBOX_WARNING}</span>
+                </div>
+              )}
+              {fromEmail && (
+                <p className="text-xs text-gray-600 font-mono">
+                  From: {fromEmail === SHARED_RELAY ? SHARED_RELAY_LABEL : fromEmail}
+                </p>
+              )}
+
               <div>
                 <label
                   htmlFor="outreachpreviewmodal-1"
@@ -165,7 +201,7 @@ export function OutreachPreviewModal({
           </button>
           <button
             onClick={handleSend}
-            disabled={loading || sending}
+            disabled={loading || sending || noMailbox}
             className="px-6 py-2 text-sm font-normal uppercase tracking-widest text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {sending ? (

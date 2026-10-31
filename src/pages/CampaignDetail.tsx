@@ -19,8 +19,9 @@ import {
 import { useCampaign, useCampaignLeads, useBrands } from '../hooks/queries';
 import { useInvalidate } from '../hooks/useInvalidate';
 import { queryKeys } from '../lib/queryKeys';
+import { emailSentMessage, sendFailureMessage } from '../lib/outreach';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Campaign, Creator } from '../types';
+import type { Campaign, CampaignPerformance, Creator } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
@@ -299,7 +300,7 @@ export default function CampaignDetail() {
   // Sprint 4 states
   const [activeTab, setActiveTab] = useState<'leads' | 'analytics' | 'activity'>('leads');
   const [funnelData, setFunnelData] = useState<any>(null);
-  const [perfData, setPerfData] = useState<any>(null);
+  const [perfData, setPerfData] = useState<CampaignPerformance | null>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [recalculating, setRecalculating] = useState(false);
   const [syncingLeads, setSyncingLeads] = useState(false);
@@ -499,13 +500,30 @@ export default function CampaignDetail() {
     customSubject?: string,
     customBody?: string,
     messageType?: string,
+    customTo?: string,
   ) => {
     if (!outreachModalCreatorId) return;
     try {
-      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody, messageType);
+      // This page is the campaign, so the email and its log belong to it — even for
+      // a creator who is also in other campaigns.
+      await reviewLead(
+        outreachModalCreatorId,
+        'approve',
+        customSubject,
+        customBody,
+        messageType,
+        customTo,
+        id,
+      );
+      toast.success(
+        emailSentMessage(customTo || leads.find((l) => l.id === outreachModalCreatorId)?.email),
+      );
       fetchData();
     } catch (err) {
-      toast.error('Failed to review lead: ' + err);
+      // The backend approves before it sends, so a failed send still changed the
+      // creator: reload so the row shows the real status (approved, not contacted).
+      fetchData(true);
+      toast.error(sendFailureMessage(err));
       throw err;
     }
   };

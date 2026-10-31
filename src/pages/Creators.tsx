@@ -18,6 +18,7 @@ import {
 import { useInvalidate } from '../hooks/useInvalidate';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../lib/queryKeys';
+import { emailSentMessage, outreachCampaignId, sendFailureMessage } from '../lib/outreach';
 import type { Creator, CreatorContent, Partnership, Shipment } from '../types';
 import {
   isFollowUpDue,
@@ -119,6 +120,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
     );
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [outreachModalType, setOutreachModalType] = useState<string | undefined>(undefined);
+  // Set when the step that opened the email knows its campaign (the partnership's).
+  const [outreachModalCampaignId, setOutreachModalCampaignId] = useState<string | undefined>(
+    undefined,
+  );
 
   // Workflow Modal States
   const [activeCreator, setActiveCreator] = useState<any>(null);
@@ -199,6 +204,13 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
     setCurrentPage(1);
   }, [search, selectedStatuses, followersFilter, engagementFilter, campaignFilter, sortBy]);
 
+  // One campaign for both the email preview and the approve call, so what the user
+  // reviews is what gets logged: the step's own partnership, else the campaign this
+  // list is filtered to, else the creator's only campaign (undefined if several).
+  const outreachCreator = creators.find((c) => c.id === outreachModalCreatorId);
+  const outreachCampaign =
+    outreachModalCampaignId ?? outreachCampaignId(outreachCreator, campaignFilter);
+
   const handleReview = async (
     id: string,
     action: 'approve' | 'reject' | 'shortlist' | 'revoke',
@@ -240,11 +252,15 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
         customBody,
         messageType,
         customTo,
+        outreachCampaign,
       );
-      refresh();
+      toast.success(emailSentMessage(customTo || outreachCreator?.email));
     } catch (err) {
-      toast.error('Failed to approve lead and send outreach.');
+      toast.error(sendFailureMessage(err));
       throw err;
+    } finally {
+      // A failed send still approved the creator, so reload either way.
+      refresh();
     }
   };
 
@@ -263,9 +279,11 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
       navigate(`/creators/${creator.id}`, { state: { fromMyCreators: onlyEngaged } });
     } else if (actionType === 'outreach') {
       setOutreachModalType(undefined);
+      setOutreachModalCampaignId(partnership?.campaign_id);
       setOutreachModalCreatorId(creator.id);
     } else if (actionType === 'follow_up') {
       setOutreachModalType(payload?.messageType ?? 'followup_1');
+      setOutreachModalCampaignId(partnership?.campaign_id);
       setOutreachModalCreatorId(creator.id);
     } else if (actionType === 'draft_offer') {
       setActivePartnership(
@@ -867,11 +885,12 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
 
       <OutreachPreviewModal
         creatorId={outreachModalCreatorId || ''}
-        campaignId={creators.find((c) => c.id === outreachModalCreatorId)?.campaign_id || undefined}
+        campaignId={outreachCampaign}
         messageType={outreachModalType}
         isOpen={!!outreachModalCreatorId}
         onClose={() => {
           setOutreachModalCreatorId(null);
+          setOutreachModalCampaignId(undefined);
           setOutreachInitialSubject(undefined);
           setOutreachInitialBody(undefined);
         }}
@@ -899,6 +918,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
               onClick={() => {
                 setShowFeedbackModal(false);
                 setOutreachModalType('qualification');
+                setOutreachModalCampaignId(activePartnership?.campaign_id);
                 setOutreachModalCreatorId(activeCreator.id);
                 const publicUrl = `${window.location.origin}/public/offer/${activePartnership.id}`;
                 setOutreachInitialSubject(`Re: Partnership Offer - @${activeCreator.handle}`);

@@ -13,9 +13,15 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { getFollowers, getEngagement } from '../lib/creatorFilters';
 import { CreatorAvatar, CreatorSocialLinks } from '../components/creators/CreatorIdentity';
 import { reviewLead } from '../lib/api';
-import { useAllCreators } from '../hooks/queries';
+import { useAllCreators, useCampaigns } from '../hooks/queries';
 import { useInvalidate } from '../hooks/useInvalidate';
 import { queryKeys } from '../lib/queryKeys';
+import {
+  campaignNamesFor,
+  emailSentMessage,
+  outreachCampaignId,
+  sendFailureMessage,
+} from '../lib/outreach';
 import { Pagination } from '../components/ui/Pagination';
 import type { Creator } from '../types';
 
@@ -50,6 +56,7 @@ const getPrimaryProfileStats = (c: Creator) => {
 export default function ReviewQueue() {
   const { showToast } = useToast();
   const { data: allCreators = [], isLoading: loading } = useAllCreators();
+  const { data: campaigns = [] } = useCampaigns();
   const invalidate = useInvalidate();
 
   // Pending review: shortlisted / in-review, not yet contacted or unresponsive,
@@ -67,6 +74,12 @@ export default function ReviewQueue() {
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Look the open modal's creator up in the full list, not the queue: a failed send
+  // still approves the creator, which drops the row out of the queue while the
+  // modal stays open for a retry — its campaign must not change under it.
+  const modalCreator = allCreators.find((c) => c.id === outreachModalCreatorId);
+  const modalCampaignId = outreachCampaignId(modalCreator);
 
   // Clamp the page if the queue shrank below the current offset, then slice the
   // on-screen table. The print export below intentionally renders the full queue.
@@ -89,16 +102,32 @@ export default function ReviewQueue() {
     }
   };
 
-  const handleConfirmApprove = async (customSubject?: string, customBody?: string) => {
+  const handleConfirmApprove = async (
+    customSubject?: string,
+    customBody?: string,
+    messageType?: string,
+    customTo?: string,
+  ) => {
     if (!outreachModalCreatorId) return;
     setActionLoading(outreachModalCreatorId);
     try {
-      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody);
-      invalidate(queryKeys.creators.all);
+      await reviewLead(
+        outreachModalCreatorId,
+        'approve',
+        customSubject,
+        customBody,
+        messageType,
+        customTo,
+        modalCampaignId,
+      );
+      showToast(emailSentMessage(customTo || modalCreator?.email), 'success');
     } catch (err) {
-      showToast('Failed to approve lead.', 'error');
+      showToast(sendFailureMessage(err), 'error');
       throw err;
     } finally {
+      // Success marks the creator contacted; a failed send still approved them.
+      // Either way the queue must reload to show the real status.
+      invalidate(queryKeys.creators.all);
       setActionLoading(null);
     }
   };
@@ -242,6 +271,7 @@ export default function ReviewQueue() {
                 {pagedQueue.map((c) => {
                   const followers = getFollowers(c);
                   const engagement = getEngagement(c);
+                  const campaignNames = campaignNamesFor(c, campaigns).join(', ');
                   return (
                     <Tr key={c.id}>
                       <Td>
@@ -255,6 +285,14 @@ export default function ReviewQueue() {
                               {c.full_name || `@${c.handle}`}
                             </RouterLink>
                             <CreatorSocialLinks creator={c} showHandles />
+                            {campaignNames && (
+                              <p
+                                className="mt-1.5 max-w-[220px] text-[11px] leading-snug text-gray-500 line-clamp-2 whitespace-normal break-words"
+                                title={campaignNames}
+                              >
+                                {campaignNames}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </Td>
@@ -473,7 +511,7 @@ export default function ReviewQueue() {
 
       <OutreachPreviewModal
         creatorId={outreachModalCreatorId || ''}
-        campaignId={queue.find((c) => c.id === outreachModalCreatorId)?.campaign_id || undefined}
+        campaignId={modalCampaignId}
         isOpen={!!outreachModalCreatorId}
         onClose={() => setOutreachModalCreatorId(null)}
         onSend={handleConfirmApprove}

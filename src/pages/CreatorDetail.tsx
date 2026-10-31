@@ -51,6 +51,7 @@ import {
 } from '../hooks/queries';
 import { useInvalidate } from '../hooks/useInvalidate';
 import { queryKeys } from '../lib/queryKeys';
+import { emailSentMessage, sendFailureMessage } from '../lib/outreach';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Creator } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
@@ -134,6 +135,12 @@ export default function CreatorDetail() {
   const { confirm } = useConfirm();
   const { data: creatorData, isLoading: loading } = useCreator(id);
   const creator = creatorData ?? null;
+  // An email sent from here belongs to the campaign this profile was opened from,
+  // else to the creator's first campaign.
+  const emailCampaignId =
+    (location.state as { fromCampaignId?: string } | null)?.fromCampaignId ||
+    creator?.campaign_id ||
+    undefined;
   const queryClient = useQueryClient();
   const invalidate = useInvalidate();
   const [error, setError] = useState<string | null>(null);
@@ -924,17 +931,12 @@ export default function CreatorDetail() {
     if (!creator) return;
     setSendingEmail(true);
     try {
-      await sendSingleOutreach(
-        creator.id,
-        creator.campaign_id || undefined,
-        customSubject,
-        customBody,
-        messageType,
-      );
-      toast.success('Outreach email sent successfully!');
+      await sendSingleOutreach(creator.id, emailCampaignId, customSubject, customBody, messageType);
+      // This endpoint always writes to the creator's own address.
+      toast.success(emailSentMessage(creator.email));
       loadData();
     } catch (err) {
-      toast.error('Failed to send outreach: ' + err);
+      toast.error(sendFailureMessage(err));
       throw err;
     } finally {
       setSendingEmail(false);
@@ -2389,7 +2391,7 @@ export default function CreatorDetail() {
 
       <OutreachPreviewModal
         creatorId={creator?.id || ''}
-        campaignId={creator?.campaign_id || undefined}
+        campaignId={emailCampaignId}
         messageType={outreachModalMessageType}
         isOpen={outreachModalOpen}
         onClose={() => setOutreachModalOpen(false)}

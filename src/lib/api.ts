@@ -20,6 +20,8 @@ import type {
   ConversationMessage,
   ApiAck,
   InviteInfo,
+  OutreachPreview,
+  CampaignPerformance,
 } from '../types';
 
 export const api = axios.create({
@@ -294,6 +296,13 @@ export const approvePartner = (meetingId: string): Promise<ApiAck> =>
   api.post('/conversions/approve-partner', { meeting_id: meetingId, outcome: 'approved' });
 
 // ─── Review ───────────────────────────────────────────
+/**
+ * Approving also sends the outreach email. `campaignId` names the campaign the
+ * email and its log belong to; leave it out only when the caller can't know (the
+ * backend then uses the creator's most recent campaign). A failed send rejects
+ * with the backend envelope — `code: 'OUTREACH_SEND_FAILED'` (HTTP 502, the
+ * creator is approved but not emailed) or `'NO_CAMPAIGN'` (HTTP 400).
+ */
 export const reviewLead = (
   creatorId: string,
   action: 'approve' | 'reject' | 'shortlist' | 'revoke',
@@ -301,6 +310,7 @@ export const reviewLead = (
   custom_body?: string,
   message_type?: string,
   custom_to?: string,
+  campaignId?: string,
 ): Promise<ApiAck> =>
   api.patch(`/creators/${creatorId}/review`, {
     action,
@@ -308,6 +318,7 @@ export const reviewLead = (
     custom_body,
     message_type,
     custom_to,
+    campaign_id: campaignId,
   });
 
 // ─── Outreach ─────────────────────────────────────────
@@ -343,7 +354,7 @@ export const previewOutreach = (
   campaignId?: string,
   message_type?: string,
   extraParams?: Record<string, unknown>,
-): Promise<{ subject: string; body: string; to: string | null }> =>
+): Promise<OutreachPreview> =>
   api.get('/outreach/preview', {
     params: {
       creator_id: creatorId,
@@ -608,7 +619,7 @@ export const getDashboardAnalytics = (): Promise<unknown> => api.get('/analytics
 export const getCampaignFunnel = (campaignId: string): Promise<unknown> =>
   api.get(`/analytics/campaigns/${campaignId}/funnel`);
 
-export const getCampaignContentPerformance = (campaignId: string): Promise<unknown> =>
+export const getCampaignContentPerformance = (campaignId: string): Promise<CampaignPerformance> =>
   api.get(`/analytics/campaigns/${campaignId}/content-performance`);
 
 export const recalculateCampaignPerformance = (campaignId: string): Promise<unknown> =>
