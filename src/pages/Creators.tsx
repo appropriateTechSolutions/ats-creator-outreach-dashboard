@@ -18,7 +18,13 @@ import {
 import { useInvalidate } from '../hooks/useInvalidate';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../lib/queryKeys';
-import type { Creator } from '../types';
+import type { Creator, CreatorContent, Partnership, Shipment } from '../types';
+import {
+  isFollowUpDue,
+  pickCurrentPartnership,
+  pickPartnershipContents,
+  pickPartnershipShipment,
+} from '../lib/nextAction';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Check, X, Star } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -43,7 +49,25 @@ const PAGE_SIZE = 50;
 
 // Stable empty array so a creator with no content passes the same reference each
 // render (keeps WorkflowActionEngine props referentially stable).
-const EMPTY_CONTENTS: any[] = [];
+const EMPTY_CONTENTS: CreatorContent[] = [];
+
+type RowWorkflow = {
+  partnership: Partnership | null;
+  shipment: Shipment | null;
+  contents: CreatorContent[];
+};
+
+function groupBy<T>(rows: T[], keyOf: (row: T) => string | null | undefined): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = keyOf(row);
+    if (!key) continue;
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  }
+  return groups;
+}
 
 const FILTERS_STORAGE_KEY = 'creators-filters-v1';
 
@@ -225,9 +249,8 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
   };
 
   const handleWorkflowAction = async (creator: any, actionType: string, payload?: any) => {
-    const partnership = partnerships.find(
-      (p) => p.creator_id === creator.id || p.Creator?.id === creator.id,
-    );
+    // Act on the same partnership the row's next step was decided from.
+    const partnership = workflowByCreator.get(creator.id)?.partnership ?? undefined;
     setActiveCreator(creator);
 
     if (actionType === 'view_feedback') {
@@ -235,12 +258,14 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
       setActivePartnership(partnership);
       setShowFeedbackModal(true);
     } else if (actionType === 'review') {
-      handleReview(creator.id, 'shortlist');
+      // Reviewing happens on the profile, where approve / shortlist / reject live.
+      // (Shortlisting from here was a no-op for creators already shortlisted.)
+      navigate(`/creators/${creator.id}`, { state: { fromMyCreators: onlyEngaged } });
     } else if (actionType === 'outreach') {
       setOutreachModalType(undefined);
       setOutreachModalCreatorId(creator.id);
     } else if (actionType === 'follow_up') {
-      setOutreachModalType('followup_1');
+      setOutreachModalType(payload?.messageType ?? 'followup_1');
       setOutreachModalCreatorId(creator.id);
     } else if (actionType === 'draft_offer') {
       setActivePartnership(
@@ -402,32 +427,23 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
   );
 
   // O(1) per-row lookups instead of scanning partnerships/shipments/contents for
-  // every rendered creator (was O(rows × records) on every render).
-  const partnershipByCreator = useMemo(() => {
-    const m = new Map<string, any>();
-    for (const p of partnerships) {
-      const key = p.creator_id || p.Creator?.id;
-      if (key && !m.has(key)) m.set(key, p);
+  // every rendered creator (was O(rows × records) on every render). Each row gets
+  // the creator's current partnership plus that partnership's own shipment and
+  // deliverables — the same inputs the creator profile feeds getNextAction.
+  const workflowByCreator = useMemo(() => {
+    const shipmentsByCreator = groupBy(shipments, (s) => s.creator_id);
+    const contentsByCreator = groupBy(contents, (cnt) => String(cnt.creator_id));
+    const m = new Map<string, RowWorkflow>();
+    for (const [creatorId, list] of groupBy(partnerships, (p) => p.creator_id || p.Creator?.id)) {
+      const partnership = pickCurrentPartnership(list);
+      m.set(creatorId, {
+        partnership,
+        shipment: pickPartnershipShipment(partnership, shipmentsByCreator.get(creatorId)),
+        contents: pickPartnershipContents(partnership, contentsByCreator.get(creatorId)),
+      });
     }
     return m;
-  }, [partnerships]);
-  const shipmentByCreator = useMemo(() => {
-    const m = new Map<string, any>();
-    for (const s of shipments) {
-      if (s.creator_id && !m.has(s.creator_id)) m.set(s.creator_id, s);
-    }
-    return m;
-  }, [shipments]);
-  const contentsByCreator = useMemo(() => {
-    const m = new Map<string, any[]>();
-    for (const cnt of contents) {
-      const key = String(cnt.creator_id);
-      const arr = m.get(key);
-      if (arr) arr.push(cnt);
-      else m.set(key, [cnt]);
-    }
-    return m;
-  }, [contents]);
+  }, [partnerships, shipments, contents]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
@@ -582,7 +598,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                       <Td>
                         <StatusBadge
                           status={
-                            partnershipByCreator.get(c.id)?.status ||
+                            workflowByCreator.get(c.id)?.partnership?.status ||
                             ([
                               'contacted',
                               'replied',
@@ -599,9 +615,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                       <Td className="text-center align-middle">
                         <WorkflowActionEngine
                           creator={c}
-                          partnership={partnershipByCreator.get(c.id)}
-                          shipment={shipmentByCreator.get(c.id)}
-                          contents={contentsByCreator.get(String(c.id)) ?? EMPTY_CONTENTS}
+                          partnership={workflowByCreator.get(c.id)?.partnership}
+                          shipment={workflowByCreator.get(c.id)?.shipment}
+                          contents={workflowByCreator.get(c.id)?.contents ?? EMPTY_CONTENTS}
+                          followUpDue={isFollowUpDue(c.latest_outreach)}
                           onAction={(type, payload) => handleWorkflowAction(c, type, payload)}
                         />
                       </Td>
@@ -710,7 +727,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                       </div>
                       <StatusBadge
                         status={
-                          partnershipByCreator.get(c.id)?.status ||
+                          workflowByCreator.get(c.id)?.partnership?.status ||
                           ([
                             'contacted',
                             'replied',
@@ -762,9 +779,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                       <div className="pt-3 border-t border-gray-50 flex flex-col gap-2 justify-center">
                         <WorkflowActionEngine
                           creator={c}
-                          partnership={partnershipByCreator.get(c.id)}
-                          shipment={shipmentByCreator.get(c.id)}
-                          contents={contentsByCreator.get(String(c.id)) ?? EMPTY_CONTENTS}
+                          partnership={workflowByCreator.get(c.id)?.partnership}
+                          shipment={workflowByCreator.get(c.id)?.shipment}
+                          contents={workflowByCreator.get(c.id)?.contents ?? EMPTY_CONTENTS}
+                          followUpDue={isFollowUpDue(c.latest_outreach)}
                           onAction={(type, payload) => handleWorkflowAction(c, type, payload)}
                         />
                         <div className="flex gap-2 justify-center mt-2">

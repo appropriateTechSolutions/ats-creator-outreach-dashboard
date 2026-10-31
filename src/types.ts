@@ -329,6 +329,9 @@ export interface CreatorPartnership {
   content?: CreatorContent[];
 }
 
+/** Short name for a creator × campaign deal (used by the next-step engine). */
+export type Partnership = CreatorPartnership;
+
 // ─── Shared status & role unions ──────────────────────────────────────
 // Single source of truth for the string literals used across the app. Verified
 // against every comparison/assignment site (Phase 1). Keep these as supersets —
@@ -353,34 +356,42 @@ export type ReviewStatus =
   | 'approved'
   | 'rejected';
 
+// creators.lifecycle_status enum (backend models/creatorModel.js). `failed` is not a
+// backend value; it stays only because creatorFilters' "failed" bucket still checks it.
 export type LifecycleStatus =
   | 'new'
+  | 'enriched'
+  | 'shortlisted'
   | 'contacted'
   | 'replied'
   | 'engaged'
   | 'qualified'
   | 'converted'
-  | 'in_discussion'
+  | 'rejected'
+  | 'paused'
   | 'not_respond'
   | 'failed';
 
+// Exactly the backend's PARTNERSHIP_STATUSES (domain/partnershipStatus.ts).
 export type PartnershipStatus =
   | 'engaged'
-  | 'meeting_scheduled'
   | 'replied'
   | 'in_discussion'
-  | 'negotiating'
+  | 'meeting_scheduled'
   | 'qualified'
   | 'offer_sent'
-  | 'offer_accepted'
+  | 'negotiating'
   | 'accepted'
   | 'activated'
-  | 'active'
-  | 'contract_signed'
+  | 'product_shipped'
+  | 'product_delivered'
+  | 'content_pending'
+  | 'content_submitted'
+  | 'content_approved'
+  | 'live'
   | 'completed'
   | 'rejected'
-  | 'product_shipped'
-  | 'product_delivered';
+  | 'inactive';
 
 export type ShipmentStatus =
   | 'pending'

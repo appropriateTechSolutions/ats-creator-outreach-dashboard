@@ -61,6 +61,11 @@ import {
   Edit3,
 } from 'lucide-react';
 import type { Creator } from '../types';
+import {
+  canReachOut,
+  isFollowUpDue as followUpDue,
+  isWaitingForFollowUp as waitingForFollowUp,
+} from '../lib/nextAction';
 
 // Best available engagement rate for a creator (creator-level, else max across profiles).
 const getEngagement = (c: Creator): number => {
@@ -184,22 +189,17 @@ export function CreatorPreviewDrawer({
     setExpandedPlatforms((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Helper to clean up email signatures and quoted replies
-  const isFollowUpDue = () => {
-    const latest = activeCreator.latest_outreach || (activeCreator as any).latestOutreach;
-    if (!latest) return false;
-    if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
-    if (latest.follow_up_count >= 3) return false;
-    return new Date(latest.next_followup_at) < new Date();
-  };
+  // Same follow-up rules as the profile and the Creators list (lib/nextAction).
+  const isFollowUpDue = () =>
+    followUpDue(activeCreator.latest_outreach || (activeCreator as any).latestOutreach);
 
-  const isWaitingForFollowUp = () => {
-    const latest = activeCreator.latest_outreach || (activeCreator as any).latestOutreach;
-    if (!latest) return false;
-    if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
-    if (latest.follow_up_count >= 3) return false;
-    return new Date(latest.next_followup_at) >= new Date();
-  };
+  const isWaitingForFollowUp = () =>
+    waitingForFollowUp(activeCreator.latest_outreach || (activeCreator as any).latestOutreach);
+
+  // Outreach email, follow-ups and DMs only before a reply or a partnership — the
+  // same rule as the profile header, so a creator with a live deal never gets a
+  // pulsing "Follow-up #2" here.
+  const reachOut = !partnershipsLoading && canReachOut(activeCreator, partnerships.length > 0);
 
   const handleSendOutreach = () => {
     let type = 'initial';
@@ -494,14 +494,16 @@ export function CreatorPreviewDrawer({
                 )}
                 {findingSimilar ? 'Searching...' : 'Find Similar'}
               </Button>
-              <Button
-                className="flex-1 bg-pink-600 hover:bg-pink-700 shadow-xl shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all"
-                onClick={handleSendDM}
-              >
-                <Instagram size={14} />
-                Send DM
-              </Button>
-              {activeCreator.email && (
+              {reachOut && (
+                <Button
+                  className="flex-1 bg-pink-600 hover:bg-pink-700 shadow-xl shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all"
+                  onClick={handleSendDM}
+                >
+                  <Instagram size={14} />
+                  Send DM
+                </Button>
+              )}
+              {reachOut && activeCreator.email && (
                 <Button
                   className={`flex-1 ${
                     isFollowUpDue()

@@ -2,7 +2,15 @@ import { logger } from '../lib/logger';
 import { toast } from '../lib/toast';
 import { getErRating, cleanMessageText } from '../lib/formatters';
 import { hasRole, ROLE_GROUPS } from '../lib/constants';
-import { useState, useEffect } from 'react';
+import {
+  getNextAction,
+  isFollowUpDue,
+  pickCurrentPartnership,
+  pickPartnershipContents,
+  pickPartnershipShipment,
+  type NextActionKey,
+} from '../lib/nextAction';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   reviewLead,
@@ -92,6 +100,7 @@ import { ImageLightbox } from '../components/ui/ImageLightbox';
 import { InfoTip } from '../components/ui/InfoTip';
 import { useAuth } from '../contexts/AuthContext';
 import { DiscussionModal } from '../components/workflow/DiscussionModal';
+import { ShipmentModal } from '../components/workflow/ShipmentModal';
 import {
   PartnershipOfferModal,
   PartnershipEditModal,
@@ -161,17 +170,35 @@ export default function CreatorDetail() {
   const [activeTab, setActiveTab] = useState<
     'partnerships' | 'shipments' | 'content' | 'activities'
   >('partnerships');
-  const { data: allPartnerships = [] } = usePartnerships();
-  const partnerships = allPartnerships.filter(
-    (p) => String(p.creator_id) === String(id) || String(p.Creator?.id) === String(id),
+  const { data: allPartnerships } = usePartnerships();
+  // Memoised on the query data so effects and memos below see a stable array.
+  const partnerships = useMemo(
+    () =>
+      (allPartnerships ?? []).filter(
+        (p) => String(p.creator_id) === String(id) || String(p.Creator?.id) === String(id),
+      ),
+    [allPartnerships, id],
   );
   const { data: activities = [] } = useCreatorActivities(id);
   const { data: creatorShipments = [] } = useShipments(id ? { creator_id: id } : undefined);
   const { data: creatorContent = [] } = useContents(id ? { creator_id: id } : undefined);
   const [partnershipsLoading, setPartnershipsLoading] = useState(false);
 
+  // The partnership the profile leads with, and that partnership's own shipment and
+  // deliverables — the same inputs the Creators list feeds getNextAction.
+  const currentPartnership = useMemo(() => pickCurrentPartnership(partnerships), [partnerships]);
+  const currentShipment = useMemo(
+    () => pickPartnershipShipment(currentPartnership, creatorShipments),
+    [currentPartnership, creatorShipments],
+  );
+  const currentContents = useMemo(
+    () => pickPartnershipContents(currentPartnership, creatorContent),
+    [currentPartnership, creatorContent],
+  );
+
   const [activePartnership, setActivePartnership] = useState<any | null>(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
+  const [showShipmentModal, setShowShipmentModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDiscussionModal, setShowDiscussionModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -285,16 +312,15 @@ export default function CreatorDetail() {
     }
   }, [creator]);
 
-  // Default the content form's campaign to this creator's first partnership.
+  // Default the content form's campaign to this creator's first partnership. Keyed on
+  // the campaign id (a string), not the partnerships array, and a no-op once set —
+  // the array-keyed version re-ran on every render and looped ("Maximum update depth").
+  const defaultContentCampaignId =
+    partnerships[0]?.Campaign?.id || partnerships[0]?.campaign_id || '';
   useEffect(() => {
-    if (partnerships.length > 0) {
-      setContentForm((f) => ({
-        ...f,
-        campaign_id:
-          f.campaign_id || partnerships[0].Campaign?.id || partnerships[0].campaign_id || '',
-      }));
-    }
-  }, [partnerships]);
+    if (!defaultContentCampaignId) return;
+    setContentForm((f) => (f.campaign_id ? f : { ...f, campaign_id: defaultContentCampaignId }));
+  }, [defaultContentCampaignId]);
 
   // Load audience analytics for this creator.
   useEffect(() => {
@@ -701,17 +727,71 @@ export default function CreatorDetail() {
     }
   };
 
-  const handleSendOutreach = () => {
+  // `messageType` comes from the next-step engine; without it, pick the template
+  // the way this page always has (a due follow-up, else the initial email).
+  const handleSendOutreach = (messageType?: string) => {
     if (!creator) return;
 
-    let type = 'initial';
-    if (isFollowUpDue()) {
+    let type = messageType ?? 'initial';
+    if (!messageType && isFollowUpDue(creator.latest_outreach)) {
       const followUpNumber = (creator.latest_outreach?.follow_up_count || 0) + 1;
       type = followUpNumber >= 3 ? 'final_ping' : `followup_${followUpNumber}`;
     }
 
     setOutreachModalMessageType(type);
     setOutreachModalOpen(true);
+  };
+
+  const scrollToConversation = () =>
+    document
+      .getElementById('conversation-section')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // The header's primary button: run the next step on this page where it can be
+  // done here, otherwise open the record that owns it.
+  const handleNextAction = (key: NextActionKey, payload?: unknown) => {
+    if (!creator) return;
+    const backHere = { state: { fromCreatorId: creator.id } };
+    const target = payload as { id?: string; messageType?: string } | undefined;
+    switch (key) {
+      case 'outreach':
+        handleSendOutreach('initial');
+        return;
+      case 'follow_up':
+        handleSendOutreach(target?.messageType);
+        return;
+      case 'draft_offer':
+        if (currentPartnership) openOfferModal(currentPartnership);
+        else scrollToConversation();
+        return;
+      case 'view_discussion':
+        scrollToConversation();
+        return;
+      case 'view_feedback':
+        if (currentPartnership) navigate(`/partnerships/${currentPartnership.id}`, backHere);
+        return;
+      case 'add_shipment':
+        setShowShipmentModal(true);
+        return;
+      case 'view_shipments':
+        navigate(target?.id ? `/shipments/${target.id}` : '/shipments', backHere);
+        return;
+      case 'activate':
+      case 'complete':
+        if (currentPartnership) handlePartnershipAction(currentPartnership.id, key);
+        return;
+      case 'review_content':
+        if (target?.id) navigate(`/content/${target.id}`, backHere);
+        return;
+      case 'add_draft_url':
+      case 'add_live_url':
+        if (target?.id)
+          handleContentAction(target.id, key === 'add_draft_url' ? 'submit' : 'publish');
+        return;
+      default:
+        // `review` renders as the review controls; waiting and done steps have no action.
+        return;
+    }
   };
 
   const handleMediaKitUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -850,22 +930,6 @@ export default function CreatorDetail() {
     }
   };
 
-  const isFollowUpDue = () => {
-    const latest = creator?.latest_outreach;
-    if (!latest) return false;
-    if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
-    if ((latest.follow_up_count ?? 0) >= 3) return false; // Never suggest a 4th follow-up
-    return new Date(latest.next_followup_at) < new Date();
-  };
-
-  const isWaitingForFollowUp = () => {
-    const latest = creator?.latest_outreach;
-    if (!latest) return false;
-    if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
-    if ((latest.follow_up_count ?? 0) >= 3) return false;
-    return new Date(latest.next_followup_at) >= new Date();
-  };
-
   const handleRegenerateSummary = async () => {
     if (!creator || regeneratingSummary) return;
     setRegeneratingSummary(true);
@@ -960,6 +1024,14 @@ export default function CreatorDetail() {
       </div>
     );
   }
+
+  const nextAction = getNextAction({
+    creator,
+    partnership: currentPartnership,
+    shipment: currentShipment,
+    contents: currentContents,
+    followUpDue: isFollowUpDue(creator.latest_outreach),
+  });
 
   // Parse scoring_notes safely (handle both snake_case and camelCase)
   let scoringNotes = creator.scoring_notes || (creator as any).scoringNotes;
@@ -1063,12 +1135,16 @@ export default function CreatorDetail() {
           handleFindSimilar={handleFindSimilar}
           findingSimilar={findingSimilar}
           handleSendDM={handleSendDM}
-          handleSendOutreach={handleSendOutreach}
+          handleSendOutreach={() => handleSendOutreach()}
           sendingEmail={sendingEmail}
-          isFollowUpDue={isFollowUpDue}
-          isWaitingForFollowUp={isWaitingForFollowUp}
           handleSyncCreator={handleSyncCreator}
           syncingProfile={syncingProfile}
+          nextAction={nextAction}
+          onNextAction={handleNextAction}
+          nextActionBusy={partnershipsLoading}
+          partnership={currentPartnership}
+          partnershipShipment={currentShipment}
+          partnershipContents={currentContents}
         />
 
         {/* Creator Insights Section (Summary, Bio, Email, Location) */}
@@ -1094,8 +1170,8 @@ export default function CreatorDetail() {
             <p className="text-sm text-gray-700 leading-relaxed italic border-l-2 border-primary-200 pl-4 whitespace-pre-wrap">
               {regeneratingSummary
                 ? 'Re-analyzing creator with latest data…'
-                : creator.notes ||
-                  "AI is analyzing this creator's profile and generating a professional summary..."}
+                : creator.summary ||
+                  creator.notes || <span className="not-italic text-gray-400">No summary yet</span>}
             </p>
           </div>
 
@@ -2212,6 +2288,15 @@ export default function CreatorDetail() {
         onSubmit={submitDiscussion}
         creator={creator}
         submitting={submitting}
+      />
+
+      {/* Header next step "Add shipment" */}
+      <ShipmentModal
+        isOpen={showShipmentModal}
+        onClose={() => setShowShipmentModal(false)}
+        creator={creator}
+        partnership={currentPartnership}
+        onSuccess={() => loadData(true)}
       />
 
       {/* 📝 Send Offer Modal 📝 */}

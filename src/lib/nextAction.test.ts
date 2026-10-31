@@ -1,0 +1,463 @@
+import { describe, expect, it } from 'vitest';
+import {
+  canReachOut,
+  getNextAction,
+  isFollowUpDue,
+  isWaitingForFollowUp,
+  pickCurrentPartnership,
+  pickPartnershipContents,
+  pickPartnershipShipment,
+  type NextActionKey,
+} from './nextAction';
+import type { Creator, CreatorContent, OutreachLog, Partnership, Shipment } from '../types';
+
+const NOW = new Date('2026-10-31T12:00:00Z');
+
+function makeCreator(overrides: Partial<Creator> = {}): Creator {
+  return {
+    id: 'creator-1',
+    handle: 'maya',
+    full_name: 'Maya Ortiz',
+    email: 'maya@example.com',
+    bio: null,
+    city: null,
+    state: null,
+    country: null,
+    category: null,
+    has_email: true,
+    has_instagram: true,
+    outreach_readiness_score: null,
+    relevance_score: null,
+    scoring_notes: null,
+    review_status: 'approved',
+    lifecycle_status: 'new',
+    campaign_id: 'campaign-1',
+    campaign_ids: ['campaign-1'],
+    assigned_status: 'approved',
+    meetings: [],
+    affiliate: null,
+    outreach_logs: [],
+    conversation: null,
+    profiles: [],
+    ...overrides,
+  };
+}
+
+function makePartnership(overrides: Partial<Partnership> = {}): Partnership {
+  return {
+    id: 'partnership-1',
+    creator_id: 'creator-1',
+    campaign_id: 'campaign-1',
+    status: 'engaged',
+    created_at: '2026-10-01T00:00:00Z',
+    updated_at: '2026-10-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+function makeShipment(overrides: Partial<Shipment> = {}): Shipment {
+  return {
+    id: 'shipment-1',
+    creator_id: 'creator-1',
+    campaign_id: 'campaign-1',
+    partnership_id: 'partnership-1',
+    product_name: 'Apple Cider Fizz',
+    status: 'pending',
+    created_at: '2026-10-02T00:00:00Z',
+    updated_at: '2026-10-02T00:00:00Z',
+    ...overrides,
+  };
+}
+
+function makeContent(overrides: Partial<CreatorContent> = {}): CreatorContent {
+  return {
+    id: 'content-1',
+    creator_id: 'creator-1',
+    campaign_id: 'campaign-1',
+    partnership_id: 'partnership-1',
+    platform: 'instagram',
+    content_type: 'instagram_reel',
+    status: 'pending',
+    views: 0,
+    likes: 0,
+    comments: 0,
+    shares: 0,
+    saves: 0,
+    clicks: 0,
+    created_at: '2026-10-03T00:00:00Z',
+    updated_at: '2026-10-03T00:00:00Z',
+    ...overrides,
+  };
+}
+
+function makeOutreach(overrides: Partial<OutreachLog> = {}): OutreachLog {
+  return {
+    id: 'log-1',
+    campaign_id: 'campaign-1',
+    creator_id: 'creator-1',
+    channel: 'email',
+    message_type: 'initial',
+    follow_up_count: 0,
+    next_followup_at: '2026-10-20T00:00:00Z',
+    is_dismissed: false,
+    response_received: false,
+    delivery_status: 'sent',
+    sent_at: '2026-10-18T00:00:00Z',
+    ...overrides,
+  };
+}
+
+describe('getNextAction', () => {
+  it('hold creator → review', () => {
+    const action = getNextAction({
+      creator: makeCreator({ review_status: 'hold', lifecycle_status: 'new' }),
+    });
+    expect(action).toMatchObject({ key: 'review', label: 'Review creator', kind: 'action' });
+  });
+
+  it('approved + new → outreach', () => {
+    const action = getNextAction({
+      creator: makeCreator({ review_status: 'approved', lifecycle_status: 'new' }),
+    });
+    expect(action).toMatchObject({ key: 'outreach', label: 'Send outreach', kind: 'action' });
+  });
+
+  it('contacted, no partnership, follow-up due → follow_up', () => {
+    const action = getNextAction({
+      creator: makeCreator({
+        lifecycle_status: 'contacted',
+        latest_outreach: makeOutreach({ follow_up_count: 1 }),
+      }),
+      partnership: null,
+      followUpDue: true,
+    });
+    expect(action).toMatchObject({ key: 'follow_up', label: 'Send follow-up #2', kind: 'action' });
+    expect(action.payload).toEqual({ messageType: 'followup_2' });
+  });
+
+  it('accepted partnership with shipment pending → view_shipments, never follow_up', () => {
+    const shipment = makeShipment({ status: 'pending' });
+    const action = getNextAction({
+      // The Maya Ortiz bug: her outreach log still says a follow-up is "due", but she
+      // has an accepted deal with a pending shipment — the deal wins.
+      creator: makeCreator({
+        lifecycle_status: 'contacted',
+        latest_outreach: makeOutreach({ follow_up_count: 1 }),
+      }),
+      partnership: makePartnership({ status: 'accepted', shipment_included: true }),
+      shipment,
+      followUpDue: true,
+    });
+    expect(action).toMatchObject({
+      key: 'view_shipments',
+      label: 'Update shipment',
+      kind: 'action',
+    });
+    expect(action.payload).toBe(shipment);
+  });
+
+  it('offer_sent → awaiting_signature', () => {
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'engaged' }),
+      partnership: makePartnership({ status: 'offer_sent' }),
+    });
+    expect(action).toEqual({
+      key: 'awaiting_signature',
+      label: 'Awaiting signature',
+      kind: 'waiting',
+    });
+  });
+
+  it('activated with submitted content → review_content', () => {
+    const submitted = makeContent({ id: 'content-2', status: 'submitted' });
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'converted' }),
+      partnership: makePartnership({ status: 'activated' }),
+      contents: [makeContent({ status: 'pending' }), submitted],
+    });
+    expect(action).toMatchObject({ key: 'review_content', label: 'Review draft', kind: 'action' });
+    expect(action.payload).toBe(submitted);
+  });
+
+  it('completed with nothing pending → done', () => {
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'converted' }),
+      partnership: makePartnership({ status: 'completed' }),
+      contents: [makeContent({ status: 'published' })],
+    });
+    expect(action).toEqual({ key: 'done', label: 'Completed', kind: 'done' });
+  });
+
+  it('treats every unreviewed review status (and a missing one) as review', () => {
+    for (const review_status of ['hold', 'shortlisted', 'pending_review', 'new', null] as const) {
+      expect(
+        getNextAction({ creator: makeCreator({ review_status }) }).key,
+        String(review_status),
+      ).toBe('review');
+    }
+  });
+
+  it('waits for a reply while a contacted creator has no follow-up due', () => {
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'contacted' }),
+      followUpDue: false,
+    });
+    expect(action).toEqual({ key: 'awaiting_reply', label: 'Awaiting reply', kind: 'waiting' });
+  });
+
+  it('never suggests a follow-up once a partnership exists', () => {
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'contacted' }),
+      partnership: makePartnership({ status: 'engaged' }),
+      followUpDue: true,
+    });
+    expect(action.key).toBe('awaiting_reply');
+  });
+
+  it('labels the third follow-up as the final one', () => {
+    const action = getNextAction({
+      creator: makeCreator({
+        lifecycle_status: 'contacted',
+        latest_outreach: makeOutreach({ follow_up_count: 2 }),
+      }),
+      followUpDue: true,
+    });
+    expect(action).toMatchObject({ key: 'follow_up', label: 'Send final follow-up' });
+    expect(action.payload).toEqual({ messageType: 'final_ping' });
+  });
+
+  it('keeps the existing order for the middle of the pipeline', () => {
+    const creator = makeCreator({ lifecycle_status: 'engaged' });
+    const cases: Array<[Partial<Partnership>, Shipment | null, NextActionKey, string]> = [
+      [{ status: 'replied' }, null, 'draft_offer', 'Draft offer'],
+      [{ status: 'in_discussion' }, null, 'draft_offer', 'Draft offer'],
+      [{ status: 'qualified' }, null, 'draft_offer', 'Draft offer'],
+      [{ status: 'negotiating' }, null, 'draft_offer', 'Reply'],
+      [{ status: 'accepted', shipment_included: true }, null, 'add_shipment', 'Add shipment'],
+      [{ status: 'accepted', shipment_included: false }, null, 'activate', 'Activate partnership'],
+      [
+        { status: 'product_shipped' },
+        makeShipment({ status: 'shipped' }),
+        'activate',
+        'Activate partnership',
+      ],
+      [
+        { status: 'product_delivered' },
+        makeShipment({ status: 'delivered' }),
+        'activate',
+        'Activate partnership',
+      ],
+    ];
+    for (const [partnership, shipment, key, label] of cases) {
+      const action = getNextAction({
+        creator,
+        partnership: makePartnership(partnership),
+        shipment,
+      });
+      expect(action, String(partnership.status)).toMatchObject({ key, label, kind: 'action' });
+    }
+  });
+
+  it('works through deliverables on an activated partnership, then completes it', () => {
+    const creator = makeCreator({ lifecycle_status: 'converted' });
+    const partnership = makePartnership({ status: 'activated' });
+    const pending = makeContent({ status: 'revision_requested' });
+    expect(getNextAction({ creator, partnership, contents: [pending] })).toMatchObject({
+      key: 'add_draft_url',
+      label: 'Add draft URL',
+      payload: pending,
+    });
+    expect(
+      getNextAction({ creator, partnership, contents: [makeContent({ status: 'published' })] }),
+    ).toMatchObject({ key: 'complete', label: 'Complete partnership' });
+  });
+
+  it('asks for the live URL when a completed partnership has approved content', () => {
+    const approved = makeContent({ status: 'approved' });
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'converted' }),
+      partnership: makePartnership({ status: 'completed' }),
+      contents: [approved],
+    });
+    expect(action).toMatchObject({ key: 'add_live_url', label: 'Add live URL', payload: approved });
+  });
+
+  it('lets the partnership win over a creator lifecycle of replied', () => {
+    const action = getNextAction({
+      creator: makeCreator({ lifecycle_status: 'replied' }),
+      partnership: makePartnership({ status: 'offer_sent' }),
+    });
+    expect(action.key).toBe('awaiting_signature');
+    expect(getNextAction({ creator: makeCreator({ lifecycle_status: 'replied' }) }).key).toBe(
+      'draft_offer',
+    );
+  });
+
+  it('returns none, with a neutral label, when nothing applies', () => {
+    for (const creator of [
+      makeCreator({ review_status: 'rejected', lifecycle_status: 'rejected' }),
+      makeCreator({ lifecycle_status: 'not_respond' }),
+    ]) {
+      expect(getNextAction({ creator })).toEqual({
+        key: 'none',
+        label: 'No next step',
+        kind: 'done',
+      });
+    }
+  });
+
+  it('uses sentence case for every label', () => {
+    const creator = makeCreator({ lifecycle_status: 'converted' });
+    const labels = [
+      getNextAction({ creator: makeCreator({ review_status: 'hold' }) }).label,
+      getNextAction({ creator: makeCreator() }).label,
+      getNextAction({ creator, partnership: makePartnership({ status: 'accepted' }) }).label,
+      getNextAction({
+        creator,
+        partnership: makePartnership({ status: 'accepted', shipment_included: true }),
+        shipment: makeShipment(),
+      }).label,
+      getNextAction({ creator, partnership: makePartnership({ status: 'offer_sent' }) }).label,
+      getNextAction({ creator, partnership: makePartnership({ status: 'activated' }) }).label,
+    ];
+    for (const label of labels) {
+      // First letter upper case; nothing else capitalised except the URL acronym.
+      expect(label, label).toMatch(/^[A-Z][^A-Z]*(URL)?$/);
+    }
+  });
+});
+
+describe('isFollowUpDue', () => {
+  it('is due once next_followup_at has passed', () => {
+    expect(isFollowUpDue(makeOutreach({ next_followup_at: '2026-10-30T00:00:00Z' }), NOW)).toBe(
+      true,
+    );
+    expect(isFollowUpDue(makeOutreach({ next_followup_at: '2026-11-02T00:00:00Z' }), NOW)).toBe(
+      false,
+    );
+  });
+
+  it('is never due after a reply, a dismissal, three follow-ups or without a schedule', () => {
+    for (const overrides of [
+      { response_received: true },
+      { is_dismissed: true },
+      { follow_up_count: 3 },
+      { next_followup_at: null },
+    ]) {
+      expect(isFollowUpDue(makeOutreach(overrides), NOW), JSON.stringify(overrides)).toBe(false);
+    }
+    expect(isFollowUpDue(null, NOW)).toBe(false);
+  });
+
+  it('is waiting, not due, while the follow-up is still scheduled', () => {
+    const scheduled = makeOutreach({ next_followup_at: '2026-11-02T00:00:00Z' });
+    expect(isWaitingForFollowUp(scheduled, NOW)).toBe(true);
+    expect(
+      isWaitingForFollowUp(makeOutreach({ next_followup_at: '2026-10-30T00:00:00Z' }), NOW),
+    ).toBe(false);
+  });
+});
+
+describe('canReachOut', () => {
+  it('allows outreach, follow-ups and DMs only before a reply or a partnership', () => {
+    for (const lifecycle_status of ['new', 'enriched', 'shortlisted', 'contacted'] as const) {
+      expect(canReachOut(makeCreator({ lifecycle_status }), false), lifecycle_status).toBe(true);
+      expect(
+        canReachOut(makeCreator({ lifecycle_status }), true),
+        `${lifecycle_status} + deal`,
+      ).toBe(false);
+    }
+    for (const lifecycle_status of [
+      'replied',
+      'engaged',
+      'converted',
+      'not_respond',
+      'rejected',
+    ] as const) {
+      expect(canReachOut(makeCreator({ lifecycle_status }), false), lifecycle_status).toBe(false);
+    }
+  });
+});
+
+describe('pickCurrentPartnership', () => {
+  it('picks the most advanced active partnership over a completed one', () => {
+    const completed = makePartnership({
+      id: 'summer',
+      status: 'completed',
+      created_at: '2026-09-23T00:00:00Z',
+    });
+    const accepted = makePartnership({
+      id: 'fall',
+      status: 'accepted',
+      created_at: '2026-10-13T00:00:00Z',
+    });
+    const engaged = makePartnership({
+      id: 'zero',
+      status: 'engaged',
+      created_at: '2026-10-20T00:00:00Z',
+    });
+    expect(pickCurrentPartnership([completed, engaged, accepted])?.id).toBe('fall');
+  });
+
+  it('falls back to the newest partnership when none is active', () => {
+    const older = makePartnership({
+      id: 'old',
+      status: 'completed',
+      created_at: '2026-09-01T00:00:00Z',
+    });
+    const newer = makePartnership({
+      id: 'new',
+      status: 'rejected',
+      created_at: '2026-10-01T00:00:00Z',
+    });
+    expect(pickCurrentPartnership([older, newer])?.id).toBe('new');
+    expect(pickCurrentPartnership([])).toBeNull();
+  });
+});
+
+describe('partnership shipment and deliverables', () => {
+  const partnership = makePartnership({ id: 'fall', campaign_id: 'campaign-fall' });
+
+  it('takes the shipment linked to the partnership, not the creator’s newest one', () => {
+    const fallShipment = makeShipment({
+      id: 's-fall',
+      partnership_id: 'fall',
+      created_at: '2026-10-01T00:00:00Z',
+    });
+    const otherShipment = makeShipment({
+      id: 's-summer',
+      partnership_id: 'summer',
+      created_at: '2026-10-09T00:00:00Z',
+    });
+    expect(pickPartnershipShipment(partnership, [otherShipment, fallShipment])?.id).toBe('s-fall');
+    expect(pickPartnershipShipment(partnership, [otherShipment])).toBeNull();
+  });
+
+  it('falls back to an unlinked shipment for the same campaign', () => {
+    const legacy = makeShipment({
+      id: 's-legacy',
+      partnership_id: null,
+      campaign_id: 'campaign-fall',
+    });
+    expect(pickPartnershipShipment(partnership, [legacy])?.id).toBe('s-legacy');
+  });
+
+  it('keeps only the partnership’s deliverables', () => {
+    const mine = makeContent({ id: 'c-fall', partnership_id: 'fall' });
+    const unlinked = makeContent({
+      id: 'c-legacy',
+      partnership_id: null,
+      campaign_id: 'campaign-fall',
+    });
+    const other = makeContent({
+      id: 'c-summer',
+      partnership_id: 'summer',
+      campaign_id: 'campaign-summer',
+    });
+    expect(pickPartnershipContents(partnership, [mine, unlinked, other]).map((c) => c.id)).toEqual([
+      'c-fall',
+      'c-legacy',
+    ]);
+    expect(pickPartnershipContents(null, [mine])).toEqual([]);
+  });
+});
