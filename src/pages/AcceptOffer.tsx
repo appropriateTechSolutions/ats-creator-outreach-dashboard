@@ -103,6 +103,7 @@ export default function AcceptOffer() {
   const offerState = getOfferState(partnership?.status);
   const alreadyAccepted = offerState === 'accepted';
   const declined = offerState === 'declined';
+  const unavailable = offerState === 'unavailable';
   // `negotiating` is what the creator's own feedback sets: feedback sent, not a refusal.
   const feedbackSent = offerState === 'feedback_sent';
 
@@ -300,6 +301,17 @@ export default function AcceptOffer() {
                 ? 'Thank you for providing your shipping address. We will prepare your shipment shortly.'
                 : 'Thank you for confirming. Your acceptance has been recorded, and the campaign manager will be in touch shortly.'}
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (unavailable) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Offer unavailable</h1>
+          <p className="text-gray-500">This offer is no longer available.</p>
         </div>
       </div>
     );

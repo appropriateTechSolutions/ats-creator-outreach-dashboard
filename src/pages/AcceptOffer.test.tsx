@@ -552,6 +552,24 @@ describe('AcceptOffer status', () => {
     expect(screen.queryByRole('region', { name: 'Offer summary' })).not.toBeInTheDocument();
   });
 
+  it('inactive offer shows unavailable card, no form', async () => {
+    for (const search of ['', '?reject=true']) {
+      const { unmount } = renderPage(search, payload({ status: 'inactive' }));
+
+      expect(
+        await screen.findByRole('heading', { name: 'Offer unavailable' }),
+        search,
+      ).toBeInTheDocument();
+      expect(screen.getByText('This offer is no longer available.')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Signature pad')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Accept Offer' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Provide Feedback' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'Offer summary' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Proposal declined' })).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
   it('treats negotiating as feedback sent, not declined', async () => {
     renderPage('', payload({ status: 'negotiating' }));
 

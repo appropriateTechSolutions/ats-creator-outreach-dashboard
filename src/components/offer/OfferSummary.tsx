@@ -21,8 +21,9 @@ export interface OfferSummaryPartnership {
   affiliate_percentage?: number | string | null;
   affiliate_code?: string | null;
   content?: OfferSummaryDeliverable[] | null;
-  // The public payload's Campaign is only { id, name, brand_id } today, so the
-  // product block below stays hidden until the API sends a product field.
+  // The public offer payload sends Campaign { id, name, product_offer_notes }; the
+  // notes are the product line below (the whole offer when it is product-only), and
+  // the block is hidden when a campaign has none.
   Campaign?: { product_offer_notes?: string | null } | null;
 }
 

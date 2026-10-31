@@ -61,11 +61,15 @@ describe('getOfferState', () => {
     }
   });
 
+  it('treats inactive as unavailable, not open', () => {
+    expect(getOfferState('inactive')).toBe('unavailable');
+  });
+
   it('puts every status the backend can send in exactly the expected group', () => {
-    const groups = { open: 0, accepted: 0, feedback_sent: 0, declined: 0 };
+    const groups = { open: 0, accepted: 0, feedback_sent: 0, declined: 0, unavailable: 0 };
     for (const status of BACKEND_STATUSES) groups[getOfferState(status)] += 1;
-    // 6 early + inactive, 9 accepted-or-later, negotiating, rejected.
-    expect(groups).toEqual({ open: 7, accepted: 9, feedback_sent: 1, declined: 1 });
+    // 6 early, 9 accepted-or-later, negotiating, rejected, inactive.
+    expect(groups).toEqual({ open: 6, accepted: 9, feedback_sent: 1, declined: 1, unavailable: 1 });
   });
 
   it('no longer recognises statuses the backend never sends', () => {
