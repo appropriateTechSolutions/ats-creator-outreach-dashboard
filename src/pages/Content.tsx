@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { LoadingState } from '../components/ui/LoadingState';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Modal } from '../components/ui/Modal';
 import {
   updateContent,
@@ -294,6 +294,12 @@ export default function Content() {
             Content Tracking
           </h1>
         </div>
+        <Link
+          to="/analytics"
+          className="inline-flex items-center justify-center min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 shadow-sm transition-colors hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+        >
+          View by creator
+        </Link>
       </div>
 
       {/* Filter Bar (Card) */}

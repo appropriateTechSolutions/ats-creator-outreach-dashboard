@@ -1,7 +1,7 @@
 import { logger } from '../../lib/logger';
 import { dismissOverlay } from '../../lib/a11y';
 import { hasRole, ROLE_GROUPS, APP_NAME } from '../../lib/constants';
-import { useState, useEffect, useRef } from 'react';
+import { Fragment, useState, useEffect, useRef, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   BarChart3,
@@ -20,20 +20,107 @@ import {
   Handshake,
   Package,
   Image as ImageIcon,
-  TrendingUp,
+  Send,
 } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
 import { useIsDesktop } from '../../hooks/useMediaQuery';
+import type { AuthUser } from '../../types';
+
+export interface NavItem {
+  name: string;
+  path: string;
+  icon: ReactNode;
+  internalOnly?: boolean;
+  adminOnly?: boolean;
+}
+
+export interface NavGroup {
+  /** Left off for the lead group (Dashboard), which renders without a heading. */
+  heading?: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  { items: [{ name: 'Dashboard', path: '/dashboard', icon: <BarChart3 size={20} /> }] },
+  {
+    heading: 'Work',
+    items: [
+      { name: 'Inbox', path: '/conversations', icon: <MessageSquare size={20} /> },
+      {
+        name: 'Review Queue',
+        path: '/review',
+        icon: <CheckSquare size={20} />,
+        internalOnly: true,
+      },
+      { name: 'Campaigns', path: '/campaigns', icon: <Target size={20} /> },
+      { name: 'Creators', path: '/creators', icon: <Users size={20} /> },
+      { name: 'My Creators', path: '/my-creators', icon: <UserCheck size={20} /> },
+      { name: 'Outreach', path: '/outreach', icon: <Send size={20} /> },
+    ],
+  },
+  {
+    heading: 'Pipeline',
+    items: [
+      { name: 'Partnerships', path: '/partnerships', icon: <Handshake size={20} /> },
+      { name: 'Shipments', path: '/shipments', icon: <Package size={20} /> },
+      { name: 'Content', path: '/content', icon: <ImageIcon size={20} /> },
+      { name: 'Meetings', path: '/meetings', icon: <Calendar size={20} /> },
+    ],
+  },
+  {
+    heading: 'Insights',
+    items: [{ name: 'Affiliate Performance', path: '/affiliate', icon: <Activity size={20} /> }],
+  },
+  {
+    heading: 'Admin',
+    items: [
+      { name: 'Clients', path: '/clients', icon: <Building2 size={20} />, internalOnly: true },
+      { name: 'Brands', path: '/brands', icon: <Briefcase size={20} /> },
+      { name: 'Users', path: '/users', icon: <Users size={20} />, adminOnly: true },
+    ],
+  },
+];
+
+function isNavItemVisible(item: NavItem, role: string | null | undefined): boolean {
+  // Admin only pages (Manage Users)
+  if (item.adminOnly && !hasRole(role, ROLE_GROUPS.MANAGE_USERS)) {
+    return false;
+  }
+
+  // Internal only pages (Clients, Review Queue)
+  if (item.internalOnly && !hasRole(role, ROLE_GROUPS.INTERNAL)) {
+    if (item.path === '/review' && role === 'client_admin') {
+      // Allow client_admin for review queue
+    } else {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/** Applies the per-item role flags, then drops any group left with nothing to show. */
+function getVisibleNavGroups(groups: NavGroup[], user: AuthUser | null): NavGroup[] {
+  const role = user?.role;
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => isNavItemVisible(item, role)),
+    }))
+    .filter((group) => group.items.length > 0);
+}
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   /** Toggle open/collapsed — used by the rail's hamburger to expand it. */
   onToggle: () => void;
+  /** Nav config; defaults to the app's groups. Overridable so tests can shape the nav. */
+  navGroups?: NavGroup[];
 }
 
-export function Sidebar({ isOpen, onClose, onToggle }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, onToggle, navGroups = NAV_GROUPS }: SidebarProps) {
   const { user, logout } = useAuth();
   const isDesktop = useIsDesktop();
   // Desktop + closed = collapsed icon rail (not fully hidden as on mobile).
@@ -74,43 +161,7 @@ export function Sidebar({ isOpen, onClose, onToggle }: SidebarProps) {
     }
   }, [user]);
 
-  const navItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: <BarChart3 size={20} /> },
-    { name: 'Clients', path: '/clients', icon: <Building2 size={20} />, internalOnly: true },
-    { name: 'Brands', path: '/brands', icon: <Briefcase size={20} /> },
-    { name: 'Campaigns', path: '/campaigns', icon: <Target size={20} /> },
-    { name: 'Creators', path: '/creators', icon: <Users size={20} /> },
-    { name: 'My Creators', path: '/my-creators', icon: <UserCheck size={20} /> },
-    { name: 'Partnerships', path: '/partnerships', icon: <Handshake size={20} /> },
-    { name: 'Shipments', path: '/shipments', icon: <Package size={20} /> },
-    { name: 'Content', path: '/content', icon: <ImageIcon size={20} /> },
-    { name: 'Analytics', path: '/analytics', icon: <TrendingUp size={20} /> },
-    { name: 'Review Queue', path: '/review', icon: <CheckSquare size={20} />, internalOnly: true },
-    { name: 'Conversations', path: '/conversations', icon: <MessageSquare size={20} /> },
-    { name: 'Meetings', path: '/meetings', icon: <Calendar size={20} /> },
-    { name: 'Affiliate Performance', path: '/affiliate', icon: <Activity size={20} /> },
-    { name: 'Users', path: '/users', icon: <Users size={20} />, adminOnly: true },
-  ];
-
-  const filteredNavItems = navItems.filter((item) => {
-    const isInternal = hasRole(user?.role, ROLE_GROUPS.INTERNAL);
-
-    // Admin only pages (Manage Users)
-    if (item.adminOnly && !hasRole(user?.role, ROLE_GROUPS.MANAGE_USERS)) {
-      return false;
-    }
-
-    // Internal only pages (Review Queue)
-    if (item.internalOnly && !isInternal) {
-      if (item.path === '/review' && user?.role === 'client_admin') {
-        // Allow client_admin for review queue
-      } else {
-        return false;
-      }
-    }
-
-    return true;
-  });
+  const visibleGroups = getVisibleNavGroups(navGroups, user);
 
   return (
     <>
@@ -153,42 +204,59 @@ export function Sidebar({ isOpen, onClose, onToggle }: SidebarProps) {
 
         {/* Nav Items */}
         <div className={`py-2 flex-1 overflow-y-auto ${collapsed ? 'px-2' : 'px-4'}`}>
-          {!collapsed && (
-            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4 px-3">
-              Menu
-            </div>
-          )}
-          <nav className="space-y-1">
-            {filteredNavItems.map((item) => (
-              <NavLink
-                key={item.name}
-                to={item.path}
-                title={collapsed ? item.name : undefined}
-                aria-label={collapsed ? item.name : undefined}
-                onClick={() => {
-                  if (!isDesktop) onClose();
-                }}
-                className={({ isActive }) =>
-                  `flex items-center rounded-xl transition-all duration-200 text-sm font-medium ${
-                    collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-3 py-2.5'
-                  } ${
-                    isActive
-                      ? `bg-primary-900 text-primary-50 shadow-soft border border-primary-950/50 ${
-                          collapsed ? '' : 'translate-x-1'
-                        }`
-                      : 'text-gray-500 hover:bg-gray-100/70 hover:text-gray-900 border border-transparent'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <div className={isActive ? 'text-primary-200' : 'text-gray-400'}>
-                      {item.icon}
+          <nav>
+            {visibleGroups.map((group, index) => (
+              <Fragment key={group.heading ?? 'lead'}>
+                {/* The rail has no room for headings, so a hairline separates the groups. */}
+                {collapsed && index > 0 && <hr className="my-3 border-gray-200" />}
+                <div
+                  role={group.heading ? 'group' : undefined}
+                  aria-label={group.heading}
+                  className={!collapsed && index > 0 ? 'mt-5' : undefined}
+                >
+                  {group.heading && !collapsed && (
+                    <div
+                      aria-hidden="true"
+                      className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 px-3"
+                    >
+                      {group.heading}
                     </div>
-                    {!collapsed && item.name}
-                  </>
-                )}
-              </NavLink>
+                  )}
+                  <div className="space-y-1">
+                    {group.items.map((item) => (
+                      <NavLink
+                        key={item.name}
+                        to={item.path}
+                        title={collapsed ? item.name : undefined}
+                        aria-label={collapsed ? item.name : undefined}
+                        onClick={() => {
+                          if (!isDesktop) onClose();
+                        }}
+                        className={({ isActive }) =>
+                          `flex items-center rounded-xl transition-all duration-200 text-sm font-medium ${
+                            collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-3 py-2.5'
+                          } ${
+                            isActive
+                              ? `bg-primary-900 text-primary-50 shadow-soft border border-primary-950/50 ${
+                                  collapsed ? '' : 'translate-x-1'
+                                }`
+                              : 'text-gray-500 hover:bg-gray-100/70 hover:text-gray-900 border border-transparent'
+                          }`
+                        }
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <div className={isActive ? 'text-primary-200' : 'text-gray-400'}>
+                              {item.icon}
+                            </div>
+                            {!collapsed && item.name}
+                          </>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
+              </Fragment>
             ))}
           </nav>
         </div>

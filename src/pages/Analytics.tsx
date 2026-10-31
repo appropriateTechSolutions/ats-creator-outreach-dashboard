@@ -65,10 +65,10 @@ export default function Analytics() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
-            Analytics Performance
+            Deliverables by creator
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Track content deliverables and publishing status across creators.
+            Content deliverables and publishing status, grouped by creator and campaign.
           </p>
         </div>
       </div>
@@ -100,7 +100,7 @@ export default function Analytics() {
                     <td colSpan={7} className="p-12">
                       <EmptyState
                         icon={BarChart3}
-                        title="No Analytics"
+                        title="No deliverables yet"
                         description="No content deliverables recorded in the system."
                       />
                     </td>
