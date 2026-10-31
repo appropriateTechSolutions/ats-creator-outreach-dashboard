@@ -144,7 +144,7 @@ export function Sidebar({ isOpen, onClose, onToggle }: SidebarProps) {
           </button>
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <span className="font-normal text-gray-900 tracking-tight text-sm font-outfit uppercase">
+              <span className="font-semibold text-primary-900 tracking-tight text-base font-outfit">
                 {clientName}
               </span>
             </div>
@@ -173,16 +173,16 @@ export function Sidebar({ isOpen, onClose, onToggle }: SidebarProps) {
                     collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-3 py-2.5'
                   } ${
                     isActive
-                      ? `bg-white shadow-soft text-primary-700 border border-gray-200/50 ${
+                      ? `bg-primary-900 text-primary-50 shadow-soft border border-primary-950/50 ${
                           collapsed ? '' : 'translate-x-1'
                         }`
-                      : 'text-gray-500 hover:bg-gray-100/50 hover:text-gray-900 border border-transparent'
+                      : 'text-gray-500 hover:bg-gray-100/70 hover:text-gray-900 border border-transparent'
                   }`
                 }
               >
                 {({ isActive }) => (
                   <>
-                    <div className={isActive ? 'text-primary-600' : 'text-gray-400'}>
+                    <div className={isActive ? 'text-primary-200' : 'text-gray-400'}>
                       {item.icon}
                     </div>
                     {!collapsed && item.name}
@@ -219,7 +219,7 @@ export function Sidebar({ isOpen, onClose, onToggle }: SidebarProps) {
             }`}
           >
             <div className={`flex items-center ${collapsed ? '' : 'gap-3'}`}>
-              <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-transparent group-hover:ring-primary-200 transition-all">
+              <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-800 flex flex-shrink-0 items-center justify-center font-outfit font-semibold text-sm uppercase ring-2 ring-transparent group-hover:ring-primary-300 transition-all">
                 {user?.full_name?.substring(0, 2) || 'US'}
               </div>
               {!collapsed && (

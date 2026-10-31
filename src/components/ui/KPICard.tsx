@@ -28,7 +28,7 @@ export function KPICard({ title, value, icon, trend, colorClass, onClick }: KPIC
       </div>
       <div className="flex-1 flex items-end justify-between min-h-[48px] gap-2">
         <div
-          className={`font-normal text-gray-900 font-outfit uppercase tracking-tight leading-tight ${typeof value === 'string' && value.length > 10 ? 'text-sm' : 'text-2xl'} ${colorClass || ''}`}
+          className={`font-semibold text-gray-900 font-outfit tabular-nums-display tracking-tight leading-tight ${typeof value === 'string' && value.length > 10 ? 'text-sm' : 'text-2xl'} ${colorClass || ''}`}
         >
           {value}
         </div>
