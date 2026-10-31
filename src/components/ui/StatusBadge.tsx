@@ -1,5 +1,6 @@
 import React from 'react';
 import { Badge } from './Badge';
+import { getStatusLabel } from '../../lib/statusLabels';
 
 export type StatusType =
   | 'active'
@@ -22,6 +23,9 @@ export function StatusBadge({ status }: { status: StatusType }) {
     case 'active':
     case 'approved':
     case 'converted':
+    case 'accepted': // "Offer accepted" is a win; it must not look like "Engaged".
+    case 'live':
+    case 'content_approved':
       variant = 'success';
       break;
     case 'replied':
@@ -30,10 +34,13 @@ export function StatusBadge({ status }: { status: StatusType }) {
     case 'shortlisted':
     case 'address_requested':
     case 'not_respond':
+    case 'negotiating':
+    case 'content_submitted':
       variant = 'warning';
       break;
     case 'shipped':
     case 'product_shipped':
+    case 'content_pending':
       variant = 'secondary';
       break;
     case 'delivered':
@@ -49,7 +56,7 @@ export function StatusBadge({ status }: { status: StatusType }) {
     case 'engaged':
     case 'contacted':
     case 'offer_sent':
-    case 'accepted':
+    case 'meeting_scheduled':
     case 'qualified':
     case 'activated':
       variant = 'primary';
@@ -63,16 +70,5 @@ export function StatusBadge({ status }: { status: StatusType }) {
       variant = 'gray';
   }
 
-  let label = status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
-  if (status === 'hold') label = 'Discovered';
-  if (status === 'archived') label = 'Inactive';
-  if (status === 'not_respond') label = 'Not Responsive';
-  if (status === 'inactive') label = 'Inactive';
-  if (status === 'accepted') label = 'Engaged';
-  if (status === 'pending_review' || status === 'shortlisted') label = 'Shortlisted';
-  if (status === 'pending') label = 'Pending';
-  if (status === 'address_requested') label = 'Address Requested';
-  if (status === 'ready_to_ship') label = 'Ready to Ship';
-
-  return <Badge variant={variant}>{label}</Badge>;
+  return <Badge variant={variant}>{getStatusLabel(status)}</Badge>;
 }

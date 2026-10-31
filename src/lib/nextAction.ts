@@ -277,6 +277,33 @@ export function getNextAction(input: {
   }
 }
 
+/**
+ * The next step on a partnership's own page. The creator-level gates (review first,
+ * then first outreach) belong to the creator's profile and list row; once a
+ * partnership exists its page leads with the partnership's step. So a creator whose
+ * review_status is still hold/shortlisted (or missing from the payload) gets that
+ * step instead of "Review creator" / "Send outreach".
+ */
+export function getPartnershipNextAction(input: {
+  creator: Creator;
+  partnership: Partnership;
+  shipment?: Shipment | null;
+  contents?: CreatorContent[];
+}): NextAction {
+  const step = getNextAction(input);
+  if (step.key !== 'review' && step.key !== 'outreach') return step;
+  const lifecycle = input.creator.lifecycle_status ?? '';
+  return getNextAction({
+    ...input,
+    creator: {
+      ...input.creator,
+      review_status: 'approved',
+      // A partnership means the creator is past first contact.
+      lifecycle_status: NOT_CONTACTED.has(lifecycle) || !lifecycle ? 'engaged' : lifecycle,
+    } as Creator,
+  });
+}
+
 // ─── Choosing the inputs ───────────────────────────────────────────────
 // Every surface must feed the engine the same partnership, shipment and
 // deliverables, or the "one engine" promise breaks again.

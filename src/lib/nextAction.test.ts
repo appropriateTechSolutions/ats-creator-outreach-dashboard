@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canReachOut,
   getNextAction,
+  getPartnershipNextAction,
   isFollowUpDue,
   isWaitingForFollowUp,
   pickCurrentPartnership,
@@ -669,5 +670,31 @@ describe('partnership shipment and deliverables', () => {
       'c-legacy',
     ]);
     expect(pickPartnershipContents(null, [mine])).toEqual([]);
+  });
+});
+
+describe('getPartnershipNextAction', () => {
+  it('uses the partnership step when the creator is still unreviewed', () => {
+    const step = getPartnershipNextAction({
+      creator: makeCreator({ review_status: 'hold', lifecycle_status: 'engaged' }),
+      partnership: makePartnership({ status: 'offer_sent' }),
+    });
+    expect(step).toMatchObject({ key: 'awaiting_signature', kind: 'waiting' });
+  });
+
+  it('uses the partnership step when no review status came with the creator', () => {
+    const step = getPartnershipNextAction({
+      creator: makeCreator({ review_status: null, lifecycle_status: 'new' }),
+      partnership: makePartnership({ status: 'accepted', shipment_included: true }),
+    });
+    expect(step.key).toBe('add_shipment');
+  });
+
+  it('matches getNextAction for a reviewed creator', () => {
+    const input = {
+      creator: makeCreator({ review_status: 'approved', lifecycle_status: 'engaged' }),
+      partnership: makePartnership({ status: 'activated' }),
+    };
+    expect(getPartnershipNextAction(input)).toEqual(getNextAction(input));
   });
 });

@@ -18,7 +18,15 @@ import {
   completePartnership,
   rejectPartnership,
   updatePartnership,
+  getErrorMessage,
 } from '../lib/api';
+import {
+  filterPartnerships,
+  PARTNERSHIP_STATUSES,
+  type PartnershipStatusFilter,
+} from '../lib/partnershipFilters';
+import { getStatusLabel } from '../lib/statusLabels';
+import { formatMoney } from '../lib/formatters';
 import { usePartnerships, useCampaigns } from '../hooks/queries';
 import { useInvalidate } from '../hooks/useInvalidate';
 import { queryKeys } from '../lib/queryKeys';
@@ -37,7 +45,8 @@ export default function Partnerships() {
 
   // Filters
   const [selectedCampaign, setSelectedCampaign] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
+  // Default "open": the whole live pipeline, offers included; closed rows on request.
+  const [selectedStatus, setSelectedStatus] = useState<PartnershipStatusFilter>('open');
   const [selectedTier, setSelectedTier] = useState('');
   const [selectedOfferType, setSelectedOfferType] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -46,7 +55,7 @@ export default function Partnerships() {
 
   const activeFiltersCount =
     (selectedCampaign ? 1 : 0) +
-    (selectedStatus ? 1 : 0) +
+    (selectedStatus !== 'open' ? 1 : 0) +
     (selectedTier ? 1 : 0) +
     (selectedOfferType ? 1 : 0) +
     (startDate || endDate ? 1 : 0);
@@ -84,7 +93,7 @@ export default function Partnerships() {
       }
       refresh();
     } catch (err) {
-      showToast('Action failed: ' + err, 'error');
+      showToast(getErrorMessage(err, 'Action failed.'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -146,56 +155,20 @@ export default function Partnerships() {
       setShowEditModal(false);
       refresh();
     } catch (err) {
-      showToast('Failed to update details: ' + err, 'error');
+      showToast(getErrorMessage(err, 'Failed to update details.'), 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const filtered = partnerships.filter((p) => {
-    // Hide pre-activated creators by default since they haven't been officially activated yet.
-    if (
-      !selectedStatus &&
-      ['engaged', 'qualified', 'meeting_scheduled', 'offer_sent', 'accepted'].includes(p.status)
-    )
-      return false;
-
-    // Search
-    if (search) {
-      const q = search.toLowerCase();
-      const matchCreator =
-        p.Creator?.handle?.toLowerCase().includes(q) ||
-        p.Creator?.full_name?.toLowerCase().includes(q);
-      const matchCampaign = p.Campaign?.name?.toLowerCase().includes(q);
-      if (!matchCreator && !matchCampaign) return false;
-    }
-    // Dropdowns
-    if (selectedCampaign && p.campaign_id !== selectedCampaign) return false;
-    if (selectedStatus && p.status !== selectedStatus) return false;
-    if (selectedTier && p.creator_tier !== selectedTier) return false;
-    if (selectedOfferType && p.offer_type !== selectedOfferType) return false;
-
-    let matchesDate = true;
-    if (startDate || endDate) {
-      const pDate = p.start_date
-        ? new Date(p.start_date)
-        : p.createdAt
-          ? new Date(p.createdAt)
-          : new Date();
-      if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        if (pDate < start) matchesDate = false;
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        if (pDate > end) matchesDate = false;
-      }
-    }
-    if (!matchesDate) return false;
-
-    return true;
+  const { rows: filtered, closedHidden } = filterPartnerships(partnerships, {
+    status: selectedStatus,
+    search,
+    campaignId: selectedCampaign,
+    tier: selectedTier,
+    offerType: selectedOfferType,
+    startDate,
+    endDate,
   });
 
   return (
@@ -250,8 +223,20 @@ export default function Partnerships() {
                 )}
               </button>
             </div>
-            <div className="text-sm text-gray-500 font-normal sm:ml-auto">
-              {filtered.length} records found
+            <div className="text-sm text-gray-500 font-normal sm:ml-auto flex items-center gap-1.5">
+              <span>{filtered.length} records found</span>
+              {closedHidden > 0 && (
+                <span>
+                  · {closedHidden} closed hidden ·{' '}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStatus('all')}
+                    className="text-primary-600 hover:underline font-medium"
+                  >
+                    Show all
+                  </button>
+                </span>
+              )}
             </div>
           </div>
 
@@ -290,18 +275,16 @@ export default function Partnerships() {
                 <select
                   id="partnerships-2"
                   value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  onChange={(e) => setSelectedStatus(e.target.value as PartnershipStatusFilter)}
                   className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-normal uppercase tracking-tight rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-primary-500 font-outfit"
                 >
-                  <option value="">All Statuses</option>
-                  <option value="engaged">Engaged</option>
-                  <option value="meeting_scheduled">Meeting Scheduled</option>
-                  <option value="qualified">Qualified</option>
-                  <option value="offer_sent">Offer Sent</option>
-                  <option value="accepted">Engaged</option>
-                  <option value="activated">Activated</option>
-                  <option value="completed">Completed</option>
-                  <option value="rejected">Rejected</option>
+                  <option value="open">Open (default)</option>
+                  <option value="all">All</option>
+                  {PARTNERSHIP_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {getStatusLabel(status)}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -440,7 +423,7 @@ export default function Partnerships() {
                           </div>
                           {(p.flat_fee ?? 0) > 0 && (
                             <div className="text-[11px] text-gray-500 tracking-normal">
-                              ${p.flat_fee} {p.currency}
+                              {formatMoney(p.flat_fee, p.currency)}
                             </div>
                           )}
                           {p.affiliate_enabled && (

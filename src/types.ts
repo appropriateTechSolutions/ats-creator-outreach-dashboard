@@ -358,7 +358,18 @@ export interface CreatorPartnership {
   updated_at: string;
   Campaign?: Campaign;
   Creator?: Creator;
+  // Detail endpoint (GET /partnerships/:id) only: the partnership's deliverables,
+  // shipments (newest first) and the creator's conversation for this campaign.
   content?: CreatorContent[];
+  shipments?: Shipment[];
+  conversation?: PartnershipConversation | null;
+}
+
+/** The latest inbound message on a partnership's conversation (detail endpoint). */
+export interface PartnershipConversation {
+  id: string;
+  latest_inbound_message: string | null;
+  latest_inbound_at: string | null;
 }
 
 /** Short name for a creator × campaign deal (used by the next-step engine). */
