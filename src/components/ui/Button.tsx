@@ -23,14 +23,14 @@ export function Button({
 
   const variants = {
     primary:
-      'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-soft hover:shadow-hover hover:from-primary-700 hover:to-primary-600 focus:ring-primary-500 border border-transparent',
+      'bg-primary-700 text-primary-50 shadow-soft hover:bg-primary-800 hover:shadow-hover focus:ring-primary-500 border border-primary-800/40',
     secondary:
       'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500 border border-transparent',
     outline:
-      'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 shadow-sm focus:ring-primary-500',
+      'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm focus:ring-primary-500',
     ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-500',
     danger:
-      'bg-gradient-to-r from-error-600 to-error-500 text-white shadow-soft hover:shadow-hover hover:from-error-700 hover:to-error-600 focus:ring-error-500 border border-transparent',
+      'bg-error-600 text-white shadow-soft hover:bg-error-700 hover:shadow-hover focus:ring-error-500 border border-error-700/40',
   };
 
   const sizes = {

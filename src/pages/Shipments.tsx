@@ -543,19 +543,19 @@ export default function Shipments() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[1350px]">
+            <table className="w-full text-left min-w-[1000px]">
               <thead>
                 <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-                  <th className="px-6 py-4">Creator</th>
-                  <th className="px-6 py-4">Campaign</th>
-                  <th className="px-6 py-4">Product</th>
-                  <th className="px-6 py-4 text-center">Quantity</th>
-                  <th className="px-6 py-4 text-center">Shipment Status</th>
-                  <th className="px-6 py-4">Carrier</th>
-                  <th className="px-6 py-4">Tracking Number</th>
-                  <th className="px-6 py-4">Shipped At</th>
-                  <th className="px-6 py-4">Delivered At</th>
-                  <th className="px-6 py-4 text-center">Actions</th>
+                  <th className="px-4 py-4">Creator</th>
+                  <th className="px-4 py-4">Campaign</th>
+                  <th className="px-4 py-4">Product</th>
+                  <th className="px-4 py-4 text-center">Quantity</th>
+                  <th className="px-4 py-4 text-center">Shipment Status</th>
+                  <th className="px-4 py-4">Carrier</th>
+                  <th className="px-4 py-4">Tracking Number</th>
+                  <th className="px-4 py-4">Shipped At</th>
+                  <th className="px-4 py-4">Delivered At</th>
+                  <th className="px-4 py-4 text-center col-sticky-end">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 bg-white">
@@ -563,17 +563,17 @@ export default function Shipments() {
                   <tr
                     key={s.id}
                     onClick={() => navigate(`/shipments/${s.id}`)}
-                    className="hover:bg-primary-50/10 transition-colors cursor-pointer"
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
                   >
                     {/* Creator Info */}
-                    <td className="px-6 py-3.5 align-middle">
+                    <td className="px-4 py-3.5 align-middle">
                       <div className="flex items-center gap-3">
                         <CreatorAvatar
                           creator={s.Creator}
                           className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-sm uppercase ring-2 ring-white shadow-sm overflow-hidden"
                         />
                         <div className="min-w-0">
-                          <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
+                          <div className="font-normal text-gray-900 text-sm font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[180px]">
                             {s.Creator?.full_name || `@${s.Creator?.handle}`}
                           </div>
                           <div className="flex gap-2 mt-1.5">
@@ -593,14 +593,19 @@ export default function Shipments() {
                     </td>
 
                     {/* Campaign */}
-                    <td className="px-6 py-3.5 align-middle text-xs font-normal text-gray-900 font-outfit uppercase tracking-tight truncate max-w-[150px] leading-tight">
-                      {s.Campaign?.name}
+                    <td className="px-4 py-3.5 align-middle text-sm font-normal text-gray-900 font-outfit leading-tight">
+                      <div
+                        className="line-clamp-2 whitespace-normal break-words min-w-[150px] max-w-[180px]"
+                        title={s.Campaign?.name}
+                      >
+                        {s.Campaign?.name}
+                      </div>
                     </td>
 
                     {/* Product */}
-                    <td className="px-6 py-3.5 align-middle text-xs">
+                    <td className="px-4 py-3.5 align-middle text-xs">
                       <div
-                        className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight truncate max-w-[180px]"
+                        className="font-normal text-gray-900 text-sm font-outfit leading-tight line-clamp-2 whitespace-normal break-words min-w-[150px] max-w-[200px]"
                         title={s.product_name}
                       >
                         {s.product_name}
@@ -613,22 +618,22 @@ export default function Shipments() {
                     </td>
 
                     {/* Quantity */}
-                    <td className="px-6 py-3.5 align-middle text-center text-xs font-semibold text-gray-800 font-outfit">
+                    <td className="px-4 py-3.5 align-middle text-center text-xs font-semibold text-gray-800 font-outfit">
                       {s.quantity}
                     </td>
 
                     {/* Shipment Status */}
-                    <td className="px-6 py-3.5 text-center align-middle">
+                    <td className="px-4 py-3.5 text-center align-middle">
                       <StatusBadge status={s.status} />
                     </td>
 
                     {/* Carrier */}
-                    <td className="px-6 py-3.5 align-middle text-xs text-gray-800 font-outfit capitalize">
+                    <td className="px-4 py-3.5 align-middle text-xs text-gray-800 font-outfit capitalize">
                       {s.carrier || <span className="text-gray-450 italic">N/A</span>}
                     </td>
 
                     {/* Tracking Number */}
-                    <td className="px-6 py-3.5 align-middle text-xs font-mono">
+                    <td className="px-4 py-3.5 align-middle text-xs font-mono">
                       {s.tracking_number ? (
                         <div className="space-y-0.5">
                           <div className="font-medium text-gray-855">{s.tracking_number}</div>
@@ -650,7 +655,7 @@ export default function Shipments() {
                     </td>
 
                     {/* Shipped At */}
-                    <td className="px-6 py-3.5 align-middle text-xs text-gray-650 font-mono">
+                    <td className="px-4 py-3.5 align-middle text-xs text-gray-650 font-mono whitespace-nowrap">
                       {s.shipped_at ? (
                         format(new Date(s.shipped_at), 'MMM d, yyyy')
                       ) : (
@@ -659,7 +664,7 @@ export default function Shipments() {
                     </td>
 
                     {/* Delivered At */}
-                    <td className="px-6 py-3.5 align-middle text-xs text-gray-650 font-mono">
+                    <td className="px-4 py-3.5 align-middle text-xs text-gray-650 font-mono whitespace-nowrap">
                       {s.delivered_at ? (
                         format(new Date(s.delivered_at), 'MMM d, yyyy')
                       ) : (
@@ -669,10 +674,10 @@ export default function Shipments() {
 
                     {/* Dropdown Action Menu */}
                     <td
-                      className="px-6 py-3.5 align-middle text-center"
+                      className="px-4 py-3.5 align-middle text-center col-sticky-end"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                         {(!s.Creator?.shipping_address_line1 || !s.Creator?.shipping_city) &&
                           ['pending', 'address_requested'].includes(s.status) && (
                             <Button

@@ -36,6 +36,7 @@ export const queryKeys = {
   },
   stats: {
     dashboard: (campaignId?: string) => ['stats', 'dashboard', campaignId ?? null] as const,
+    attention: (campaignId?: string) => ['stats', 'attention', campaignId ?? null] as const,
   },
   clients: {
     all: ['clients'] as const,

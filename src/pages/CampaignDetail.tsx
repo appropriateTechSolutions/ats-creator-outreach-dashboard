@@ -15,12 +15,14 @@ import {
   recalculateCampaignPerformance,
   getCampaignActivities,
   syncCampaignCreators,
+  getErrorMessage,
 } from '../lib/api';
 import { useCampaign, useCampaignLeads, useBrands } from '../hooks/queries';
 import { useInvalidate } from '../hooks/useInvalidate';
 import { queryKeys } from '../lib/queryKeys';
+import { emailSentMessage, sendFailureMessage } from '../lib/outreach';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Campaign, Creator } from '../types';
+import type { Campaign, CampaignPerformance, Creator } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
@@ -28,6 +30,8 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { OutreachPreviewModal } from '../components/ui/OutreachPreviewModal';
 import { TemplateEditModal } from '../components/ui/TemplateEditModal';
 import { LoadingState } from '../components/ui/LoadingState';
+import { ActionMenu } from '../components/ui/DropdownMenu';
+import { useConfirm } from '../contexts/ConfirmContext';
 import {
   ArrowLeft,
   Sparkles,
@@ -39,7 +43,6 @@ import {
   Youtube,
   Edit2,
   Trash2,
-  Loader2,
   AlertCircle,
   Star,
   ChevronDown,
@@ -256,6 +259,7 @@ export default function CampaignDetail() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
   const fromBrandId = location.state?.fromBrandId;
   const fromBrandsList = location.state?.fromBrandsList;
   const { data: campaignData, isLoading: loading } = useCampaign(id);
@@ -274,7 +278,6 @@ export default function CampaignDetail() {
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [outreachModalMessageType, setOutreachModalMessageType] = useState<string>('initial');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [previewCreator, setPreviewCreator] = useState<Creator | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -299,7 +302,7 @@ export default function CampaignDetail() {
   // Sprint 4 states
   const [activeTab, setActiveTab] = useState<'leads' | 'analytics' | 'activity'>('leads');
   const [funnelData, setFunnelData] = useState<any>(null);
-  const [perfData, setPerfData] = useState<any>(null);
+  const [perfData, setPerfData] = useState<CampaignPerformance | null>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [recalculating, setRecalculating] = useState(false);
   const [syncingLeads, setSyncingLeads] = useState(false);
@@ -499,13 +502,30 @@ export default function CampaignDetail() {
     customSubject?: string,
     customBody?: string,
     messageType?: string,
+    customTo?: string,
   ) => {
     if (!outreachModalCreatorId) return;
     try {
-      await reviewLead(outreachModalCreatorId, 'approve', customSubject, customBody, messageType);
+      // This page is the campaign, so the email and its log belong to it — even for
+      // a creator who is also in other campaigns.
+      await reviewLead(
+        outreachModalCreatorId,
+        'approve',
+        customSubject,
+        customBody,
+        messageType,
+        customTo,
+        id,
+      );
+      toast.success(
+        emailSentMessage(customTo || leads.find((l) => l.id === outreachModalCreatorId)?.email),
+      );
       fetchData();
     } catch (err) {
-      toast.error('Failed to review lead: ' + err);
+      // The backend approves before it sends, so a failed send still changed the
+      // creator: reload so the row shows the real status (approved, not contacted).
+      fetchData(true);
+      toast.error(sendFailureMessage(err));
       throw err;
     }
   };
@@ -576,21 +596,28 @@ export default function CampaignDetail() {
     }
   };
 
-  const handleDeleteCampaign = () => {
-    setShowDeleteConfirm(true);
-  };
-
-  const confirmDeleteCampaign = async () => {
-    if (!id) return;
+  const handleDeleteCampaign = async () => {
+    if (!id || !campaign) return;
+    const confirmed = await confirm({
+      title: 'Delete campaign?',
+      message: (
+        <>
+          Are you sure you want to permanently delete{' '}
+          <strong className="text-gray-900">{campaign.name}</strong>?
+        </>
+      ),
+      confirmText: 'Delete campaign',
+      isDestructive: true,
+    });
+    if (!confirmed) return;
     setIsUpdating(true);
     try {
       await deleteCampaign(id);
       navigate('/campaigns');
-    } catch (err: any) {
-      toast.error(err || 'Failed to delete campaign.');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete campaign.'));
     } finally {
       setIsUpdating(false);
-      setShowDeleteConfirm(false);
     }
   };
 
@@ -629,6 +656,9 @@ export default function CampaignDetail() {
     }
   };
 
+  const canEditCampaign = hasRole(user?.role, ROLE_GROUPS.MANAGE_CREATORS);
+  const canDeleteCampaign = hasRole(user?.role, ROLE_GROUPS.MANAGE_USERS);
+
   const filteredLeads = leads.filter((c) => {
     if (!hasPublicProfileSignal(c)) return false;
     // Hide creators with fewer than 1k followers — except ones still being found in
@@ -653,7 +683,7 @@ export default function CampaignDetail() {
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight leading-tight">
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit leading-tight">
             {campaign.name}
           </h1>
         </div>
@@ -691,23 +721,57 @@ export default function CampaignDetail() {
               <StatusBadge status={campaign.status as any} />
             )}
           </div>
-          {hasRole(user?.role, ROLE_GROUPS.MANAGE_CREATORS) && campaign.status === 'active' && (
-            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={handleEndCampaign}
-                className="w-full sm:w-auto bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-lg h-11 px-6 font-normal uppercase tracking-widest text-[10px] transition-colors focus:outline-none flex items-center justify-center"
-              >
-                End Campaign
-              </button>
-              <Button
-                onClick={handleDiscovery}
-                disabled={discovering}
-                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 border-none h-11 px-6 font-normal uppercase tracking-widest text-[10px]"
-                icon={discovering ? <LoadingState mini /> : <Sparkles size={16} />}
-              >
-                {discovering ? 'Executing AI...' : 'Run AI Discovery'}
-              </Button>
+          {(canEditCampaign || canDeleteCampaign) && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+              {canEditCampaign && campaign.status === 'active' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleEndCampaign}
+                    className="w-full sm:w-auto bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-lg h-11 px-6 font-normal uppercase tracking-widest text-[10px] transition-colors focus:outline-none flex items-center justify-center"
+                  >
+                    End Campaign
+                  </button>
+                  <Button
+                    onClick={handleDiscovery}
+                    disabled={discovering}
+                    className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 border-none h-11 px-6 font-normal uppercase tracking-widest text-[10px]"
+                    icon={discovering ? <LoadingState mini /> : <Sparkles size={16} />}
+                  >
+                    {discovering ? 'Executing AI...' : 'Run AI Discovery'}
+                  </Button>
+                </>
+              )}
+              {canEditCampaign && (
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditModalOpen(true)}
+                  aria-label="Edit campaign"
+                  className="w-full sm:w-auto h-11 px-6 font-normal uppercase tracking-widest text-[10px]"
+                  icon={<Edit2 size={16} />}
+                >
+                  Edit
+                </Button>
+              )}
+              {canDeleteCampaign && (
+                <ActionMenu
+                  ariaLabel="More campaign actions"
+                  trigger={
+                    <span className="flex w-full sm:w-auto items-center justify-center gap-2 h-11 px-4 rounded-lg border border-gray-300 bg-white text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors font-normal uppercase tracking-widest text-[10px]">
+                      More <ChevronDown size={14} />
+                    </span>
+                  }
+                  items={[
+                    {
+                      label: 'Delete campaign',
+                      icon: <Trash2 size={14} />,
+                      destructive: true,
+                      disabled: isUpdating,
+                      onSelect: handleDeleteCampaign,
+                    },
+                  ]}
+                />
+              )}
             </div>
           )}
         </div>
@@ -969,71 +1033,6 @@ export default function CampaignDetail() {
           setCustomCity={setCustomCity}
         />
       </Modal>
-
-      {/* Floating Actions */}
-      {hasRole(user?.role, ROLE_GROUPS.MANAGE_USERS) && (
-        <button
-          type="button"
-          onClick={handleDeleteCampaign}
-          disabled={isUpdating}
-          className="fixed bottom-28 right-8 w-12 h-12 bg-white text-red-600 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-100 flex items-center justify-center hover:bg-red-50 hover:scale-110 active:scale-95 transition-all z-[60] group disabled:cursor-not-allowed disabled:opacity-60"
-          aria-label="Delete campaign"
-          title="Delete Campaign"
-        >
-          {isUpdating ? (
-            <Loader2 size={20} className="animate-spin" />
-          ) : (
-            <Trash2 size={21} className="group-hover:rotate-12 transition-transform" />
-          )}
-        </button>
-      )}
-
-      {hasRole(user?.role, ROLE_GROUPS.MANAGE_CREATORS) && (
-        <button
-          type="button"
-          onClick={() => setIsEditModalOpen(true)}
-          className="fixed bottom-8 right-8 w-14 h-14 bg-white text-primary-600 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-[60] group"
-          aria-label="Edit campaign"
-          title="Edit Campaign Parameters"
-        >
-          <Edit2 size={24} className="group-hover:rotate-12 transition-transform" />
-        </button>
-      )}
-
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <Card className="w-full max-w-sm border-none shadow-3xl bg-white rounded-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 text-center">
-              <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
-                <AlertCircle size={32} />
-              </div>
-              <h3 className="text-xl font-normal text-gray-900 mb-2 font-outfit uppercase tracking-tight">
-                Delete Campaign?
-              </h3>
-              <p className="text-sm font-normal text-gray-500 mb-6 font-outfit">
-                Are you sure you want to permanently delete{' '}
-                <strong className="text-gray-900">{campaign.name}</strong>?
-              </p>
-              <div className="flex gap-3">
-                <Button
-                  variant="ghost"
-                  className="flex-1 font-normal uppercase tracking-widest text-[10px]"
-                  onClick={() => setShowDeleteConfirm(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-normal uppercase tracking-widest text-[10px] shadow-xl shadow-red-500/20"
-                  onClick={confirmDeleteCampaign}
-                  disabled={isUpdating}
-                >
-                  {isUpdating ? <LoadingState mini /> : 'Delete Campaign'}
-                </Button>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
 
       {showEndConfirm && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">

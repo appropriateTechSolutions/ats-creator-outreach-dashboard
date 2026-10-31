@@ -1,5 +1,5 @@
 import { CreatorAvatar } from '../components/creators/CreatorIdentity';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useConfirm } from '../contexts/ConfirmContext';
@@ -17,10 +17,58 @@ import {
   completePartnership,
   rejectPartnership,
   updatePartnership,
+  getErrorMessage,
 } from '../lib/api';
-import { usePartnership } from '../hooks/queries';
-import { Handshake, Coins, Edit3, ExternalLink, ArrowLeft, FileText, Mail } from 'lucide-react';
-import { format } from 'date-fns';
+import { usePartnership, useCreator } from '../hooks/queries';
+import {
+  getPartnershipNextAction,
+  pickPartnershipShipment,
+  type NextAction,
+} from '../lib/nextAction';
+import { cleanMessageText, formatMoney, markAcceptedConfirmation } from '../lib/formatters';
+import type { Creator, CreatorContent, Shipment } from '../types';
+import { Edit3, ExternalLink, ArrowLeft } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+
+const CAPTION = 'text-[10px] font-bold text-gray-400 uppercase tracking-widest';
+
+// Next-step keys this page can act on (the rest are creator-level or waiting steps).
+const PAGE_ACTIONS: ReadonlySet<string> = new Set([
+  'draft_offer',
+  'add_shipment',
+  'view_shipments',
+  'activate',
+  'complete',
+  'review_content',
+  'add_draft_url',
+  'add_live_url',
+]);
+
+const PLATFORM_LABELS: Readonly<Record<string, string>> = {
+  instagram: 'Instagram',
+  youtube: 'YouTube',
+  tiktok: 'TikTok',
+  blog: 'Blog',
+  website: 'Website',
+  other: 'Other',
+};
+
+/** "instagram_reel" → "Instagram reel", "youtube_short" → "YouTube short". */
+function contentTypeLabel(type: string): string {
+  const [first = '', ...rest] = type.split('_');
+  const lead = PLATFORM_LABELS[first] ?? first.charAt(0).toUpperCase() + first.slice(1);
+  return [lead, ...rest].join(' ');
+}
+
+// due_date is a DATEONLY string; parse it as a local calendar day.
+function formatDueDate(due: string | null | undefined): string {
+  return due ? format(parseISO(due.slice(0, 10)), 'MMM d, yyyy') : '—';
+}
+
+function snippet(text: string, max = 240): string {
+  const clean = cleanMessageText(text).trim() || text.trim();
+  return clean.length > max ? `${clean.slice(0, max - 1).trimEnd()}…` : clean;
+}
 
 export default function PartnershipDetail() {
   const { id } = useParams<{ id: string }>();
@@ -32,7 +80,24 @@ export default function PartnershipDetail() {
   const fromPath = location.state?.fromPath;
   const fromLabel = location.state?.fromLabel;
   const { data: partnership, isLoading: loading, refetch: fetchPartnership } = usePartnership(id);
+  // The detail payload's Creator has no review_status; the engine needs the full record.
+  const { data: fullCreator } = useCreator(partnership?.creator_id);
   const [submitting, setSubmitting] = useState(false);
+
+  const currentShipment = useMemo(
+    () => (partnership ? pickPartnershipShipment(partnership, partnership.shipments) : null),
+    [partnership],
+  );
+  const nextAction = useMemo<NextAction | null>(() => {
+    if (!partnership) return null;
+    const creator = { ...(partnership.Creator ?? {}), ...(fullCreator ?? {}) } as Creator;
+    return getPartnershipNextAction({
+      creator,
+      partnership,
+      shipment: currentShipment,
+      contents: partnership.content ?? [],
+    });
+  }, [partnership, fullCreator, currentShipment]);
 
   // Shared Modals
   const [showSharedOfferModal, setShowSharedOfferModal] = useState(false);
@@ -78,9 +143,40 @@ export default function PartnershipDetail() {
       }
       await fetchPartnership();
     } catch (err) {
-      showToast('Action failed: ' + err, 'error');
+      showToast(getErrorMessage(err, 'Action failed.'), 'error');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Accepting on the creator's behalf commits the brand to the fee, so it is confirmed.
+  const handleMarkAccepted = async () => {
+    if (!partnership) return;
+    if (await confirm(markAcceptedConfirmation(partnership))) await handleAction('accept');
+  };
+
+  const runNextAction = (step: NextAction) => {
+    switch (step.key) {
+      case 'draft_offer':
+        openOfferModal();
+        break;
+      case 'add_shipment':
+        openShipmentModal();
+        break;
+      case 'view_shipments':
+        navigate(`/shipments/${(step.payload as Shipment).id}`);
+        break;
+      case 'activate':
+      case 'complete':
+        void handleAction(step.key);
+        break;
+      case 'review_content':
+      case 'add_draft_url':
+      case 'add_live_url':
+        navigate(`/content/${(step.payload as CreatorContent).id}`);
+        break;
+      default:
+        break;
     }
   };
 
@@ -127,7 +223,7 @@ export default function PartnershipDetail() {
       setShowEditModal(false);
       await fetchPartnership();
     } catch (err) {
-      showToast('Failed to update details: ' + err, 'error');
+      showToast(getErrorMessage(err, 'Failed to update details.'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -154,6 +250,10 @@ export default function PartnershipDetail() {
       </div>
     );
   }
+  const contents = partnership.content ?? [];
+  const shipments = partnership.shipments ?? [];
+  const conversation = partnership.conversation ?? null;
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20 px-4 sm:px-0 animate-[fadeIn_0.2s_ease]">
       {/* Header */}
@@ -181,59 +281,61 @@ export default function PartnershipDetail() {
               <ArrowLeft size={14} /> Back to Partnerships
             </button>
           )}
-          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
-            Partnership Profile
+          <span className={CAPTION}>Partnership</span>
+          <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit tracking-tight mt-1">
+            <Link
+              to={`/creators/${partnership.creator_id}`}
+              className="hover:text-primary-700 hover:underline"
+            >
+              {partnership.Creator?.full_name || `@${partnership.Creator?.handle ?? 'creator'}`}
+            </Link>
           </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Campaign:{' '}
+            <Link
+              to={`/campaigns/${partnership.campaign_id}`}
+              className="text-primary-600 hover:underline"
+            >
+              {partnership.Campaign?.name || 'View campaign'}
+            </Link>
+          </p>
         </div>
 
-        {/* Actions panel */}
-        <div className="flex items-center gap-2">
+        {/* Actions panel: the next step from the shared engine, then manual overrides */}
+        <div className="flex flex-wrap items-center gap-2">
+          {nextAction && nextAction.kind === 'action' && PAGE_ACTIONS.has(nextAction.key) && (
+            <Button
+              className="bg-primary-600 hover:bg-primary-700 text-white font-normal text-xs min-h-[40px] px-4"
+              disabled={submitting}
+              onClick={() => runNextAction(nextAction)}
+            >
+              {nextAction.label}
+            </Button>
+          )}
+          {nextAction && (nextAction.kind === 'waiting' || nextAction.key === 'done') && (
+            <div className="flex flex-col items-end mr-2">
+              <span className={CAPTION}>Next step</span>
+              <span className="text-sm text-gray-600">{nextAction.label}</span>
+            </div>
+          )}
           {partnership.status === 'engaged' && (
             <Button
-              className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4"
+              variant="outline"
+              className="font-normal text-xs min-h-[40px] px-4"
+              disabled={submitting}
               onClick={() => handleAction('qualify')}
             >
               Qualify
             </Button>
           )}
-          {partnership.status === 'qualified' && (
-            <Button
-              className="bg-primary-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4"
-              onClick={openOfferModal}
-            >
-              Send Offer
-            </Button>
-          )}
           {partnership.status === 'offer_sent' && (
             <Button
-              className="bg-green-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4"
-              onClick={() => handleAction('accept')}
+              variant="outline"
+              className="font-normal text-xs min-h-[40px] px-4"
+              disabled={submitting}
+              onClick={handleMarkAccepted}
             >
-              Accept Offer
-            </Button>
-          )}
-          {partnership.status === 'accepted' && (
-            <Button
-              className="bg-blue-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4"
-              onClick={openShipmentModal}
-            >
-              Send Shipment
-            </Button>
-          )}
-          {['product_shipped', 'product_delivered'].includes(partnership.status) && (
-            <Button
-              className="bg-amber-600 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4"
-              onClick={() => handleAction('activate')}
-            >
-              Activate
-            </Button>
-          )}
-          {partnership.status === 'activated' && (
-            <Button
-              className="bg-gray-800 text-white font-normal uppercase tracking-widest text-xs min-h-[40px] px-4"
-              onClick={() => handleAction('complete')}
-            >
-              Complete
+              Mark accepted for creator
             </Button>
           )}
           <button
@@ -290,13 +392,13 @@ export default function PartnershipDetail() {
                         : 'None drafted'}
                     </span>
                   </div>
-                  {(partnership.flat_fee ?? 0) > 0 && (
+                  {Number(partnership.flat_fee) > 0 && (
                     <div>
                       <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">
                         Flat Fee
                       </span>
                       <span className="text-sm font-normal text-gray-800">
-                        ${partnership.flat_fee} {partnership.currency}
+                        {formatMoney(partnership.flat_fee, partnership.currency)}
                       </span>
                     </div>
                   )}
@@ -445,6 +547,150 @@ export default function PartnershipDetail() {
                 )}
               </div>
             )}
+          </Card>
+
+          {/* Deliverables */}
+          <Card className="border-none shadow-xl bg-white p-6 sm:p-8">
+            <section aria-labelledby="partnership-deliverables" className="font-outfit">
+              <h2 id="partnership-deliverables" className={`${CAPTION} mb-4`}>
+                Deliverables
+              </h2>
+              {contents.length === 0 ? (
+                <p className="text-sm text-gray-500">No deliverables on this partnership yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className={`${CAPTION} border-b border-gray-100`}>
+                        <th className="py-2 pr-4 font-bold">Platform</th>
+                        <th className="py-2 pr-4 font-bold">Type</th>
+                        <th className="py-2 pr-4 font-bold">Due</th>
+                        <th className="py-2 pr-4 font-bold">Status</th>
+                        <th className="py-2 font-bold">
+                          <span className="sr-only">Link</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {contents.map((c) => (
+                        <tr key={c.id}>
+                          <td className="py-3 pr-4 text-gray-800">
+                            {PLATFORM_LABELS[c.platform] ?? c.platform}
+                          </td>
+                          <td className="py-3 pr-4 text-gray-800">
+                            {contentTypeLabel(c.content_type)}
+                          </td>
+                          <td className="py-3 pr-4 text-gray-600">{formatDueDate(c.due_date)}</td>
+                          <td className="py-3 pr-4">
+                            <StatusBadge status={c.status} />
+                          </td>
+                          <td className="py-3 text-right">
+                            <Link
+                              to={`/content/${c.id}`}
+                              className="text-primary-600 hover:underline text-xs font-medium whitespace-nowrap"
+                            >
+                              Open deliverable
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </Card>
+        </div>
+
+        {/* Right side: conversation and shipments */}
+        <div className="space-y-8">
+          <Card className="border-none shadow-xl bg-white p-6">
+            <section aria-labelledby="partnership-latest-message" className="font-outfit">
+              <h2 id="partnership-latest-message" className={`${CAPTION} mb-3`}>
+                Latest message
+              </h2>
+              {conversation?.latest_inbound_message ? (
+                <>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                    {snippet(conversation.latest_inbound_message)}
+                  </p>
+                  {conversation.latest_inbound_at && (
+                    <p className="text-xs text-gray-400 mt-2">
+                      {format(new Date(conversation.latest_inbound_at), 'MMM d, yyyy · h:mm a')}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  {conversation
+                    ? 'No reply from the creator yet.'
+                    : 'No conversation for this campaign yet.'}
+                </p>
+              )}
+              {conversation && (
+                <Link
+                  to={`/conversations?thread=${conversation.id}`}
+                  className="text-primary-600 hover:underline text-xs font-medium inline-block mt-3"
+                >
+                  Open conversation
+                </Link>
+              )}
+            </section>
+          </Card>
+
+          <Card className="border-none shadow-xl bg-white p-6">
+            <section aria-labelledby="partnership-shipments" className="font-outfit">
+              <h2 id="partnership-shipments" className={`${CAPTION} mb-3`}>
+                Shipments
+              </h2>
+              {shipments.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  {partnership.shipment_included
+                    ? 'No shipments yet.'
+                    : 'No product shipment on this offer.'}
+                </p>
+              ) : (
+                <ul className="space-y-4">
+                  {shipments.map((sh) => {
+                    const tracking = [sh.carrier, sh.tracking_number].filter(Boolean).join(' ');
+                    return (
+                      <li key={sh.id} className="border-b border-gray-50 last:border-0 pb-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm text-gray-800 truncate">
+                            {sh.product_name || 'Shipment'}
+                          </span>
+                          <StatusBadge status={sh.status} />
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1.5">
+                          {tracking ? (
+                            sh.tracking_url ? (
+                              <a
+                                href={sh.tracking_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary-600 hover:underline inline-flex items-center gap-1 font-mono"
+                              >
+                                {tracking} <ExternalLink size={10} aria-hidden="true" />
+                              </a>
+                            ) : (
+                              <span className="font-mono">{tracking}</span>
+                            )
+                          ) : (
+                            'No tracking yet'
+                          )}
+                        </div>
+                        <Link
+                          to={`/shipments/${sh.id}`}
+                          className="text-primary-600 hover:underline text-xs font-medium inline-block mt-1.5"
+                        >
+                          Open shipment
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
           </Card>
         </div>
       </div>

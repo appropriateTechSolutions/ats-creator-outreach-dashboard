@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { LoadingState } from '../components/ui/LoadingState';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Modal } from '../components/ui/Modal';
 import {
   updateContent,
@@ -294,6 +294,12 @@ export default function Content() {
             Content Tracking
           </h1>
         </div>
+        <Link
+          to="/analytics"
+          className="inline-flex items-center justify-center min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 shadow-sm transition-colors hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+        >
+          View by creator
+        </Link>
       </div>
 
       {/* Filter Bar (Card) */}
@@ -498,21 +504,21 @@ export default function Content() {
         </div>
       </Card>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-100">
-        <table className="w-full text-left min-w-[1200px]">
+      <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white">
+        <table className="w-full text-left min-w-[1000px]">
           <thead>
             <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-              <th className="px-4 py-3">Creator</th>
-              <th className="px-4 py-3">Campaign</th>
-              <th className="px-4 py-3">Platform & Type</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Due Date</th>
-              <th className="px-4 py-3">Draft URL</th>
-              <th className="px-4 py-3">Published URL</th>
-              <th className="px-4 py-3">Published At</th>
-              <th className="px-4 py-3 text-right">Metrics (V/L/C)</th>
-              <th className="px-4 py-3 text-right">ER</th>
-              <th className="px-4 py-3 text-center">Actions</th>
+              <th className="px-3 py-3">Creator</th>
+              <th className="px-3 py-3">Campaign</th>
+              <th className="px-3 py-3">Platform & Type</th>
+              <th className="px-3 py-3">Status</th>
+              <th className="px-3 py-3">Due Date</th>
+              <th className="px-3 py-3">Draft URL</th>
+              <th className="px-3 py-3">Published URL</th>
+              <th className="px-3 py-3">Published At</th>
+              <th className="px-3 py-3 text-right">Metrics (V/L/C)</th>
+              <th className="px-3 py-3 text-right">ER</th>
+              <th className="px-3 py-3 text-center col-sticky-end">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -531,9 +537,9 @@ export default function Content() {
                 <tr
                   key={c.id}
                   onClick={() => navigate(`/content/${c.id}`)}
-                  className="hover:bg-primary-50/10 transition-colors text-xs cursor-pointer"
+                  className="hover:bg-gray-50 transition-colors text-xs cursor-pointer"
                 >
-                  <td className="px-4 py-4">
+                  <td className="px-3 py-4">
                     <div className="flex items-center gap-3">
                       <img
                         src={
@@ -549,19 +555,22 @@ export default function Content() {
                         }}
                       />
                       <div>
-                        <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]">
+                        <div className="font-normal text-gray-900 text-sm font-outfit leading-tight line-clamp-2 whitespace-normal break-words min-w-[120px] max-w-[180px]">
                           {c.Creator?.full_name}
                         </div>
-                        <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-1">
-                          @{c.Creator?.handle}
-                        </div>
+                        <div className="text-[11px] text-gray-500 mt-1">@{c.Creator?.handle}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-4 font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight">
-                    {c.Campaign?.name}
+                  <td className="px-3 py-4 font-normal text-gray-900 text-sm font-outfit leading-tight">
+                    <div
+                      className="line-clamp-2 whitespace-normal break-words min-w-[150px] max-w-[200px]"
+                      title={c.Campaign?.name}
+                    >
+                      {c.Campaign?.name}
+                    </div>
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-3 py-4">
                     <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight">
                       {c.platform}
                     </div>
@@ -569,14 +578,14 @@ export default function Content() {
                       {c.content_type?.replace('_', ' ')}
                     </div>
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-3 py-4">
                     <StatusBadge status={c.status} />
                   </td>
-                  <td className="px-4 py-4 text-gray-600 font-mono">
+                  <td className="px-3 py-4 text-gray-600 font-mono whitespace-nowrap">
                     {c.due_date ? format(new Date(c.due_date), 'MMM d, yyyy') : '---'}
                   </td>
                   <td
-                    className="px-4 py-4 max-w-[150px] truncate"
+                    className="px-3 py-4 max-w-[150px] truncate"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {c.draft_url ? (
@@ -593,7 +602,7 @@ export default function Content() {
                     )}
                   </td>
                   <td
-                    className="px-4 py-4 max-w-[150px] truncate"
+                    className="px-3 py-4 max-w-[150px] truncate"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {c.published_url ? (
@@ -609,10 +618,10 @@ export default function Content() {
                       <span className="text-gray-400 italic">No link</span>
                     )}
                   </td>
-                  <td className="px-4 py-4 text-gray-600 font-mono">
+                  <td className="px-3 py-4 text-gray-600 font-mono whitespace-nowrap">
                     {c.published_at ? format(new Date(c.published_at), 'MMM d, yyyy') : '---'}
                   </td>
-                  <td className="px-4 py-4 text-right">
+                  <td className="px-3 py-4 text-right">
                     {c.status === 'published' ? (
                       <div className="flex flex-col items-end gap-0.5 font-mono text-gray-600 text-[10px]">
                         <span>{Number(c.views || 0).toLocaleString()} Views</span>
@@ -623,16 +632,16 @@ export default function Content() {
                       <span className="text-gray-400 italic text-[10px]">---</span>
                     )}
                   </td>
-                  <td className="px-4 py-4 text-right font-mono font-semibold">
+                  <td className="px-3 py-4 text-right font-mono font-semibold">
                     {c.status === 'published' && c.engagement_rate
                       ? `${Number(c.engagement_rate).toFixed(2)}%`
                       : '---'}
                   </td>
                   <td
-                    className="px-4 py-4 text-right relative"
+                    className="px-3 py-4 text-right col-sticky-end"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                       {c.status === 'submitted' && (
                         <>
                           <Button

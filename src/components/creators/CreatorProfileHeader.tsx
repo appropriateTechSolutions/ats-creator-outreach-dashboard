@@ -1,9 +1,10 @@
 import { clickable } from '../../lib/a11y';
 import { hasRole, ROLE_GROUPS } from '../../lib/constants';
-import React from 'react';
 import { Link } from 'react-router-dom';
+import { format, parseISO } from 'date-fns';
 import {
   ArrowLeft,
+  ArrowRight,
   ExternalLink,
   Instagram,
   Youtube,
@@ -15,13 +16,20 @@ import {
   RefreshCw,
   Send,
   Clock,
+  Handshake,
 } from 'lucide-react';
-import { Card } from '../ui/Card';
 import { StatusBadge } from '../ui/StatusBadge';
 import { ScoreBadge } from '../ui/ScoreBadge';
 import { InfoTip } from '../ui/InfoTip';
 import { Button } from '../ui/Button';
-import { LoadingState } from '../ui/LoadingState';
+import {
+  canReachOut,
+  getPartnershipNextAction,
+  isWaitingForFollowUp,
+  type NextAction,
+  type NextActionKey,
+} from '../../lib/nextAction';
+import type { CreatorContent, Partnership, Shipment } from '../../types';
 
 interface CreatorProfileHeaderProps {
   creator: any;
@@ -35,12 +43,37 @@ interface CreatorProfileHeaderProps {
   handleFindSimilar: () => void;
   findingSimilar: boolean;
   handleSendDM: () => void;
+  /** Sends (or re-sends) the first outreach email. */
   handleSendOutreach: () => void;
   sendingEmail: boolean;
-  isFollowUpDue: () => boolean;
-  isWaitingForFollowUp: () => boolean;
   handleSyncCreator: () => void;
   syncingProfile: boolean;
+  /** getNextAction for the creator's current partnership — the header's primary button. */
+  nextAction: NextAction;
+  onNextAction: (key: NextActionKey, payload?: unknown) => void;
+  nextActionBusy?: boolean;
+  /** The partnership the profile leads with (pickCurrentPartnership), its shipment and deliverables. */
+  partnership: Partnership | null;
+  partnershipShipment: Shipment | null;
+  partnershipContents: CreatorContent[];
+}
+
+const CAPTION = 'text-[10px] font-normal text-gray-400 uppercase tracking-widest';
+const SECONDARY = 'min-h-[32px] text-xs font-normal';
+
+// Deliverables still owed (not live, not called off).
+const SETTLED_DELIVERABLES: ReadonlySet<string> = new Set(['published', 'cancelled', 'rejected']);
+
+function deliverablesSummary(contents: CreatorContent[]): string {
+  if (contents.length === 0) return 'None yet';
+  const open = contents.filter((c) => !SETTLED_DELIVERABLES.has(c.status));
+  // due_date is a DATEONLY string; parse it as a local calendar day.
+  const nextDue = open
+    .map((c) => c.due_date?.slice(0, 10))
+    .filter((d): d is string => !!d)
+    .sort()[0];
+  const count = `${open.length} of ${contents.length} due`;
+  return nextDue ? `${count} · next ${format(parseISO(nextDue), 'MMM d, yyyy')}` : count;
 }
 
 export function CreatorProfileHeader({
@@ -57,11 +90,47 @@ export function CreatorProfileHeader({
   handleSendDM,
   handleSendOutreach,
   sendingEmail,
-  isFollowUpDue,
-  isWaitingForFollowUp,
   handleSyncCreator,
   syncingProfile,
+  nextAction,
+  onNextAction,
+  nextActionBusy = false,
+  partnership,
+  partnershipShipment,
+  partnershipContents,
 }: CreatorProfileHeaderProps) {
+  const canManage = hasRole(currentUser?.role, ROLE_GROUPS.MANAGE_CREATORS);
+  // Outreach email, follow-ups and DMs belong to first contact: no partnership yet,
+  // creator not past "contacted".
+  const reachOut = canReachOut(creator, !!partnership);
+  // The engine's primary already covers sending and follow-ups; a manual (re)send
+  // stays available otherwise, except while a follow-up is scheduled.
+  const showEmailOutreach =
+    reachOut &&
+    !!creator.email &&
+    nextAction.key !== 'outreach' &&
+    nextAction.key !== 'follow_up' &&
+    !isWaitingForFollowUp(creator.latest_outreach);
+  const inShortlist =
+    creator.review_status === 'shortlisted' || creator.review_status === 'pending_review';
+  const partnershipOpen =
+    !!partnership && !['completed', 'rejected', 'inactive'].includes(partnership.status);
+  // The card names the partnership's own step — what its page and the inbox show —
+  // even while the creator-level step above is still "Review creator".
+  const partnershipStep = partnership
+    ? getPartnershipNextAction({
+        creator,
+        partnership,
+        shipment: partnershipShipment,
+        contents: partnershipContents,
+      })
+    : null;
+  // Nothing to show for `none`; a review step has no controls for a creator marked
+  // not responsive (as before), so its block goes too rather than a bare caption.
+  const showNextStep =
+    nextAction.key !== 'none' &&
+    !(nextAction.key === 'review' && creator.lifecycle_status === 'not_respond');
+
   return (
     <>
       {/* Print-only Branded Header */}
@@ -134,7 +203,7 @@ export function CreatorProfileHeader({
             )}
           </div>
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight truncate leading-tight">
+            <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit tracking-tight truncate leading-tight">
               {creator.full_name || 'No full name provided'}
             </h1>
             <div className="mt-1">
@@ -206,64 +275,15 @@ export function CreatorProfileHeader({
               )}
             </div>
 
-            {hasRole(currentUser?.role, ROLE_GROUPS.MANAGE_CREATORS) && (
+            {canManage && creator.review_status === 'rejected' && (
               <div className="no-print flex items-center gap-2.5 mt-4">
-                {creator.review_status === 'rejected' && (
-                  <button
-                    onClick={() => handleReview('revoke')}
-                    className="px-3 py-1.5 rounded-lg text-xs font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
-                    title="Revoke Rejection"
-                  >
-                    Revoke Rejection
-                  </button>
-                )}
-                {creator.review_status !== 'approved' &&
-                  creator.review_status !== 'rejected' &&
-                  creator.lifecycle_status !== 'not_respond' && (
-                    <>
-                      <button
-                        onClick={() => handleReview('approve')}
-                        className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors flex items-center justify-center shadow-sm"
-                        title="Approve & Send Outreach"
-                      >
-                        <Check size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleReview('reject')}
-                        className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center justify-center shadow-sm"
-                        title="Reject"
-                      >
-                        <X size={18} />
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleReview(
-                            creator.review_status === 'shortlisted' ||
-                              creator.review_status === 'pending_review'
-                              ? 'revoke'
-                              : 'shortlist',
-                          )
-                        }
-                        className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center justify-center shadow-sm"
-                        title={
-                          creator.review_status === 'shortlisted' ||
-                          creator.review_status === 'pending_review'
-                            ? 'Remove from Shortlist'
-                            : 'Shortlist → Move to Review Queue'
-                        }
-                      >
-                        <Star
-                          size={18}
-                          fill={
-                            creator.review_status === 'shortlisted' ||
-                            creator.review_status === 'pending_review'
-                              ? 'currentColor'
-                              : 'none'
-                          }
-                        />
-                      </button>
-                    </>
-                  )}
+                <button
+                  onClick={() => handleReview('revoke')}
+                  className="px-3 py-1.5 rounded-lg text-xs font-normal uppercase tracking-wider bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-outfit"
+                  title="Revoke Rejection"
+                >
+                  Revoke Rejection
+                </button>
               </div>
             )}
           </div>
@@ -283,77 +303,183 @@ export function CreatorProfileHeader({
             <InfoTip text="Readiness score (0–100) estimates how well this creator fits the campaign and how likely they are to convert — based on audience size, engagement, niche/category match, and profile completeness. Higher is better." />
             <ScoreBadge score={creator.outreach_readiness_score || 0} />
           </div>
-          {hasRole(currentUser?.role, ROLE_GROUPS.MANAGE_CREATORS) && (
-            <div className="no-print flex flex-col gap-2 w-full mt-1">
-              <Button
-                variant="outline"
-                className="w-full border-primary-100 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal"
-                onClick={handleFindSimilar}
-                disabled={findingSimilar}
-              >
-                {findingSimilar ? (
-                  <RefreshCw size={13} className="animate-spin text-primary-600" />
-                ) : (
-                  <Users size={13} className="text-primary-600" />
-                )}
-                {findingSimilar ? 'Searching...' : 'Find Similar'}
-              </Button>
-              <Button
-                className="w-full bg-pink-600 hover:bg-pink-700 shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all shadow-sm"
-                onClick={handleSendDM}
-              >
-                <Instagram size={13} />
-                Send DM
-              </Button>
-              {creator.email && (
+          {canManage && (
+            <div className="no-print flex flex-col gap-2 w-full lg:w-64 mt-1">
+              {showNextStep && <p className={CAPTION}>Next step</p>}
+              {!showNextStep ? null : nextAction.key === 'review' ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm text-gray-700">{nextAction.label}</p>
+                  <Button
+                    className="w-full"
+                    icon={<Check size={14} aria-hidden="true" />}
+                    onClick={() => handleReview('approve')}
+                  >
+                    Approve &amp; send outreach
+                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={SECONDARY}
+                      icon={
+                        <Star
+                          size={14}
+                          aria-hidden="true"
+                          fill={inShortlist ? 'currentColor' : 'none'}
+                        />
+                      }
+                      title={inShortlist ? 'Remove from shortlist' : 'Move to the review queue'}
+                      onClick={() => handleReview(inShortlist ? 'revoke' : 'shortlist')}
+                    >
+                      {inShortlist ? 'Shortlisted' : 'Shortlist'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={SECONDARY}
+                      icon={<X size={14} aria-hidden="true" />}
+                      onClick={() => handleReview('reject')}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ) : nextAction.kind === 'action' ? (
                 <Button
-                  className={`w-full ${
-                    isFollowUpDue()
-                      ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/40 animate-pulse text-white'
-                      : isWaitingForFollowUp()
-                        ? 'bg-emerald-50 text-emerald-700 cursor-not-allowed border border-emerald-200'
-                        : 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/20 text-white'
-                  } flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all shadow-sm`}
-                  onClick={handleSendOutreach}
-                  disabled={
-                    sendingEmail || creator.review_status === 'rejected' || isWaitingForFollowUp()
+                  className="w-full"
+                  loading={
+                    nextActionBusy ||
+                    (sendingEmail &&
+                      (nextAction.key === 'outreach' || nextAction.key === 'follow_up'))
                   }
+                  onClick={() => onNextAction(nextAction.key, nextAction.payload)}
                 >
-                  {sendingEmail ? (
-                    <LoadingState mini />
-                  ) : isFollowUpDue() ? (
-                    <Clock size={13} />
-                  ) : isWaitingForFollowUp() ? (
-                    <Check size={13} className="text-emerald-600" />
-                  ) : (
-                    <Send size={13} />
-                  )}
-                  {isFollowUpDue()
-                    ? `Follow-up #${(creator.latest_outreach?.follow_up_count || 0) + 1}`
-                    : isWaitingForFollowUp()
-                      ? 'Sent · Awaiting Reply'
-                      : creator.latest_outreach
-                        ? 'Resend'
-                        : 'Send Outreach'}
+                  {nextAction.label}
                 </Button>
+              ) : (
+                <p className="w-full min-h-[40px] inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
+                  {nextAction.kind === 'waiting' ? (
+                    <Clock size={14} aria-hidden="true" />
+                  ) : (
+                    <Check size={14} aria-hidden="true" />
+                  )}
+                  {nextAction.label}
+                </p>
               )}
-              <Button
-                variant="outline"
-                className="w-full border-gray-200 text-gray-750 hover:bg-gray-50 flex items-center justify-center gap-2 h-10 uppercase text-[10px] tracking-widest font-normal transition-all"
-                onClick={handleSyncCreator}
-                disabled={syncingProfile}
-              >
-                {syncingProfile ? (
-                  <RefreshCw size={13} className="animate-spin text-primary-600" />
-                ) : (
-                  <RefreshCw size={13} className="text-gray-550" />
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {reachOut && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={SECONDARY}
+                    icon={<Instagram size={14} aria-hidden="true" />}
+                    onClick={handleSendDM}
+                  >
+                    Send DM
+                  </Button>
                 )}
-                {syncingProfile ? 'Syncing...' : 'Sync Profile'}
-              </Button>
+                {showEmailOutreach && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={SECONDARY}
+                    icon={<Send size={14} aria-hidden="true" />}
+                    loading={sendingEmail}
+                    disabled={creator.review_status === 'rejected'}
+                    onClick={handleSendOutreach}
+                  >
+                    {creator.latest_outreach ? 'Resend outreach' : 'Send outreach'}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={SECONDARY}
+                  icon={<Users size={14} aria-hidden="true" />}
+                  loading={findingSimilar}
+                  onClick={handleFindSimilar}
+                >
+                  {findingSimilar ? 'Searching…' : 'Find similar'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={SECONDARY}
+                  icon={<RefreshCw size={14} aria-hidden="true" />}
+                  loading={syncingProfile}
+                  onClick={handleSyncCreator}
+                >
+                  {syncingProfile ? 'Syncing…' : 'Sync profile'}
+                </Button>
+              </div>
             </div>
           )}
         </div>
       </div>
+
+      {partnership && (
+        <section
+          aria-labelledby="current-partnership-heading"
+          className="px-6 sm:px-8 py-5 border-b border-gray-100 bg-white"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h2 id="current-partnership-heading" className={`${CAPTION} flex items-center gap-2`}>
+              <Handshake size={12} className="text-primary-600" aria-hidden="true" />
+              {partnershipOpen ? 'Current partnership' : 'Latest partnership'}
+            </h2>
+            <Link
+              to={`/partnerships/${partnership.id}`}
+              state={{ fromCreatorId: creator.id }}
+              className="no-print inline-flex items-center gap-1 text-xs text-primary-700 hover:text-primary-800 hover:underline"
+            >
+              Open partnership
+              <ArrowRight size={12} aria-hidden="true" />
+            </Link>
+          </div>
+          <dl className="grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-x-6 gap-y-4">
+            <div className="col-span-2 md:col-span-1 min-w-0">
+              <dt className={CAPTION}>Campaign</dt>
+              <dd className="mt-1 text-sm text-gray-900 break-words">
+                <Link
+                  to={`/campaigns/${partnership.campaign_id}`}
+                  className="hover:text-primary-700 hover:underline"
+                >
+                  {partnership.Campaign?.name ?? 'Campaign'}
+                </Link>
+              </dd>
+            </div>
+            <div>
+              <dt className={CAPTION}>Status</dt>
+              <dd className="mt-1">
+                <StatusBadge status={partnership.status} />
+              </dd>
+            </div>
+            <div>
+              <dt className={CAPTION}>Next step</dt>
+              <dd className="mt-1 text-sm text-gray-900">{partnershipStep?.label}</dd>
+            </div>
+            <div>
+              <dt className={CAPTION}>Shipment</dt>
+              <dd className="mt-1 text-sm text-gray-600">
+                {partnershipShipment ? (
+                  <StatusBadge status={partnershipShipment.status} />
+                ) : partnership.shipment_included ? (
+                  'Not created yet'
+                ) : (
+                  'Not included'
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className={CAPTION}>Deliverables</dt>
+              <dd className="mt-1 text-sm text-gray-900">
+                {deliverablesSummary(partnershipContents)}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
     </>
   );
 }

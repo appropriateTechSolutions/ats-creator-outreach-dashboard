@@ -55,6 +55,58 @@ export const formatFollowers = (n: number | null | undefined): string => {
   return String(n);
 };
 
+/**
+ * Money for display: thousands separators, two decimals, and the symbol that
+ * belongs to the ISO currency code (`$`, `₹`, `€` …) rather than a hard-coded `$`.
+ *
+ * Accepts the numeric strings Postgres DECIMAL columns arrive as ("600.00"). An
+ * unknown amount (null, empty, not a number) is "—", never "$0.00"; a real zero
+ * still formats as "$0.00" so callers decide whether zero means "none". A missing
+ * currency is USD (the column default); a code Intl rejects falls back to
+ * "<amount> <code>".
+ */
+export const formatMoney = (
+  amount: number | string | null | undefined,
+  currency?: string | null,
+): string => {
+  if (amount === null || amount === undefined) return '—';
+  if (typeof amount === 'string' && amount.trim() === '') return '—';
+  const value = typeof amount === 'number' ? amount : Number(amount);
+  if (!Number.isFinite(value)) return '—';
+
+  const code = currency?.trim() || 'USD';
+  const digits = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: code, ...digits }).format(
+      value,
+    );
+  } catch {
+    return `${new Intl.NumberFormat('en-US', digits).format(value)} ${code}`;
+  }
+};
+
+/**
+ * The confirmation shown before an operator marks an offer accepted on the
+ * creator's behalf (it commits the brand to the fee). One copy for the partnership
+ * page and the creator profile's Partnerships tab.
+ */
+export const markAcceptedConfirmation = (partnership: {
+  flat_fee?: number | string | null;
+  currency?: string | null;
+}) => {
+  const fee = Number(partnership.flat_fee);
+  const commits =
+    partnership.flat_fee != null && Number.isFinite(fee) && fee > 0
+      ? `This commits ${formatMoney(partnership.flat_fee, partnership.currency)}.`
+      : 'This commits the product-only offer.';
+  return {
+    title: 'Mark accepted for creator?',
+    message: `Only do this if the creator agreed outside the offer link. ${commits}`,
+    confirmText: 'Mark accepted',
+    isDestructive: false,
+  };
+};
+
 /** The creator's handle for a given platform, stripped of a leading "@". */
 export const getPlatformHandle = (creator: Creator, platform: string): string => {
   const profileHandle = creator.profiles?.find(

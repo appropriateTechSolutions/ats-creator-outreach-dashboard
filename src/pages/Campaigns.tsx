@@ -542,7 +542,7 @@ export default function Campaigns() {
                       className="hover:bg-primary-50/30 transition-all group cursor-pointer"
                     >
                       <td className="px-8 py-6 align-top">
-                        <div className="text-sm font-normal text-gray-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight font-outfit">
+                        <div className="text-sm font-normal text-gray-900 group-hover:text-primary-600 transition-colors font-outfit">
                           {c.name}
                         </div>
                         <div className="flex gap-1 mt-2 flex-wrap">
@@ -564,19 +564,19 @@ export default function Campaigns() {
                         </div>
                       </td>
                       <td className="px-8 py-6 align-top">
-                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                        <div className="text-sm font-normal text-gray-900 font-outfit">
                           {c.Brand?.name || '---'}
                         </div>
                       </td>
                       {user?.user_type === 'internal' && (
                         <td className="px-8 py-6 align-top">
-                          <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                          <div className="text-sm font-normal text-gray-900 font-outfit">
                             {c.Client?.name || '---'}
                           </div>
                         </td>
                       )}
                       <td className="px-8 py-6 text-center align-top">
-                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
+                        <div className="text-sm font-normal text-gray-900 font-outfit">
                           {c.city || 'Global'}
                         </div>
                       </td>
@@ -584,7 +584,7 @@ export default function Campaigns() {
                         <StatusBadge status={c.status as any} />
                       </td>
                       <td className="px-8 py-6 text-right align-top">
-                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
+                        <div className="text-sm font-normal text-gray-900 font-outfit whitespace-nowrap">
                           {c.start_date || c.created_at || (c as any).createdAt
                             ? format(
                                 new Date(c.start_date || c.created_at || (c as any).createdAt),
@@ -594,7 +594,7 @@ export default function Campaigns() {
                         </div>
                       </td>
                       <td className="px-8 py-6 text-right align-top">
-                        <div className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit whitespace-nowrap">
+                        <div className="text-sm font-normal text-gray-900 font-outfit whitespace-nowrap">
                           {c.end_date ? format(new Date(c.end_date), 'MMM d, yyyy') : '---'}
                         </div>
                       </td>
@@ -632,9 +632,7 @@ export default function Campaigns() {
                 >
                   <div className="flex justify-between items-start gap-4">
                     <div>
-                      <h4 className="text-sm font-normal text-gray-900 uppercase tracking-tight font-outfit">
-                        {c.name}
-                      </h4>
+                      <h4 className="text-sm font-normal text-gray-900 font-outfit">{c.name}</h4>
                       <div className="flex gap-1 mt-1.5 flex-wrap">
                         {[
                           ...new Set(
@@ -661,7 +659,7 @@ export default function Campaigns() {
                       <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
                         Brand
                       </span>
-                      <span className="font-normal text-gray-800 uppercase tracking-tight font-outfit">
+                      <span className="font-normal text-gray-800 font-outfit">
                         {c.Brand?.name || '---'}
                       </span>
                     </div>
@@ -670,7 +668,7 @@ export default function Campaigns() {
                         <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
                           Client
                         </span>
-                        <span className="font-normal text-gray-800 uppercase tracking-tight font-outfit">
+                        <span className="font-normal text-gray-800 font-outfit">
                           {c.Client?.name || '---'}
                         </span>
                       </div>
@@ -679,7 +677,7 @@ export default function Campaigns() {
                       <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
                         City
                       </span>
-                      <span className="font-normal text-gray-800 uppercase tracking-tight font-outfit">
+                      <span className="font-normal text-gray-800 font-outfit">
                         {c.city || 'Global'}
                       </span>
                     </div>
@@ -687,7 +685,7 @@ export default function Campaigns() {
                       <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
                         Launch Date
                       </span>
-                      <span className="font-normal text-gray-800 uppercase tracking-tight font-outfit">
+                      <span className="font-normal text-gray-800 font-outfit whitespace-nowrap">
                         {c.start_date || c.created_at || (c as any).createdAt
                           ? format(
                               new Date(c.start_date || c.created_at || (c as any).createdAt),
@@ -700,7 +698,7 @@ export default function Campaigns() {
                       <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest block mb-0.5">
                         End Date
                       </span>
-                      <span className="font-normal text-gray-800 uppercase tracking-tight font-outfit">
+                      <span className="font-normal text-gray-800 font-outfit whitespace-nowrap">
                         {c.end_date ? format(new Date(c.end_date), 'MMM d, yyyy') : '---'}
                       </span>
                     </div>

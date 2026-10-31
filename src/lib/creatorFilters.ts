@@ -1,10 +1,10 @@
 import type { Creator } from '../types';
 
 // ─── Canonical creator metric + qualification helpers ─────────────────
-// These define what counts as a "qualified" creator. The Creators page, the
-// Dashboard KPI, and the Dashboard Outreach Queue all import from here so the
-// "total creators" figure is computed identically everywhere instead of each
-// view applying its own (divergent) filter.
+// These define what counts as a "qualified" creator. The Creators page and the
+// Dashboard Outreach Queue import from here so their counts are computed
+// identically instead of each view applying its own (divergent) filter. (The
+// Dashboard's own creator total is the backend's, from GET /stats/dashboard.)
 
 const toNumber = (value: unknown): number => {
   const parsed = Number(value);
@@ -48,8 +48,8 @@ export const hasPublicProfileSignal = (c: Creator): boolean => {
 // Minimum followers for a creator to be counted/listed.
 export const MIN_QUALIFIED_FOLLOWERS = 1000;
 
-// The single definition of a "qualified" creator used for all total-creator
-// counts: has real profile data and clears the follower floor.
+// The single definition of a "qualified" creator used by the Creators directory and
+// the Dashboard queue cards: has real profile data and clears the follower floor.
 export const isQualifiedCreator = (c: Creator): boolean =>
   hasPublicProfileSignal(c) && getFollowers(c) >= MIN_QUALIFIED_FOLLOWERS;
 

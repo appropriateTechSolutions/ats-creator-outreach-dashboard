@@ -12,11 +12,23 @@
     --z-modal: 50;
     --z-lightbox: 100;
     --z-discovery: 120;
+
+    /* Ledger palette anchors (kept in sync with tailwind.config.js) */
+    --paper: #faf8f5;
+    --ink: #1f1b16;
+    --pine-600: #2b654b;
+    --pine-700: #1f4f3b;
   }
 
   body {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Spline Sans', system-ui, sans-serif;
     @apply bg-gray-50 text-gray-900 antialiased;
+    /* Paper grain: a whisper of turbulence noise under everything, plus a
+       faint warm vignette toward the top-left where the sidebar sits. */
+    background-image:
+      radial-gradient(1200px 800px at -10% -10%, rgba(43, 101, 75, 0.045), transparent 60%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    background-attachment: fixed;
   }
 
   h1,
@@ -25,8 +37,33 @@
   h4,
   h5,
   h6 {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Fraunces', Georgia, serif;
+    font-optical-sizing: auto;
     @apply tracking-tight;
+  }
+
+  ::selection {
+    background: #dcebe1; /* pine-100 */
+    color: #143427; /* pine-900 */
+  }
+
+  /* Warm hairline scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d5cec0 transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #d5cec0;
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
 
   /* Keyboard-only focus ring. Mouse/pointer focus (no :focus-visible) stays
@@ -42,6 +79,39 @@
   #main-content:focus,
   #main-content:focus-visible {
     outline: none;
+  }
+}
+
+@layer components {
+  /* Pins a table's last column (Actions) to the right edge of its horizontal scroll
+     container, so row actions stay on screen at laptop widths instead of scrolling away.
+     Put it on the <th> and on every <td> of that column.
+
+     The cell is opaque, so columns scrolling underneath don't show through. A body cell
+     takes its row's background: rows with a pinned cell default to white, and any bg-*,
+     hover:bg-* or selected-row utility on the row wins over that default (keep those
+     opaque, or the pinned cell turns see-through in that state). The header cell takes the
+     header tint. A hairline on the left edge marks the seam.
+
+     From md up only: on a phone the pinned column would take most of the screen, so
+     there the column scrolls with the table, as it always did. */
+  @media (min-width: 768px) {
+    :where(tbody tr:has(> .col-sticky-end)) {
+      background-color: theme('colors.white');
+    }
+
+    .col-sticky-end {
+      position: sticky;
+      right: 0;
+      z-index: 1;
+      background-color: inherit;
+      box-shadow: inset 1px 0 0 0 theme('colors.gray.200');
+    }
+
+    /* gray-50 at 50% over white: the header row's own tint (bg-gray-50/50), made opaque. */
+    thead .col-sticky-end {
+      background-color: #fdfcfa;
+    }
   }
 }
 
@@ -68,27 +138,49 @@
     }
   }
 
-  /* Premium UI Effects */
+  @keyframes riseIn {
+    from {
+      transform: translateY(6px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-rise {
+    animation: riseIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Warm, ink-tinted elevation — no cold blue-gray shadows */
   .shadow-soft {
-    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+    box-shadow:
+      0 1px 2px rgba(31, 27, 22, 0.04),
+      0 4px 20px -2px rgba(31, 27, 22, 0.06);
   }
 
   .shadow-hover {
     box-shadow:
-      0 10px 25px -5px rgba(0, 0, 0, 0.08),
-      0 8px 10px -6px rgba(0, 0, 0, 0.04);
+      0 10px 25px -5px rgba(31, 27, 22, 0.1),
+      0 8px 10px -6px rgba(31, 27, 22, 0.05);
   }
 
   .glass {
-    @apply bg-white/80 backdrop-blur-md border-b border-white/20 transition-all duration-200;
+    @apply bg-gray-50/80 backdrop-blur-md border-b border-gray-200/70 transition-all duration-200;
   }
 
   .glass-panel {
-    @apply bg-white/70 backdrop-blur-xl border border-white/50 shadow-soft transition-all duration-200;
+    @apply bg-white/70 backdrop-blur-xl border border-gray-200/60 shadow-soft transition-all duration-200;
   }
 
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-indigo-500;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-700 to-primary-500;
+  }
+
+  /* Editorial numerals — lining, tabular figures for data columns */
+  .tabular-nums-display {
+    font-variant-numeric: lining-nums tabular-nums;
   }
 
   @media (prefers-reduced-motion: reduce) {

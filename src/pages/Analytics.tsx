@@ -65,10 +65,10 @@ export default function Analytics() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
-            Analytics Performance
+            Deliverables by creator
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Track content deliverables and publishing status across creators.
+            Content deliverables and publishing status, grouped by creator and campaign.
           </p>
         </div>
       </div>
@@ -82,16 +82,16 @@ export default function Analytics() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[950px] align-middle">
+            <table className="w-full text-left min-w-[900px] align-middle">
               <thead>
                 <tr className="text-[10px] font-normal text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50/50">
-                  <th className="px-6 py-4">Creator</th>
-                  <th className="px-6 py-4">Campaign</th>
-                  <th className="px-6 py-4">Platform & Type</th>
-                  <th className="px-6 py-4">Deliverables Status</th>
-                  <th className="px-6 py-4">Next Due Date</th>
-                  <th className="px-6 py-4 text-center">Total Deliverables</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-4 py-4">Creator</th>
+                  <th className="px-4 py-4">Campaign</th>
+                  <th className="px-4 py-4">Platform & Type</th>
+                  <th className="px-4 py-4">Deliverables Status</th>
+                  <th className="px-4 py-4">Next Due Date</th>
+                  <th className="px-4 py-4 text-center">Total Deliverables</th>
+                  <th className="px-4 py-4 text-right col-sticky-end">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -100,7 +100,7 @@ export default function Analytics() {
                     <td colSpan={7} className="p-12">
                       <EmptyState
                         icon={BarChart3}
-                        title="No Analytics"
+                        title="No deliverables yet"
                         description="No content deliverables recorded in the system."
                       />
                     </td>
@@ -116,28 +116,33 @@ export default function Analytics() {
                             `/analytics/creator-campaign/${group.creatorId}/${group.campaignId}`,
                           )
                         }
-                        className="hover:bg-primary-50/10 transition-colors text-xs cursor-pointer"
+                        className="hover:bg-gray-50 transition-colors text-xs cursor-pointer"
                       >
-                        <td className="px-6 py-5">
+                        <td className="px-4 py-5">
                           <div className="flex items-center gap-3">
                             <CreatorAvatar
                               creator={group.Creator}
                               className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 text-xs border border-gray-200"
                             />
                             <div>
-                              <div className="font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight">
+                              <div className="font-normal text-gray-900 text-sm font-outfit leading-tight">
                                 {group.Creator?.full_name}
                               </div>
-                              <div className="text-[9px] text-gray-400 uppercase tracking-wider mt-0.5">
+                              <div className="text-[11px] text-gray-500 mt-0.5">
                                 @{group.Creator?.handle}
                               </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-5 font-normal text-gray-900 text-xs uppercase tracking-tight font-outfit leading-tight max-w-[200px]">
-                          {group.Campaign?.name}
+                        <td className="px-4 py-5 font-normal text-gray-900 text-sm font-outfit leading-tight">
+                          <div
+                            className="line-clamp-2 whitespace-normal break-words min-w-[150px] max-w-[200px]"
+                            title={group.Campaign?.name}
+                          >
+                            {group.Campaign?.name}
+                          </div>
                         </td>
-                        <td className="px-6 py-5">
+                        <td className="px-4 py-5">
                           <div className="flex flex-col gap-2">
                             {group.deliverables.map((d: any, idx: number) => {
                               const typeLabel = d.content_type
@@ -162,7 +167,7 @@ export default function Analytics() {
                             })}
                           </div>
                         </td>
-                        <td className="px-6 py-5">
+                        <td className="px-4 py-5">
                           <div className="flex flex-col gap-2">
                             {group.deliverables.map((d: any, idx: number) => {
                               const typeLabel = d.content_type
@@ -200,20 +205,18 @@ export default function Analytics() {
                             })}
                           </div>
                         </td>
-                        <td className="px-6 py-5 text-gray-650 font-mono leading-tight">
-                          {group.earliestDueDate ? (
-                            <>
-                              <div>{format(new Date(group.earliestDueDate), 'MMM d,')}</div>
-                              <div>{format(new Date(group.earliestDueDate), 'yyyy')}</div>
-                            </>
-                          ) : (
-                            '---'
-                          )}
+                        <td className="px-4 py-5 text-gray-650 font-mono leading-tight whitespace-nowrap">
+                          {group.earliestDueDate
+                            ? format(new Date(group.earliestDueDate), 'MMM d, yyyy')
+                            : '---'}
                         </td>
-                        <td className="px-6 py-5 text-center font-bold text-gray-800 text-xs">
+                        <td className="px-4 py-5 text-center font-bold text-gray-800 text-xs">
                           {group.totalCount}
                         </td>
-                        <td className="px-6 py-5 text-right" onClick={(e) => e.stopPropagation()}>
+                        <td
+                          className="px-4 py-5 text-right col-sticky-end"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <Button
                             size="sm"
                             onClick={() =>

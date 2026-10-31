@@ -12,14 +12,17 @@ import type {
   Shipment,
   Activity,
   DashboardStats,
+  AttentionSummary,
   CreatorPartnership,
   CreatorContent,
   Meeting,
   OutreachLog,
   OutreachTemplate,
-  ConversationMessage,
+  ThreadMessage,
   ApiAck,
   InviteInfo,
+  OutreachPreview,
+  CampaignPerformance,
 } from '../types';
 
 export const api = axios.create({
@@ -257,6 +260,14 @@ export const getCreatorById = (creatorId: string): Promise<Creator> =>
 export const getDashboardStats = (campaignId?: string): Promise<DashboardStats> =>
   api.get('/stats/dashboard', { params: { campaignId } });
 
+/**
+ * What needs a person now: replies waiting on us, unsigned offers, missing
+ * addresses, overdue deliverables and failed sends. Client users get their own
+ * client's items only; `campaignId` narrows it to one campaign.
+ */
+export const getAttention = (campaignId?: string): Promise<AttentionSummary> =>
+  api.get('/stats/attention', { params: { campaign_id: campaignId } });
+
 // ─── AI Discovery ─────────────────────────────────────
 export const triggerDiscovery = (
   categories: string[],
@@ -294,6 +305,13 @@ export const approvePartner = (meetingId: string): Promise<ApiAck> =>
   api.post('/conversions/approve-partner', { meeting_id: meetingId, outcome: 'approved' });
 
 // ─── Review ───────────────────────────────────────────
+/**
+ * Approving also sends the outreach email. `campaignId` names the campaign the
+ * email and its log belong to; leave it out only when the caller can't know (the
+ * backend then uses the creator's most recent campaign). A failed send rejects
+ * with the backend envelope — `code: 'OUTREACH_SEND_FAILED'` (HTTP 502, the
+ * creator is approved but not emailed) or `'NO_CAMPAIGN'` (HTTP 400).
+ */
 export const reviewLead = (
   creatorId: string,
   action: 'approve' | 'reject' | 'shortlist' | 'revoke',
@@ -301,6 +319,7 @@ export const reviewLead = (
   custom_body?: string,
   message_type?: string,
   custom_to?: string,
+  campaignId?: string,
 ): Promise<ApiAck> =>
   api.patch(`/creators/${creatorId}/review`, {
     action,
@@ -308,6 +327,7 @@ export const reviewLead = (
     custom_body,
     message_type,
     custom_to,
+    campaign_id: campaignId,
   });
 
 // ─── Outreach ─────────────────────────────────────────
@@ -343,7 +363,7 @@ export const previewOutreach = (
   campaignId?: string,
   message_type?: string,
   extraParams?: Record<string, unknown>,
-): Promise<{ subject: string; body: string; to: string | null }> =>
+): Promise<OutreachPreview> =>
   api.get('/outreach/preview', {
     params: {
       creator_id: creatorId,
@@ -358,8 +378,10 @@ export const getOutreachLogs = (): Promise<OutreachLog[]> => api.get('/outreach/
 
 // ─── Conversations ────────────────────────────────────
 export const getConversations = (): Promise<Creator[]> => api.get('/conversations');
-export const syncConversations = (): Promise<{ synced: number }> => api.post('/conversations/sync');
-export const getConversationThread = (id: string): Promise<ConversationMessage[]> =>
+/** The backend reports `newMessages`; `synced` is an older name for the same count. */
+export const syncConversations = (): Promise<{ newMessages?: number; synced?: number }> =>
+  api.post('/conversations/sync');
+export const getConversationThread = (id: string): Promise<ThreadMessage[]> =>
   api.get(`/conversations/${id}`);
 
 // ─── Affiliate Tracking ───────────────────────────────
@@ -608,7 +630,7 @@ export const getDashboardAnalytics = (): Promise<unknown> => api.get('/analytics
 export const getCampaignFunnel = (campaignId: string): Promise<unknown> =>
   api.get(`/analytics/campaigns/${campaignId}/funnel`);
 
-export const getCampaignContentPerformance = (campaignId: string): Promise<unknown> =>
+export const getCampaignContentPerformance = (campaignId: string): Promise<CampaignPerformance> =>
   api.get(`/analytics/campaigns/${campaignId}/content-performance`);
 
 export const recalculateCampaignPerformance = (campaignId: string): Promise<unknown> =>

@@ -245,7 +245,7 @@ export function CampaignLeadsTable({
               <Th className="text-center">Followers</Th>
               <Th className="text-center">Engagement</Th>
               <Th>Review Status</Th>
-              <Th className="text-right">Actions</Th>
+              <Th className="text-right col-sticky-end">Actions</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -263,11 +263,11 @@ export function CampaignLeadsTable({
                           setPreviewCreator(lead);
                           setIsPreviewOpen(true);
                         }}
-                        className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-left text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[140px]"
+                        className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-left text-sm font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[180px]"
                       >
                         {lead.full_name || `@${lead.handle}`}
                       </button>
-                      <div className="flex items-center gap-2 mt-1.5">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
                         {(lead.primary_platform?.toLowerCase() === 'instagram' ||
                           lead.has_instagram) && (
                           <a
@@ -375,7 +375,7 @@ export function CampaignLeadsTable({
                     }
                   />
                 </Td>
-                <Td className="text-right">
+                <Td className="text-right col-sticky-end">
                   {hasRole(userRole, ROLE_GROUPS.MANAGE_CREATORS) && (
                     <div className="flex items-center justify-end gap-2">
                       {lead.review_status === 'rejected' && (

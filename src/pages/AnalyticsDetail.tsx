@@ -93,7 +93,7 @@ export default function AnalyticsDetail() {
           to="/analytics"
           className="text-primary-600 hover:underline mt-4 inline-block font-outfit uppercase text-xs tracking-widest"
         >
-          Back to Analytics Performance
+          Back to deliverables by creator
         </Link>
       </div>
     );
@@ -111,7 +111,7 @@ export default function AnalyticsDetail() {
             onClick={() => navigate('/analytics')}
             className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors mb-3"
           >
-            <ArrowLeft size={14} /> Back to Analytics Performance
+            <ArrowLeft size={14} /> Back to deliverables by creator
           </button>
           <h1 className="text-2xl sm:text-3xl font-normal text-gray-900 font-outfit uppercase tracking-tight">
             Grouped Analytics Profile

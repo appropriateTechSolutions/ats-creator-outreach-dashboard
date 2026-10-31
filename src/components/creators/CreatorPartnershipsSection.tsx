@@ -5,25 +5,94 @@ import { Button } from '../ui/Button';
 import { StatusBadge } from '../ui/StatusBadge';
 import { LoadingState } from '../ui/LoadingState';
 import { format } from 'date-fns';
+import { useConfirm } from '../../contexts/ConfirmContext';
+import { formatMoney, markAcceptedConfirmation } from '../../lib/formatters';
+import {
+  getPartnershipNextAction,
+  pickPartnershipContents,
+  pickPartnershipShipment,
+  type NextAction,
+} from '../../lib/nextAction';
+import type { Creator, CreatorContent, Partnership, Shipment } from '../../types';
 
 interface CreatorPartnershipsSectionProps {
+  creator: Creator;
   partnerships: any[];
+  /** The creator's shipments and deliverables (any partnership); each row picks its own. */
+  shipments: readonly Shipment[];
+  contents: readonly CreatorContent[];
   partnershipsLoading: boolean;
-  creatorId: string;
   handlePartnershipAction: (id: string, action: string) => Promise<void>;
   openOfferModal: (p: any) => void;
+  openShipmentModal: (p: any) => void;
   openEditModal: (p: any) => void;
 }
 
+// Engine steps a row can run itself (the rest are waiting states or open elsewhere).
+const ROW_ACTIONS: ReadonlySet<string> = new Set([
+  'draft_offer',
+  'add_shipment',
+  'view_shipments',
+  'activate',
+  'complete',
+  'review_content',
+  'add_draft_url',
+  'add_live_url',
+]);
+
 export function CreatorPartnershipsSection({
+  creator,
   partnerships,
+  shipments,
+  contents,
   partnershipsLoading,
-  creatorId,
   handlePartnershipAction,
   openOfferModal,
+  openShipmentModal,
   openEditModal,
 }: CreatorPartnershipsSectionProps) {
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
+  const backHere = { state: { fromCreatorId: creator.id } };
+
+  // The same step the partnership page and the Partnerships list show for this row.
+  const stepOf = (p: Partnership): NextAction =>
+    getPartnershipNextAction({
+      creator,
+      partnership: p,
+      shipment: pickPartnershipShipment(p, shipments),
+      contents: pickPartnershipContents(p, contents),
+    });
+
+  const runStep = (p: Partnership, step: NextAction) => {
+    switch (step.key) {
+      case 'draft_offer':
+        openOfferModal(p);
+        break;
+      case 'add_shipment':
+        openShipmentModal(p);
+        break;
+      case 'view_shipments':
+        navigate(`/shipments/${(step.payload as Shipment).id}`, backHere);
+        break;
+      case 'activate':
+      case 'complete':
+        void handlePartnershipAction(p.id, step.key);
+        break;
+      case 'review_content':
+      case 'add_draft_url':
+      case 'add_live_url':
+        navigate(`/content/${(step.payload as CreatorContent).id}`, backHere);
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Accepting on the creator's behalf commits the brand to the fee, so it is confirmed.
+  const markAccepted = async (p: Partnership) => {
+    if (await confirm(markAcceptedConfirmation(p))) await handlePartnershipAction(p.id, 'accept');
+  };
 
   return (
     <div className="p-6">
@@ -48,125 +117,113 @@ export function CreatorPartnershipsSection({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {partnerships.map((p) => (
-                <tr
-                  key={p.id}
-                  onClick={() =>
-                    navigate(`/partnerships/${p.id}`, { state: { fromCreatorId: creatorId } })
-                  }
-                  className="hover:bg-primary-50/10 transition-colors cursor-pointer"
-                >
-                  <td className="px-4 py-4 align-middle">
-                    <div className="text-xs font-normal text-gray-900 font-outfit uppercase tracking-tight">
-                      {p.Campaign?.name}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-center align-middle">
-                    <StatusBadge status={p.status} />
-                  </td>
-                  <td className="px-4 py-4 text-center align-middle">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-gray-100 text-gray-600 uppercase tracking-wider">
-                      {p.creator_tier?.replace('_', ' ') || 'unknown'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 align-middle text-xs">
-                    {p.offer_type ? (
-                      <div className="space-y-1">
-                        <div className="font-medium text-gray-800 uppercase flex items-center gap-1">
-                          <Coins size={10} className="text-amber-500" />{' '}
-                          {p.offer_type.replace('_', ' ')}
+              {partnerships.map((p) => {
+                const step = stepOf(p);
+                return (
+                  <tr
+                    key={p.id}
+                    onClick={() => navigate(`/partnerships/${p.id}`, backHere)}
+                    className="hover:bg-primary-50/10 transition-colors cursor-pointer"
+                  >
+                    <td className="px-4 py-4 align-middle">
+                      <div className="text-xs font-normal text-gray-900 font-outfit">
+                        {p.Campaign?.name}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-center align-middle">
+                      <StatusBadge status={p.status} />
+                    </td>
+                    <td className="px-4 py-4 text-center align-middle">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-gray-100 text-gray-600 uppercase tracking-wider">
+                        {p.creator_tier?.replace('_', ' ') || 'unknown'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 align-middle text-xs">
+                      {p.offer_type ? (
+                        <div className="space-y-1">
+                          <div className="font-medium text-gray-800 uppercase flex items-center gap-1">
+                            <Coins size={10} className="text-amber-500" />{' '}
+                            {p.offer_type.replace('_', ' ')}
+                          </div>
+                          {Number(p.flat_fee) > 0 && (
+                            <div className="text-gray-500">
+                              {formatMoney(p.flat_fee, p.currency)}
+                            </div>
+                          )}
+                          {p.affiliate_enabled && (
+                            <div className="text-primary-600 bg-primary-50/50 border border-primary-100/50 rounded px-1.5 py-0.5 inline-block text-[9px] uppercase font-mono mt-0.5">
+                              Code: {p.affiliate_code || '---'} ({p.affiliate_percentage || 0}%)
+                            </div>
+                          )}
                         </div>
-                        {p.flat_fee > 0 && (
-                          <div className="text-gray-500">
-                            ${p.flat_fee} {p.currency}
-                          </div>
+                      ) : (
+                        <span className="text-gray-400 italic">No offer drafted</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-center align-middle text-[11px] text-gray-500 font-mono">
+                      {p.start_date ? format(new Date(p.start_date), 'MMM d, yyyy') : '---'}
+                    </td>
+                    <td className="px-4 py-4 text-center align-middle text-[11px] text-gray-500 font-mono">
+                      {p.end_date ? format(new Date(p.end_date), 'MMM d, yyyy') : '---'}
+                    </td>
+                    <td
+                      className="px-4 py-4 align-middle relative z-10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        {step.kind === 'action' && ROW_ACTIONS.has(step.key) && (
+                          <Button
+                            size="sm"
+                            className="!min-h-[28px] !px-2 !py-1 !text-xs whitespace-nowrap"
+                            onClick={() => runStep(p, step)}
+                          >
+                            {step.label}
+                          </Button>
                         )}
-                        {p.affiliate_enabled && (
-                          <div className="text-primary-600 bg-primary-50/50 border border-primary-100/50 rounded px-1.5 py-0.5 inline-block text-[9px] uppercase font-mono mt-0.5">
-                            Code: {p.affiliate_code || '---'} ({p.affiliate_percentage || 0}%)
-                          </div>
+                        {step.kind === 'waiting' && (
+                          <span className="text-xs leading-tight text-gray-500">{step.label}</span>
+                        )}
+                        {p.status === 'engaged' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="!min-h-[28px] !px-2 !py-1 !text-xs whitespace-nowrap"
+                            onClick={() => handlePartnershipAction(p.id, 'qualify')}
+                          >
+                            Qualify
+                          </Button>
+                        )}
+                        {p.status === 'offer_sent' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="!min-h-[28px] !px-2 !py-1 !text-xs whitespace-nowrap"
+                            onClick={() => void markAccepted(p)}
+                          >
+                            Mark accepted for creator
+                          </Button>
+                        )}
+                        <button
+                          onClick={() => openEditModal(p)}
+                          className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                          title="Edit parameters"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        {p.status !== 'rejected' && p.status !== 'completed' && (
+                          <button
+                            onClick={() => handlePartnershipAction(p.id, 'reject')}
+                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors font-bold text-sm leading-none"
+                            title="Reject partnership"
+                          >
+                            &times;
+                          </button>
                         )}
                       </div>
-                    ) : (
-                      <span className="text-gray-400 italic">No offer drafted</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 text-center align-middle text-[11px] text-gray-500 font-mono">
-                    {p.start_date ? format(new Date(p.start_date), 'MMM d, yyyy') : '---'}
-                  </td>
-                  <td className="px-4 py-4 text-center align-middle text-[11px] text-gray-500 font-mono">
-                    {p.end_date ? format(new Date(p.end_date), 'MMM d, yyyy') : '---'}
-                  </td>
-                  <td
-                    className="px-4 py-4 align-middle relative z-10"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      {p.status === 'engaged' && (
-                        <Button
-                          size="sm"
-                          className="bg-indigo-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2"
-                          onClick={() => handlePartnershipAction(p.id, 'qualify')}
-                        >
-                          Qualify
-                        </Button>
-                      )}
-                      {p.status === 'qualified' && (
-                        <Button
-                          size="sm"
-                          className="bg-primary-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2"
-                          onClick={() => openOfferModal(p)}
-                        >
-                          Send Offer
-                        </Button>
-                      )}
-                      {p.status === 'offer_sent' && (
-                        <Button
-                          size="sm"
-                          className="bg-green-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2"
-                          onClick={() => handlePartnershipAction(p.id, 'accept')}
-                        >
-                          Accept Offer
-                        </Button>
-                      )}
-                      {['accepted', 'product_shipped', 'product_delivered'].includes(p.status) && (
-                        <Button
-                          size="sm"
-                          className="bg-amber-600 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2"
-                          onClick={() => handlePartnershipAction(p.id, 'activate')}
-                        >
-                          Activate
-                        </Button>
-                      )}
-                      {p.status === 'activated' && (
-                        <Button
-                          size="sm"
-                          className="bg-gray-800 text-white font-normal uppercase tracking-widest text-[9px] min-h-[28px] px-2"
-                          onClick={() => handlePartnershipAction(p.id, 'complete')}
-                        >
-                          Complete
-                        </Button>
-                      )}
-                      <button
-                        onClick={() => openEditModal(p)}
-                        className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                        title="Edit parameters"
-                      >
-                        <Edit3 size={14} />
-                      </button>
-                      {p.status !== 'rejected' && p.status !== 'completed' && (
-                        <button
-                          onClick={() => handlePartnershipAction(p.id, 'reject')}
-                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors font-bold text-sm leading-none"
-                          title="Reject partnership"
-                        >
-                          &times;
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

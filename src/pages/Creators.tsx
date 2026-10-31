@@ -7,7 +7,7 @@ import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Search, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { reviewLead } from '../lib/api';
+import { getErrorMessage, reviewLead } from '../lib/api';
 import {
   useAllCreators,
   useCampaigns,
@@ -18,7 +18,14 @@ import {
 import { useInvalidate } from '../hooks/useInvalidate';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../lib/queryKeys';
-import type { Creator } from '../types';
+import { emailSentMessage, outreachCampaignId, sendFailureMessage } from '../lib/outreach';
+import type { Creator, CreatorContent, Partnership, Shipment } from '../types';
+import {
+  isFollowUpDue,
+  pickCurrentPartnership,
+  pickPartnershipContents,
+  pickPartnershipShipment,
+} from '../lib/nextAction';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Check, X, Star } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -35,6 +42,7 @@ import {
 } from '../lib/creatorFilters';
 import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
+import { groupBy } from '../lib/groupBy';
 import { CreatorAvatar, CreatorSocialLinks } from '../components/creators/CreatorIdentity';
 import { CreatorsFilterGrid, MobileFiltersSheet } from '../components/creators/CreatorsFilters';
 import { Modal } from '../components/ui/Modal';
@@ -43,7 +51,13 @@ const PAGE_SIZE = 50;
 
 // Stable empty array so a creator with no content passes the same reference each
 // render (keeps WorkflowActionEngine props referentially stable).
-const EMPTY_CONTENTS: any[] = [];
+const EMPTY_CONTENTS: CreatorContent[] = [];
+
+type RowWorkflow = {
+  partnership: Partnership | null;
+  shipment: Shipment | null;
+  contents: CreatorContent[];
+};
 
 const FILTERS_STORAGE_KEY = 'creators-filters-v1';
 
@@ -95,6 +109,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
     );
   const [outreachModalCreatorId, setOutreachModalCreatorId] = useState<string | null>(null);
   const [outreachModalType, setOutreachModalType] = useState<string | undefined>(undefined);
+  // Set when the step that opened the email knows its campaign (the partnership's).
+  const [outreachModalCampaignId, setOutreachModalCampaignId] = useState<string | undefined>(
+    undefined,
+  );
 
   // Workflow Modal States
   const [activeCreator, setActiveCreator] = useState<any>(null);
@@ -175,6 +193,13 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
     setCurrentPage(1);
   }, [search, selectedStatuses, followersFilter, engagementFilter, campaignFilter, sortBy]);
 
+  // One campaign for both the email preview and the approve call, so what the user
+  // reviews is what gets logged: the step's own partnership, else the campaign this
+  // list is filtered to, else the creator's only campaign (undefined if several).
+  const outreachCreator = creators.find((c) => c.id === outreachModalCreatorId);
+  const outreachCampaign =
+    outreachModalCampaignId ?? outreachCampaignId(outreachCreator, campaignFilter);
+
   const handleReview = async (
     id: string,
     action: 'approve' | 'reject' | 'shortlist' | 'revoke',
@@ -216,18 +241,21 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
         customBody,
         messageType,
         customTo,
+        outreachCampaign,
       );
-      refresh();
+      toast.success(emailSentMessage(customTo || outreachCreator?.email));
     } catch (err) {
-      toast.error('Failed to approve lead and send outreach.');
+      toast.error(sendFailureMessage(err));
       throw err;
+    } finally {
+      // A failed send still approved the creator, so reload either way.
+      refresh();
     }
   };
 
   const handleWorkflowAction = async (creator: any, actionType: string, payload?: any) => {
-    const partnership = partnerships.find(
-      (p) => p.creator_id === creator.id || p.Creator?.id === creator.id,
-    );
+    // Act on the same partnership the row's next step was decided from.
+    const partnership = workflowByCreator.get(creator.id)?.partnership ?? undefined;
     setActiveCreator(creator);
 
     if (actionType === 'view_feedback') {
@@ -235,12 +263,16 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
       setActivePartnership(partnership);
       setShowFeedbackModal(true);
     } else if (actionType === 'review') {
-      handleReview(creator.id, 'shortlist');
+      // Reviewing happens on the profile, where approve / shortlist / reject live.
+      // (Shortlisting from here was a no-op for creators already shortlisted.)
+      navigate(`/creators/${creator.id}`, { state: { fromMyCreators: onlyEngaged } });
     } else if (actionType === 'outreach') {
       setOutreachModalType(undefined);
+      setOutreachModalCampaignId(partnership?.campaign_id);
       setOutreachModalCreatorId(creator.id);
     } else if (actionType === 'follow_up') {
-      setOutreachModalType('followup_1');
+      setOutreachModalType(payload?.messageType ?? 'followup_1');
+      setOutreachModalCampaignId(partnership?.campaign_id);
       setOutreachModalCreatorId(creator.id);
     } else if (actionType === 'draft_offer') {
       setActivePartnership(
@@ -269,7 +301,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
         await activatePartnership(partnership.id);
         refresh();
       } catch (err) {
-        toast.error('Failed to activate: ' + err);
+        toast.error(`Failed to activate: ${getErrorMessage(err)}`);
       }
     } else if (actionType === 'mark_delivered') {
       // Find the shipment and update it
@@ -303,7 +335,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
         await completePartnership(partnership.id);
         refresh();
       } catch (err) {
-        toast.error('Failed to complete: ' + err);
+        toast.error(`Failed to complete: ${getErrorMessage(err)}`);
       }
     }
   };
@@ -402,32 +434,33 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
   );
 
   // O(1) per-row lookups instead of scanning partnerships/shipments/contents for
-  // every rendered creator (was O(rows × records) on every render).
-  const partnershipByCreator = useMemo(() => {
-    const m = new Map<string, any>();
-    for (const p of partnerships) {
-      const key = p.creator_id || p.Creator?.id;
-      if (key && !m.has(key)) m.set(key, p);
+  // every rendered creator (was O(rows × records) on every render). Each row gets
+  // the creator's current partnership plus that partnership's own shipment and
+  // deliverables — the same inputs the creator profile feeds getNextAction.
+  const workflowByCreator = useMemo(() => {
+    const creatorsById = new Map((creatorsQ.data ?? []).map((c) => [c.id, c]));
+    const shipmentsByCreator = groupBy(shipments, (s) => s.creator_id);
+    const contentsByCreator = groupBy(contents, (cnt) => String(cnt.creator_id));
+    const m = new Map<string, RowWorkflow>();
+    for (const [creatorId, list] of groupBy(partnerships, (p) => p.creator_id || p.Creator?.id)) {
+      const creator = creatorsById.get(creatorId);
+      if (!creator) continue; // no row renders for a creator outside the list
+      const creatorShipments = shipmentsByCreator.get(creatorId);
+      const creatorContents = contentsByCreator.get(creatorId);
+      const partnership = pickCurrentPartnership(list, {
+        creator,
+        shipments: creatorShipments,
+        contents: creatorContents,
+        followUpDue: isFollowUpDue(creator.latest_outreach),
+      });
+      m.set(creatorId, {
+        partnership,
+        shipment: pickPartnershipShipment(partnership, creatorShipments),
+        contents: pickPartnershipContents(partnership, creatorContents),
+      });
     }
     return m;
-  }, [partnerships]);
-  const shipmentByCreator = useMemo(() => {
-    const m = new Map<string, any>();
-    for (const s of shipments) {
-      if (s.creator_id && !m.has(s.creator_id)) m.set(s.creator_id, s);
-    }
-    return m;
-  }, [shipments]);
-  const contentsByCreator = useMemo(() => {
-    const m = new Map<string, any[]>();
-    for (const cnt of contents) {
-      const key = String(cnt.creator_id);
-      const arr = m.get(key);
-      if (arr) arr.push(cnt);
-      else m.set(key, [cnt]);
-    }
-    return m;
-  }, [contents]);
+  }, [creatorsQ.data, partnerships, shipments, contents]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-[fadeIn_0.3s_ease]">
@@ -527,7 +560,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                     <Th className="text-center">Engagement</Th>
                     <Th>Status</Th>
                     <Th className="text-center w-40">Next Action</Th>
-                    <Th className="text-right">Actions</Th>
+                    <Th className="text-right col-sticky-end">Actions</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -540,11 +573,15 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                             <Link
                               to={`/creators/${c.id}`}
                               state={{ fromMyCreators: onlyEngaged }}
-                              className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-xs uppercase tracking-tight font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]"
+                              className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm font-outfit leading-tight line-clamp-2 whitespace-normal break-words max-w-[180px]"
                             >
                               {c.full_name || `@${c.handle}`}
                             </Link>
-                            <CreatorSocialLinks creator={c} showHandles />
+                            <CreatorSocialLinks
+                              creator={c}
+                              showHandles
+                              className="flex flex-wrap gap-x-2 gap-y-1 mt-1.5"
+                            />
                           </div>
                         </div>
                       </Td>
@@ -582,7 +619,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                       <Td>
                         <StatusBadge
                           status={
-                            partnershipByCreator.get(c.id)?.status ||
+                            workflowByCreator.get(c.id)?.partnership?.status ||
                             ([
                               'contacted',
                               'replied',
@@ -599,13 +636,14 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                       <Td className="text-center align-middle">
                         <WorkflowActionEngine
                           creator={c}
-                          partnership={partnershipByCreator.get(c.id)}
-                          shipment={shipmentByCreator.get(c.id)}
-                          contents={contentsByCreator.get(String(c.id)) ?? EMPTY_CONTENTS}
+                          partnership={workflowByCreator.get(c.id)?.partnership}
+                          shipment={workflowByCreator.get(c.id)?.shipment}
+                          contents={workflowByCreator.get(c.id)?.contents ?? EMPTY_CONTENTS}
+                          followUpDue={isFollowUpDue(c.latest_outreach)}
                           onAction={(type, payload) => handleWorkflowAction(c, type, payload)}
                         />
                       </Td>
-                      <Td className="text-right">
+                      <Td className="text-right col-sticky-end">
                         {hasRole(user?.role, ROLE_GROUPS.MANAGE_CREATORS) && (
                           <div className="flex justify-end gap-2">
                             {c.review_status === 'rejected' && (
@@ -701,7 +739,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                           <Link
                             to={`/creators/${c.id}`}
                             state={{ fromMyCreators: onlyEngaged }}
-                            className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm uppercase tracking-tight font-outfit block"
+                            className="font-normal text-gray-900 hover:text-primary-600 transition-colors text-sm font-outfit block"
                           >
                             {c.full_name || `@${c.handle}`}
                           </Link>
@@ -710,7 +748,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                       </div>
                       <StatusBadge
                         status={
-                          partnershipByCreator.get(c.id)?.status ||
+                          workflowByCreator.get(c.id)?.partnership?.status ||
                           ([
                             'contacted',
                             'replied',
@@ -762,9 +800,10 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
                       <div className="pt-3 border-t border-gray-50 flex flex-col gap-2 justify-center">
                         <WorkflowActionEngine
                           creator={c}
-                          partnership={partnershipByCreator.get(c.id)}
-                          shipment={shipmentByCreator.get(c.id)}
-                          contents={contentsByCreator.get(String(c.id)) ?? EMPTY_CONTENTS}
+                          partnership={workflowByCreator.get(c.id)?.partnership}
+                          shipment={workflowByCreator.get(c.id)?.shipment}
+                          contents={workflowByCreator.get(c.id)?.contents ?? EMPTY_CONTENTS}
+                          followUpDue={isFollowUpDue(c.latest_outreach)}
                           onAction={(type, payload) => handleWorkflowAction(c, type, payload)}
                         />
                         <div className="flex gap-2 justify-center mt-2">
@@ -839,11 +878,12 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
 
       <OutreachPreviewModal
         creatorId={outreachModalCreatorId || ''}
-        campaignId={creators.find((c) => c.id === outreachModalCreatorId)?.campaign_id || undefined}
+        campaignId={outreachCampaign}
         messageType={outreachModalType}
         isOpen={!!outreachModalCreatorId}
         onClose={() => {
           setOutreachModalCreatorId(null);
+          setOutreachModalCampaignId(undefined);
           setOutreachInitialSubject(undefined);
           setOutreachInitialBody(undefined);
         }}
@@ -871,6 +911,7 @@ export default function Creators({ onlyEngaged = false }: { onlyEngaged?: boolea
               onClick={() => {
                 setShowFeedbackModal(false);
                 setOutreachModalType('qualification');
+                setOutreachModalCampaignId(activePartnership?.campaign_id);
                 setOutreachModalCreatorId(activeCreator.id);
                 const publicUrl = `${window.location.origin}/public/offer/${activePartnership.id}`;
                 setOutreachInitialSubject(`Re: Partnership Offer - @${activeCreator.handle}`);

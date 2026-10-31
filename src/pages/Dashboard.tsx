@@ -2,14 +2,13 @@ import { clickable } from '../lib/a11y';
 import { getRelativeTime } from '../lib/formatters';
 import { hasRole, ROLE_GROUPS } from '../lib/constants';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { KPICard } from '../components/ui/KPICard';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
-import { Table, Thead, Tbody, Tr, Th, Td } from '../components/ui/Table';
-import { ScoreBadge } from '../components/ui/ScoreBadge';
-import { StatusBadge } from '../components/ui/StatusBadge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
+import { InfoTip } from '../components/ui/InfoTip';
+import { NeedsAttention } from '../components/dashboard/NeedsAttention';
 import {
   Users,
   Mail,
@@ -19,28 +18,13 @@ import {
   Activity,
   Clock,
   Sparkles,
-  Instagram,
-  Youtube,
   AlertCircle,
 } from 'lucide-react';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Select } from '../components/ui/Select';
 import { useCampaigns, useAllCreators, useDashboardStats } from '../hooks/queries';
-import type { Creator } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import {
-  getFollowers,
-  getEngagement,
-  isQualifiedCreator,
-  matchesStatusFilter,
-} from '../lib/creatorFilters';
-
-// Promote shortlisted/approved leads to the top of the Top Discovery Leads list.
-const leadPriority = (c: Creator): number => {
-  if (c.review_status === 'approved') return 2;
-  if (c.review_status === 'shortlisted') return 1;
-  return 0;
-};
+import { isQualifiedCreator, matchesStatusFilter } from '../lib/creatorFilters';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -66,11 +50,11 @@ export default function Dashboard() {
     return true;
   });
 
-  // Count only "qualified" creators (real profile data + follower floor) using
-  // the same definition as the Creators directory, so the Dashboard total and
-  // queue cards match what those pages show when clicked through.
+  // The queue cards below count "qualified" creators (real profile data + follower
+  // floor) with the same definition as the Creators directory, so they match what
+  // that page shows when clicked through. The creator total, the funnel and Sent
+  // come from the backend stats, which define each of them once for the whole page.
   const qualifiedCreators = filteredCreatorsForStats.filter(isQualifiedCreator);
-  const totalCreators = qualifiedCreators.length;
 
   const approvedCount = qualifiedCreators.filter((c) => matchesStatusFilter(c, 'approved')).length;
   const pendingReviewCount = qualifiedCreators.filter((c) =>
@@ -80,29 +64,7 @@ export default function Dashboard() {
     matchesStatusFilter(c, 'not_respond'),
   ).length;
   const discoveredCount = qualifiedCreators.filter((c) => matchesStatusFilter(c, 'hold')).length;
-  const sentCount = qualifiedCreators.filter((c) => matchesStatusFilter(c, 'contacted')).length;
   const rejectedCount = qualifiedCreators.filter((c) => matchesStatusFilter(c, 'rejected')).length;
-
-  const topCreators = [...creators]
-    .filter((c) => {
-      // If filtering by campaign, check if this campaign is in the creator's list
-      if (selectedCampaignId) {
-        const cIds = c.campaign_ids || [c.campaign_id];
-        return cIds.includes(selectedCampaignId);
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      // Shortlisted/approved leads first, then by engagement rate, then by followers
-      const pa = leadPriority(a),
-        pb = leadPriority(b);
-      if (pa !== pb) return pb - pa;
-      const ea = getEngagement(a),
-        eb = getEngagement(b);
-      if (eb !== ea) return eb - ea;
-      return getFollowers(b) - getFollowers(a);
-    })
-    .slice(0, 10);
 
   const handleQueueClick = (status: string) => {
     let targetFilter = '';
@@ -164,7 +126,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             <KPICard
               title="Creators"
-              value={totalCreators}
+              value={stats.kpis.totalCreators.value}
               icon={<Users size={16} />}
               trend={
                 stats.kpis.totalCreators.trend
@@ -255,9 +217,12 @@ export default function Dashboard() {
             {/* Funnel Chart Area */}
             <Card className="lg:col-span-2">
               <CardHeader>
-                <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">
-                  Pipeline Funnel
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-normal text-gray-700 uppercase tracking-widest font-outfit">
+                    Pipeline Funnel
+                  </h2>
+                  <InfoTip text="Each stage counts creators who reached at least that stage." />
+                </div>
               </CardHeader>
               <CardContent className="h-64 flex flex-col justify-center gap-4">
                 <div className="space-y-4">
@@ -268,10 +233,10 @@ export default function Dashboard() {
                     <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
                       <div
                         className="bg-gradient-to-r from-slate-400 to-slate-500 h-full transition-all shadow-inner"
-                        style={{ width: totalCreators === 0 ? '0%' : '100%' }}
+                        style={{ width: stats.funnel.new === 0 ? '0%' : '100%' }}
                       ></div>
                     </div>
-                    <div className="w-12 text-sm font-bold text-gray-900">{totalCreators}</div>
+                    <div className="w-12 text-sm font-bold text-gray-900">{stats.funnel.new}</div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="w-24 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">
@@ -280,7 +245,9 @@ export default function Dashboard() {
                     <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
                       <div
                         className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all shadow-md"
-                        style={{ width: getPercentLength(stats.funnel.contacted, totalCreators) }}
+                        style={{
+                          width: getPercentLength(stats.funnel.contacted, stats.funnel.new),
+                        }}
                       ></div>
                     </div>
                     <div className="w-12 text-sm font-bold text-gray-900">
@@ -294,7 +261,7 @@ export default function Dashboard() {
                     <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
                       <div
                         className="bg-gradient-to-r from-indigo-500 to-purple-600 h-full transition-all shadow-md"
-                        style={{ width: getPercentLength(stats.funnel.replied, totalCreators) }}
+                        style={{ width: getPercentLength(stats.funnel.replied, stats.funnel.new) }}
                       ></div>
                     </div>
                     <div className="w-12 text-sm font-bold text-gray-900">
@@ -308,7 +275,9 @@ export default function Dashboard() {
                     <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
                       <div
                         className="bg-gradient-to-r from-teal-400 to-emerald-500 h-full transition-all shadow-md"
-                        style={{ width: getPercentLength(stats.funnel.qualified, totalCreators) }}
+                        style={{
+                          width: getPercentLength(stats.funnel.qualified, stats.funnel.new),
+                        }}
                       ></div>
                     </div>
                     <div className="w-12 text-sm font-bold text-gray-900">
@@ -322,7 +291,9 @@ export default function Dashboard() {
                     <div className="bg-gray-100/50 rounded-full h-10 flex-1 overflow-hidden border border-gray-100 relative">
                       <div
                         className="bg-gradient-to-r from-emerald-500 to-green-600 h-full transition-all shadow-lg"
-                        style={{ width: getPercentLength(stats.funnel.converted, totalCreators) }}
+                        style={{
+                          width: getPercentLength(stats.funnel.converted, stats.funnel.new),
+                        }}
                       ></div>
                     </div>
                     <div className="w-12 text-sm font-bold text-gray-900">
@@ -395,9 +366,10 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* 4. Total Sent */}
+                {/* 4. Total Sent — every email sent, so it opens the outreach log
+                    (the Creators "contacted" filter only holds creators still awaiting a reply). */}
                 <div
-                  {...clickable(() => handleQueueClick('contacted'))}
+                  {...clickable(() => navigate('/outreach'))}
                   className="cursor-pointer transition-all border p-3 rounded-xl flex flex-col justify-between bg-purple-50/20 border-purple-100/50 hover:bg-purple-50/50 hover:scale-[1.01]"
                 >
                   <p className="text-[9px] font-normal text-purple-500 uppercase tracking-widest mb-1 text-left">
@@ -405,7 +377,7 @@ export default function Dashboard() {
                   </p>
                   <div className="flex justify-between items-end">
                     <span className="text-lg font-normal text-purple-900 font-outfit">
-                      {sentCount}
+                      {stats.outreachQueue.sent}
                     </span>
                     <span className="text-[8px] uppercase tracking-wider bg-purple-100 text-purple-800 px-1 py-0.5 rounded font-bold">
                       Sent
@@ -453,118 +425,10 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <h2 className="text-base font-semibold text-gray-900 tracking-tight">
-                  Top Discovery Leads
-                </h2>
-              </CardHeader>
-              {topCreators.length === 0 ? (
-                <div className="p-12 text-center text-gray-500">
-                  No pending leads. Trigger AI discovery inside a Campaign!
-                </div>
-              ) : (
-                <Table>
-                  <Thead>
-                    <Tr>
-                      <Th>Creator</Th>
-                      <Th>City</Th>
-                      <Th className="text-center">Engagement</Th>
-                      <Th className="text-center">Relevance</Th>
-                      <Th>Status</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {topCreators.map((c) => (
-                      <Tr key={c.id}>
-                        <Td>
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex flex-shrink-0 items-center justify-center font-normal text-xs uppercase">
-                              {(c.full_name || c.handle)?.charAt(0)}
-                            </div>
-                            <div className="min-w-0">
-                              <Link
-                                to={`/creators/${c.id}`}
-                                className="font-medium text-gray-900 tracking-tight hover:text-primary-600 transition-colors text-sm leading-tight line-clamp-2 whitespace-normal break-words max-w-[150px]"
-                              >
-                                {c.full_name || `@${c.handle}`}
-                              </Link>
-                              <div className="flex items-center gap-2 mt-1.5">
-                                {c.has_instagram && (
-                                  <a
-                                    href={
-                                      c.profiles?.find(
-                                        (p) => p.platform.toLowerCase() === 'instagram',
-                                      )?.profile_url ||
-                                      `https://instagram.com/${c.handle?.replace(/^@/, '')}`
-                                    }
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-[#E1306C] hover:scale-110 transition-transform"
-                                    title="Instagram"
-                                  >
-                                    <Instagram size={14} />
-                                  </a>
-                                )}
-                                {c.has_youtube && (
-                                  <a
-                                    href={
-                                      c.profiles?.find(
-                                        (p) => p.platform.toLowerCase() === 'youtube',
-                                      )?.profile_url ||
-                                      `https://youtube.com/@${c.handle?.replace(/^@/, '')}`
-                                    }
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-[#FF0000] hover:scale-110 transition-transform"
-                                    title="YouTube"
-                                  >
-                                    <Youtube size={14} />
-                                  </a>
-                                )}
-                                {c.has_tiktok && (
-                                  <a
-                                    href={
-                                      c.profiles?.find((p) => p.platform.toLowerCase() === 'tiktok')
-                                        ?.profile_url ||
-                                      `https://tiktok.com/@${c.handle?.replace(/^@/, '')}`
-                                    }
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-gray-900 hover:scale-110 transition-transform"
-                                    title="TikTok"
-                                  >
-                                    <Activity size={14} />
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </Td>
-                        <Td className="text-gray-500 capitalize">{c.city || 'Global'}</Td>
-                        <Td className="text-center">
-                          <span className="text-sm font-normal text-gray-900 font-outfit">
-                            {getEngagement(c) > 0 ? `${getEngagement(c).toFixed(2)}%` : 'N/A'}
-                          </span>
-                        </Td>
-                        <Td>
-                          <ScoreBadge score={c.relevance_score || 0} />
-                        </Td>
-                        <Td>
-                          <StatusBadge
-                            status={
-                              ['not_respond'].includes(c.lifecycle_status || '')
-                                ? c.lifecycle_status
-                                : (c.review_status as any) || 'pending'
-                            }
-                          />
-                        </Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              )}
-            </Card>
+            <NeedsAttention
+              campaignId={selectedCampaignId || undefined}
+              className="lg:col-span-2"
+            />
 
             {/* Recent Activity */}
             <Card>

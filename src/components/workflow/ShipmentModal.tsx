@@ -2,7 +2,7 @@ import { toast } from '../../lib/toast';
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { createShipment } from '../../lib/api';
+import { createShipment, getErrorMessage } from '../../lib/api';
 
 interface ShipmentModalProps {
   isOpen: boolean;
@@ -67,7 +67,7 @@ export function ShipmentModal({
       onSuccess();
       onClose();
     } catch (err) {
-      toast.error('Failed to create shipment: ' + err);
+      toast.error(`Failed to create shipment: ${getErrorMessage(err)}`);
     } finally {
       setSubmitting(false);
     }

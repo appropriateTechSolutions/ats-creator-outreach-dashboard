@@ -33,7 +33,7 @@ export default function Login() {
         <div className="flex justify-center mb-6">
           <img src="/qui-logo.png" alt="Qui Tequila" className="h-28 w-auto object-contain" />
         </div>
-        <h2 className="text-center text-3xl font-normal text-gray-900 tracking-tight font-outfit uppercase">
+        <h2 className="text-center text-3xl font-semibold text-primary-900 tracking-tight font-outfit">
           Welcome to Qui Tequila Creator Outreach
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">

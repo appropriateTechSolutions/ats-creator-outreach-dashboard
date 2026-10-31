@@ -2,6 +2,7 @@ import { logger } from '../lib/logger';
 import { clickable } from '../lib/a11y';
 import { toast } from '../lib/toast';
 import { cleanMessageText } from '../lib/formatters';
+import { emailSentMessage, sendCreatorOutreach, sendFailureMessage } from '../lib/outreach';
 import { hasRole, ROLE_GROUPS } from '../lib/constants';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -19,7 +20,6 @@ import { InfoTip } from './ui/InfoTip';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getCreatorById,
-  sendSingleOutreach,
   linkAffiliate,
   findSimilarCreators,
   previewOutreach,
@@ -61,6 +61,13 @@ import {
   Edit3,
 } from 'lucide-react';
 import type { Creator } from '../types';
+import {
+  canReachOut,
+  followUpAction,
+  isUnreviewed,
+  isFollowUpDue as followUpDue,
+  isWaitingForFollowUp as waitingForFollowUp,
+} from '../lib/nextAction';
 
 // Best available engagement rate for a creator (creator-level, else max across profiles).
 const getEngagement = (c: Creator): number => {
@@ -184,22 +191,17 @@ export function CreatorPreviewDrawer({
     setExpandedPlatforms((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Helper to clean up email signatures and quoted replies
-  const isFollowUpDue = () => {
-    const latest = activeCreator.latest_outreach || (activeCreator as any).latestOutreach;
-    if (!latest) return false;
-    if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
-    if (latest.follow_up_count >= 3) return false;
-    return new Date(latest.next_followup_at) < new Date();
-  };
+  // Same follow-up rules as the profile and the Creators list (lib/nextAction).
+  const isFollowUpDue = () =>
+    followUpDue(activeCreator.latest_outreach || (activeCreator as any).latestOutreach);
 
-  const isWaitingForFollowUp = () => {
-    const latest = activeCreator.latest_outreach || (activeCreator as any).latestOutreach;
-    if (!latest) return false;
-    if (latest.is_dismissed || latest.response_received || !latest.next_followup_at) return false;
-    if (latest.follow_up_count >= 3) return false;
-    return new Date(latest.next_followup_at) >= new Date();
-  };
+  const isWaitingForFollowUp = () =>
+    waitingForFollowUp(activeCreator.latest_outreach || (activeCreator as any).latestOutreach);
+
+  // Outreach email, follow-ups and DMs only before a reply or a partnership — the
+  // same rule as the profile header, so a creator with a live deal never gets a
+  // pulsing "Follow-up #2" here.
+  const reachOut = !partnershipsLoading && canReachOut(activeCreator, partnerships.length > 0);
 
   const handleSendOutreach = () => {
     let type = 'initial';
@@ -262,22 +264,31 @@ export function CreatorPreviewDrawer({
     customSubject?: string,
     customBody?: string,
     messageType?: string,
+    customTo?: string,
   ) => {
+    // An unreviewed lead is approved through the review endpoint (which honours the
+    // edited recipient) for this campaign; send-single always writes to the
+    // creator's own address.
+    const approving = isUnreviewed(activeCreator.review_status);
     setSendingEmail(true);
     try {
-      await sendSingleOutreach(
-        activeCreator.id,
-        campaignId,
-        customSubject,
-        customBody,
+      await sendCreatorOutreach(activeCreator, campaignId, {
+        subject: customSubject,
+        body: customBody,
         messageType,
-      );
-      toast.success('Outreach email sent successfully!');
+        to: customTo,
+      });
+      toast.success(emailSentMessage((approving && customTo) || activeCreator.email));
       setOutreachModalOpen(false);
       refreshFullCreator(); // Refresh conversation logs instantly!
       if (onActionComplete) onActionComplete();
     } catch (err) {
-      toast.error('Failed to send outreach: ' + err);
+      // A failed send after an approve still approved the lead: reload either way.
+      if (approving) {
+        refreshFullCreator();
+        if (onActionComplete) onActionComplete();
+      }
+      toast.error(sendFailureMessage(err));
       throw err;
     } finally {
       setSendingEmail(false);
@@ -494,14 +505,16 @@ export function CreatorPreviewDrawer({
                 )}
                 {findingSimilar ? 'Searching...' : 'Find Similar'}
               </Button>
-              <Button
-                className="flex-1 bg-pink-600 hover:bg-pink-700 shadow-xl shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all"
-                onClick={handleSendDM}
-              >
-                <Instagram size={14} />
-                Send DM
-              </Button>
-              {activeCreator.email && (
+              {reachOut && (
+                <Button
+                  className="flex-1 bg-pink-600 hover:bg-pink-700 shadow-xl shadow-pink-500/20 text-white flex items-center justify-center gap-2 h-11 uppercase text-[10px] tracking-widest font-normal transition-all"
+                  onClick={handleSendDM}
+                >
+                  <Instagram size={14} />
+                  Send DM
+                </Button>
+              )}
+              {reachOut && activeCreator.email && (
                 <Button
                   className={`flex-1 ${
                     isFollowUpDue()
@@ -527,7 +540,11 @@ export function CreatorPreviewDrawer({
                     <Send size={14} />
                   )}
                   {isFollowUpDue()
-                    ? `Follow-up #${((activeCreator.latest_outreach || (activeCreator as any).latestOutreach)?.follow_up_count || 0) + 1}`
+                    ? followUpAction({
+                        ...activeCreator,
+                        latest_outreach:
+                          activeCreator.latest_outreach || (activeCreator as any).latestOutreach,
+                      }).label
                     : isWaitingForFollowUp()
                       ? 'Sent · Awaiting Reply'
                       : activeCreator.latest_outreach || (activeCreator as any).latestOutreach

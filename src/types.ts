@@ -55,6 +55,38 @@ export interface OutreachLog {
   Creator?: Creator;
 }
 
+/** GET /outreach/preview — the composed email plus who it would come from. */
+export interface OutreachPreview {
+  subject: string;
+  body: string;
+  to: string | null;
+  /**
+   * The mailbox the email would be sent from: an address, `'apps-script'` for the
+   * shared Google relay, or null when no mailbox is configured (a send would fail).
+   */
+  from_email: string | null;
+}
+
+/** GET /analytics/campaigns/:id/content-performance — one campaign's aggregate. */
+export interface CampaignPerformance {
+  total_content: number;
+  published_content: number;
+  total_views: number;
+  total_likes: number;
+  total_comments: number;
+  total_engagement: number;
+  /** Percentage as a fixed-2 string, e.g. "5.35". */
+  avg_engagement_rate: string;
+  /** Agreed creator fees: flat fees of partnerships that reached "accepted". */
+  total_cost: number;
+  /** Null (not zero) when the campaign has no affiliate tracking at all. */
+  total_revenue: number | null;
+  total_conversions: number | null;
+  has_sales_data: boolean;
+  /** Null when there is no sales data or no creator fees to divide by. */
+  roi: number | null;
+}
+
 export interface Creator {
   id: string;
   handle: string;
@@ -99,6 +131,8 @@ export interface Creator {
   outreach_logs: OutreachLog[];
   OutreachLogs?: OutreachLog[];
   conversation: CreatorConversation | null;
+  /** GET /conversations only: one entry per campaign; `conversation` is the first. */
+  conversations?: CreatorConversation[];
   profiles: CreatorPlatformProfile[];
   // Optional fields populated from various API responses
   platform?: string | null;
@@ -204,6 +238,7 @@ export interface Affiliate {
 
 export interface CreatorConversation {
   id: string;
+  campaign_id?: string | null;
   latest_channel: string | null;
   latest_inbound_message: string | null;
   latest_inbound_at: string | null;
@@ -211,6 +246,20 @@ export interface CreatorConversation {
   interested: boolean | null;
   qualification_status: string;
   messages?: ConversationMessage[];
+  // GET /conversations only: the thread's campaign, whose turn it is, and its deal.
+  Campaign?: Pick<Campaign, 'id' | 'name' | 'client_id'>;
+  /** Our latest sent email (or stored outbound message) on this thread. */
+  last_outbound_at?: string | null;
+  /** The creator's latest inbound message is newer than our latest outbound one. */
+  waiting_on_us?: boolean;
+  /** The creator × campaign partnership, id and status only. */
+  partnership?: ConversationPartnership | null;
+}
+
+/** The partnership a listed conversation belongs to (GET /conversations: id and status). */
+export interface ConversationPartnership {
+  id: string;
+  status: PartnershipStatus;
 }
 
 export interface AffiliateTracking {
@@ -230,6 +279,20 @@ export interface ConversationMessage {
   message_text: string;
   message_time: string;
   provider_message_id: string | null;
+}
+
+/**
+ * One entry of GET /conversations/:id, oldest first: a stored message, or an email we
+ * sent through outreach merged in (`source: 'outreach_log'`, the only kind with a subject).
+ */
+export interface ThreadMessage {
+  id: string;
+  direction: 'inbound' | 'outbound';
+  channel: string;
+  message_text: string;
+  message_time: string;
+  subject: string | null;
+  source: 'message' | 'outreach_log';
 }
 
 export interface AuthUser {
@@ -326,8 +389,22 @@ export interface CreatorPartnership {
   updated_at: string;
   Campaign?: Campaign;
   Creator?: Creator;
+  // Detail endpoint (GET /partnerships/:id) only: the partnership's deliverables,
+  // shipments (newest first) and the creator's conversation for this campaign.
   content?: CreatorContent[];
+  shipments?: Shipment[];
+  conversation?: PartnershipConversation | null;
 }
+
+/** The latest inbound message on a partnership's conversation (detail endpoint). */
+export interface PartnershipConversation {
+  id: string;
+  latest_inbound_message: string | null;
+  latest_inbound_at: string | null;
+}
+
+/** Short name for a creator × campaign deal (used by the next-step engine). */
+export type Partnership = CreatorPartnership;
 
 // ─── Shared status & role unions ──────────────────────────────────────
 // Single source of truth for the string literals used across the app. Verified
@@ -353,34 +430,42 @@ export type ReviewStatus =
   | 'approved'
   | 'rejected';
 
+// creators.lifecycle_status enum (backend models/creatorModel.js). `failed` is not a
+// backend value; it stays only because creatorFilters' "failed" bucket still checks it.
 export type LifecycleStatus =
   | 'new'
+  | 'enriched'
+  | 'shortlisted'
   | 'contacted'
   | 'replied'
   | 'engaged'
   | 'qualified'
   | 'converted'
-  | 'in_discussion'
+  | 'rejected'
+  | 'paused'
   | 'not_respond'
   | 'failed';
 
+// Exactly the backend's PARTNERSHIP_STATUSES (domain/partnershipStatus.ts).
 export type PartnershipStatus =
   | 'engaged'
-  | 'meeting_scheduled'
   | 'replied'
   | 'in_discussion'
-  | 'negotiating'
+  | 'meeting_scheduled'
   | 'qualified'
   | 'offer_sent'
-  | 'offer_accepted'
+  | 'negotiating'
   | 'accepted'
   | 'activated'
-  | 'active'
-  | 'contract_signed'
+  | 'product_shipped'
+  | 'product_delivered'
+  | 'content_pending'
+  | 'content_submitted'
+  | 'content_approved'
+  | 'live'
   | 'completed'
   | 'rejected'
-  | 'product_shipped'
-  | 'product_delivered';
+  | 'inactive';
 
 export type ShipmentStatus =
   | 'pending'
@@ -540,11 +625,19 @@ export interface DashboardStats {
     qualified: KpiMetric;
     converted: KpiMetric;
   };
+  /** Cumulative: each stage counts the creators who reached at least that stage. */
   funnel: {
+    new: number;
     contacted: number;
     replied: number;
     qualified: number;
     converted: number;
+  };
+  /** `sent` is the same figure as `kpis.contacted`: creators with a sent outreach email. */
+  outreachQueue: {
+    pending: number;
+    sent: number;
+    failed: number;
   };
   recentActivity: Array<{
     type: string;
@@ -552,6 +645,36 @@ export interface DashboardStats {
     timestamp: string;
     status?: string;
   }>;
+}
+
+// ─── Needs attention (GET /stats/attention) ────────────────────────────
+
+export type AttentionType =
+  'reply_waiting' | 'offer_unsigned' | 'address_needed' | 'deliverable_overdue' | 'send_failed';
+
+export interface AttentionItem {
+  type: AttentionType;
+  /**
+   * The record the item opens: the conversation (reply_waiting), partnership
+   * (offer_unsigned), shipment (address_needed) or content (deliverable_overdue);
+   * for send_failed the creator, so it repeats across that creator's campaigns.
+   */
+  entity_id: string;
+  creator_id: string;
+  creator_name: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  /** ISO time the item started waiting. */
+  since: string;
+  /** Display-ready summary, e.g. "Offer sent 9 days ago, not signed". */
+  detail: string;
+}
+
+export interface AttentionSummary {
+  /** Totals per type; the list holds the 50 longest-waiting, so these can be larger. */
+  counts: Record<AttentionType, number>;
+  /** Longest-waiting first. */
+  items: AttentionItem[];
 }
 
 // ─── Generic paginated envelope (server-side pagination, Phase 3) ──────
