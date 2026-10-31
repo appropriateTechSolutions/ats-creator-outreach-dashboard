@@ -2,11 +2,77 @@ import { toast } from '../lib/toast';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { OfferSummary } from '../components/offer/OfferSummary';
+import { getErrorMessage } from '../lib/api';
+import { getOfferState } from '../lib/offerState';
+import {
+  acceptPublicOffer,
+  fetchPublicOffer,
+  rejectPublicOffer,
+  type PublicOffer,
+} from '../lib/publicOfferApi';
+
+// What the API requires of an address when product ships (acceptOfferPublic). Line 2 and
+// the pre-filled country are not required. ids match the inputs below.
+const REQUIRED_ADDRESS_FIELDS = [
+  { key: 'shipping_address_line1', id: 'acceptoffer-1', message: 'Address line 1 is required' },
+  { key: 'shipping_city', id: 'acceptoffer-3', message: 'City is required' },
+  { key: 'shipping_state', id: 'acceptoffer-4', message: 'State or province is required' },
+  { key: 'shipping_zip', id: 'acceptoffer-5', message: 'ZIP or postal code is required' },
+] as const;
+
+function AddressField({
+  id,
+  label,
+  value,
+  onChange,
+  className,
+  required,
+  error,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  required?: boolean;
+  error?: string;
+}) {
+  return (
+    <div className={className}>
+      <label htmlFor={id} className="block text-sm font-medium text-gray-700">
+        {label}
+        {required && <span className="text-red-500"> *</span>}
+      </label>
+      <input
+        id={id}
+        type="text"
+        className={`mt-1 block w-full rounded-md shadow-sm px-4 py-2 border ${
+          error
+            ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+            : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
+        }`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-required={required || undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+      />
+      {error && (
+        <p id={`${id}-error`} className="mt-1 text-sm text-red-600">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function AcceptOffer() {
-  const { id } = useParams();
+  const { id = '' } = useParams();
   const [searchParams] = useSearchParams();
-  const [partnership, setPartnership] = useState<any>(null);
+  // The signed link from the email. The API checks it (requireOfferToken) on every call.
+  const token = searchParams.get('token');
+  const exp = searchParams.get('exp');
+  const [partnership, setPartnership] = useState<PublicOffer | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -26,18 +92,28 @@ export default function AcceptOffer() {
   });
 
   const [submitting, setSubmitting] = useState(false);
+  // Set by a submit attempt, so the inline "is required" messages don't show before then.
+  const [showAddressErrors, setShowAddressErrors] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Stroke state lives in refs: pointermove fires faster than React re-renders, and
   // a second finger must not be able to hijack a stroke already in progress.
   const activePointerId = useRef<number | null>(null);
   const hasInk = useRef(false);
 
-  const alreadyAccepted =
-    partnership &&
-    (partnership.status === 'offer_accepted' ||
-      partnership.status === 'contract_signed' ||
-      partnership.status === 'active');
-  const alreadyRejected = partnership && partnership.status === 'negotiating';
+  const offerState = getOfferState(partnership?.status);
+  const alreadyAccepted = offerState === 'accepted';
+  const declined = offerState === 'declined';
+  // `negotiating` is what the creator's own feedback sets: feedback sent, not a refusal.
+  const feedbackSent = offerState === 'feedback_sent';
+
+  // When product ships the API refuses an acceptance without an address.
+  const addressRequired = !!partnership?.shipment_included;
+  const missingAddressFields = addressRequired
+    ? REQUIRED_ADDRESS_FIELDS.filter((field) => !form[field.key].trim())
+    : [];
+  const addressErrors: Record<string, string> = showAddressErrors
+    ? Object.fromEntries(missingAddressFields.map((field) => [field.key, field.message]))
+    : {};
 
   useEffect(() => {
     if (searchParams.get('reject') === 'true') {
@@ -46,31 +122,26 @@ export default function AcceptOffer() {
   }, [searchParams]);
 
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
-    fetch(`${apiUrl}/partnerships/public/${id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setPartnership(data.data);
-          // Pre-fill if address exists on creator
-          if (data.data.Creator) {
-            setForm((f) => ({
-              ...f,
-              shipping_address_line1: data.data.Creator.shipping_address_line1 || '',
-              shipping_address_line2: data.data.Creator.shipping_address_line2 || '',
-              shipping_city: data.data.Creator.shipping_city || '',
-              shipping_state: data.data.Creator.shipping_state || '',
-              shipping_zip: data.data.Creator.shipping_zip || '',
-              shipping_country: data.data.Creator.shipping_country || 'US',
-            }));
-          }
-        } else {
-          setError(data.error || 'Proposal not found');
+    fetchPublicOffer(id, { token, exp })
+      .then((offer) => {
+        setPartnership(offer);
+        // Pre-fill if address exists on creator
+        if (offer.Creator) {
+          const creator = offer.Creator;
+          setForm((f) => ({
+            ...f,
+            shipping_address_line1: creator.shipping_address_line1 || '',
+            shipping_address_line2: creator.shipping_address_line2 || '',
+            shipping_city: creator.shipping_city || '',
+            shipping_state: creator.shipping_state || '',
+            shipping_zip: creator.shipping_zip || '',
+            shipping_country: creator.shipping_country || 'US',
+          }));
         }
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => setError(getErrorMessage(err)))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, token, exp]);
 
   // The canvas bitmap is 600x200 but CSS stretches it to the card width (about half
   // that on a phone), so scale pointer positions from CSS pixels into bitmap pixels.
@@ -144,23 +215,18 @@ export default function AcceptOffer() {
       toast.error('Please confirm you agree to the offer and add your signature.');
       return;
     }
+    if (missingAddressFields.length > 0) {
+      setShowAddressErrors(true);
+      document.getElementById(missingAddressFields[0].id)?.focus();
+      return;
+    }
     setSubmitting(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
-      const res = await fetch(`${apiUrl}/partnerships/public/${id}/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSuccess(true);
-        setSuccessType('accepted');
-      } else {
-        toast.error(data.error || 'Something went wrong');
-      }
-    } catch (err: any) {
-      toast.error(err.message);
+      await acceptPublicOffer(id, { token, exp }, form);
+      setSuccess(true);
+      setSuccessType('accepted');
+    } catch (err) {
+      toast.error(getErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -174,21 +240,11 @@ export default function AcceptOffer() {
     }
     setSubmitting(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
-      const res = await fetch(`${apiUrl}/partnerships/public/${id}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedback }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSuccess(true);
-        setSuccessType('rejected');
-      } else {
-        toast.error(data.error || 'Something went wrong');
-      }
-    } catch (err: any) {
-      toast.error(err.message);
+      await rejectPublicOffer(id, { token, exp }, feedback);
+      setSuccess(true);
+      setSuccessType('rejected');
+    } catch (err) {
+      toast.error(getErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -216,7 +272,7 @@ export default function AcceptOffer() {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Proposal Not Found</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">We couldn't open this proposal</h2>
           <p className="text-gray-500 mb-6">{error}</p>
         </div>
       </div>
@@ -243,6 +299,20 @@ export default function AcceptOffer() {
               : alreadyAccepted
                 ? 'Thank you for providing your shipping address. We will prepare your shipment shortly.'
                 : 'Thank you for confirming. Your acceptance has been recorded, and the campaign manager will be in touch shortly.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (declined) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Proposal declined</h1>
+          <p className="text-gray-500">
+            This proposal has been declined and can no longer be accepted. If you have questions,
+            please contact your campaign manager.
           </p>
         </div>
       </div>
@@ -280,7 +350,16 @@ export default function AcceptOffer() {
               </div>
             </div>
 
-            <OfferSummary partnership={partnership} />
+            {feedbackSent && !showRejectForm && (
+              <p
+                role="status"
+                className="mb-8 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700"
+              >
+                Thanks, we've received your feedback. Our campaign manager will be in touch.
+              </p>
+            )}
+
+            {partnership && <OfferSummary partnership={partnership} />}
 
             {showRejectForm ? (
               <div className="space-y-4">
@@ -319,106 +398,64 @@ export default function AcceptOffer() {
               <form onSubmit={handleSubmit} className="space-y-8">
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">
-                    Shipping Address (Optional)
+                    {addressRequired ? 'Shipping address' : 'Shipping address (optional)'}
                   </h3>
                   <p className="text-xs text-gray-500">
-                    Provide your shipping address if you wish to receive products for this campaign.
+                    {addressRequired
+                      ? "We'll ship your product here. Fields marked * are required."
+                      : 'Provide your shipping address if you wish to receive products for this campaign.'}
                   </p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="col-span-2">
-                      <label
-                        htmlFor="acceptoffer-1"
-                        className="block text-sm font-medium text-gray-700"
-                      >
-                        Address Line 1
-                      </label>
-                      <input
-                        id="acceptoffer-1"
-                        type="text"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
-                        value={form.shipping_address_line1}
-                        onChange={(e) =>
-                          setForm({ ...form, shipping_address_line1: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label
-                        htmlFor="acceptoffer-2"
-                        className="block text-sm font-medium text-gray-700"
-                      >
-                        Address Line 2
-                      </label>
-                      <input
-                        id="acceptoffer-2"
-                        type="text"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
-                        value={form.shipping_address_line2}
-                        onChange={(e) =>
-                          setForm({ ...form, shipping_address_line2: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="acceptoffer-3"
-                        className="block text-sm font-medium text-gray-700"
-                      >
-                        City
-                      </label>
-                      <input
-                        id="acceptoffer-3"
-                        type="text"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
-                        value={form.shipping_city}
-                        onChange={(e) => setForm({ ...form, shipping_city: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="acceptoffer-4"
-                        className="block text-sm font-medium text-gray-700"
-                      >
-                        State / Province
-                      </label>
-                      <input
-                        id="acceptoffer-4"
-                        type="text"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
-                        value={form.shipping_state}
-                        onChange={(e) => setForm({ ...form, shipping_state: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="acceptoffer-5"
-                        className="block text-sm font-medium text-gray-700"
-                      >
-                        ZIP / Postal Code
-                      </label>
-                      <input
-                        id="acceptoffer-5"
-                        type="text"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
-                        value={form.shipping_zip}
-                        onChange={(e) => setForm({ ...form, shipping_zip: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="acceptoffer-6"
-                        className="block text-sm font-medium text-gray-700"
-                      >
-                        Country
-                      </label>
-                      <input
-                        id="acceptoffer-6"
-                        type="text"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-4 py-2 border"
-                        value={form.shipping_country}
-                        onChange={(e) => setForm({ ...form, shipping_country: e.target.value })}
-                      />
-                    </div>
+                    <AddressField
+                      id="acceptoffer-1"
+                      className="sm:col-span-2"
+                      label="Address Line 1"
+                      required={addressRequired}
+                      error={addressErrors.shipping_address_line1}
+                      value={form.shipping_address_line1}
+                      onChange={(value) =>
+                        setForm((f) => ({ ...f, shipping_address_line1: value }))
+                      }
+                    />
+                    <AddressField
+                      id="acceptoffer-2"
+                      className="sm:col-span-2"
+                      label="Address Line 2"
+                      value={form.shipping_address_line2}
+                      onChange={(value) =>
+                        setForm((f) => ({ ...f, shipping_address_line2: value }))
+                      }
+                    />
+                    <AddressField
+                      id="acceptoffer-3"
+                      label="City"
+                      required={addressRequired}
+                      error={addressErrors.shipping_city}
+                      value={form.shipping_city}
+                      onChange={(value) => setForm((f) => ({ ...f, shipping_city: value }))}
+                    />
+                    <AddressField
+                      id="acceptoffer-4"
+                      label="State / Province"
+                      required={addressRequired}
+                      error={addressErrors.shipping_state}
+                      value={form.shipping_state}
+                      onChange={(value) => setForm((f) => ({ ...f, shipping_state: value }))}
+                    />
+                    <AddressField
+                      id="acceptoffer-5"
+                      label="ZIP / Postal Code"
+                      required={addressRequired}
+                      error={addressErrors.shipping_zip}
+                      value={form.shipping_zip}
+                      onChange={(value) => setForm((f) => ({ ...f, shipping_zip: value }))}
+                    />
+                    <AddressField
+                      id="acceptoffer-6"
+                      label="Country"
+                      value={form.shipping_country}
+                      onChange={(value) => setForm((f) => ({ ...f, shipping_country: value }))}
+                    />
                   </div>
                 </div>
 
@@ -450,7 +487,7 @@ export default function AcceptOffer() {
                       <span className="block text-sm font-medium text-gray-700 mb-2">
                         Signature <span className="text-red-500">*</span>
                       </span>
-                      <div className="border border-gray-300 rounded-lg overflow-hidden bg-gray-50 relative">
+                      <div className="border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
                         {/* Pointer events cover mouse, touch and pen. touch-action: none stops a
                             phone treating the drag as a page scroll, which would never deliver the stroke. */}
                         <canvas
@@ -466,12 +503,16 @@ export default function AcceptOffer() {
                           onPointerUp={endDrawing}
                           onPointerCancel={endDrawing}
                         />
+                      </div>
+                      {/* Below the pad, not over it: on a phone the pad is only ~100px tall and a
+                          button in its corner covers signing space and gets tapped by accident. */}
+                      <div className="flex justify-end">
                         <button
                           type="button"
                           onClick={clearSignature}
-                          className="absolute bottom-2 right-2 text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded"
+                          className="px-2 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:underline"
                         >
-                          Clear
+                          Clear signature
                         </button>
                       </div>
                     </div>
