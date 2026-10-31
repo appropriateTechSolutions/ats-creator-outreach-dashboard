@@ -55,6 +55,36 @@ export const formatFollowers = (n: number | null | undefined): string => {
   return String(n);
 };
 
+/**
+ * Money for display: thousands separators, two decimals, and the symbol that
+ * belongs to the ISO currency code (`$`, `₹`, `€` …) rather than a hard-coded `$`.
+ *
+ * Accepts the numeric strings Postgres DECIMAL columns arrive as ("600.00"). An
+ * unknown amount (null, empty, not a number) is "—", never "$0.00"; a real zero
+ * still formats as "$0.00" so callers decide whether zero means "none". A missing
+ * currency is USD (the column default); a code Intl rejects falls back to
+ * "<amount> <code>".
+ */
+export const formatMoney = (
+  amount: number | string | null | undefined,
+  currency?: string | null,
+): string => {
+  if (amount === null || amount === undefined) return '—';
+  if (typeof amount === 'string' && amount.trim() === '') return '—';
+  const value = typeof amount === 'number' ? amount : Number(amount);
+  if (!Number.isFinite(value)) return '—';
+
+  const code = currency?.trim() || 'USD';
+  const digits = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: code, ...digits }).format(
+      value,
+    );
+  } catch {
+    return `${new Intl.NumberFormat('en-US', digits).format(value)} ${code}`;
+  }
+};
+
 /** The creator's handle for a given platform, stripped of a leading "@". */
 export const getPlatformHandle = (creator: Creator, platform: string): string => {
   const profileHandle = creator.profiles?.find(

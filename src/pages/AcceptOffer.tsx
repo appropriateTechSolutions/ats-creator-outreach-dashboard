@@ -1,6 +1,7 @@
 import { toast } from '../lib/toast';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { OfferSummary } from '../components/offer/OfferSummary';
 
 export default function AcceptOffer() {
   const { id } = useParams();
@@ -26,7 +27,10 @@ export default function AcceptOffer() {
 
   const [submitting, setSubmitting] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  // Stroke state lives in refs: pointermove fires faster than React re-renders, and
+  // a second finger must not be able to hijack a stroke already in progress.
+  const activePointerId = useRef<number | null>(null);
+  const hasInk = useRef(false);
 
   const alreadyAccepted =
     partnership &&
@@ -68,48 +72,76 @@ export default function AcceptOffer() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const startDrawing = (e: any) => {
+  // The canvas bitmap is 600x200 but CSS stretches it to the card width (about half
+  // that on a phone), so scale pointer positions from CSS pixels into bitmap pixels.
+  const toCanvasPoint = (canvas: HTMLCanvasElement, e: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+    const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY, scaleX };
+  };
+
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // One stroke at a time, primary button only: a right-click opens a context menu
+    // that swallows the pointerup and would leave the stroke stuck open.
+    if (activePointerId.current !== null || e.button !== 0) return;
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const { x, y, scaleX } = toCanvasPoint(canvas, e);
+    ctx.lineWidth = 2 * scaleX; // about 2 CSS px at whatever size the card renders
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.beginPath();
-    const rect = canvas.getBoundingClientRect();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-    setIsDrawing(true);
+    ctx.moveTo(x, y);
+    activePointerId.current = e.pointerId;
+    try {
+      // Keep this pointer's events coming after it leaves the canvas, so a stroke
+      // that strays off the edge ends cleanly instead of sticking.
+      canvas.setPointerCapture(e.pointerId);
+    } catch {
+      // Drawing still works without capture; it just stops following the pointer off the pad.
+    }
   };
 
-  const draw = (e: any) => {
-    if (!isDrawing) return;
+  const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerId !== activePointerId.current) return;
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const { x, y } = toCanvasPoint(canvas, e);
+    ctx.lineTo(x, y);
     ctx.stroke();
+    // Restart the path so the next segment doesn't re-stroke (and darken) the whole line so far.
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    hasInk.current = true;
   };
 
-  const endDrawing = () => {
-    setIsDrawing(false);
-    if (canvasRef.current) {
-      setForm((f) => ({ ...f, signature: canvasRef.current!.toDataURL() }));
+  // Pointer up and pointer cancel both end the stroke.
+  const endDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerId !== activePointerId.current) return;
+    activePointerId.current = null;
+    // Only a stroke that put ink down is a signature; a tap leaves the canvas blank.
+    if (hasInk.current && canvasRef.current) {
+      const signature = canvasRef.current.toDataURL();
+      setForm((f) => ({ ...f, signature }));
     }
   };
 
   const clearSignature = () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasInk.current = false;
     setForm((f) => ({ ...f, signature: '' }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!alreadyAccepted && (!form.terms_accepted || !form.signature)) {
-      toast.error('Please accept the terms and provide a signature.');
+      toast.error('Please confirm you agree to the offer and add your signature.');
       return;
     }
     setSubmitting(true);
@@ -247,6 +279,8 @@ export default function AcceptOffer() {
                 <p className="text-gray-500 text-sm">@{partnership?.Creator?.handle}</p>
               </div>
             </div>
+
+            <OfferSummary partnership={partnership} />
 
             {showRejectForm ? (
               <div className="space-y-4">
@@ -407,12 +441,8 @@ export default function AcceptOffer() {
                       </div>
                       <div className="ml-3 text-sm">
                         <label htmlFor="terms" className="font-medium text-gray-700">
-                          I accept the Terms & Conditions
+                          I agree to the deliverables and compensation above.
                         </label>
-                        <p className="text-gray-500">
-                          By checking this box, you agree to the campaign deliverables and
-                          requirements.
-                        </p>
                       </div>
                     </div>
 
@@ -421,15 +451,20 @@ export default function AcceptOffer() {
                         Signature <span className="text-red-500">*</span>
                       </span>
                       <div className="border border-gray-300 rounded-lg overflow-hidden bg-gray-50 relative">
+                        {/* Pointer events cover mouse, touch and pen. touch-action: none stops a
+                            phone treating the drag as a page scroll, which would never deliver the stroke. */}
                         <canvas
                           ref={canvasRef}
                           width={600}
                           height={200}
+                          role="img"
+                          aria-label="Signature pad"
                           className="w-full bg-white cursor-crosshair"
-                          onMouseDown={startDrawing}
-                          onMouseMove={draw}
-                          onMouseUp={endDrawing}
-                          onMouseLeave={endDrawing}
+                          style={{ touchAction: 'none' }}
+                          onPointerDown={startDrawing}
+                          onPointerMove={draw}
+                          onPointerUp={endDrawing}
+                          onPointerCancel={endDrawing}
                         />
                         <button
                           type="button"
